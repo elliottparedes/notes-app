@@ -1,0 +1,493 @@
+<script setup lang="ts">
+import type { UpdateNoteDto } from '~/models';
+
+const route = useRoute();
+const router = useRouter();
+const notesStore = useNotesStore();
+const toast = useToast();
+
+const noteId = computed(() => parseInt(route.params.id as string));
+const isSaving = ref(false);
+const isLoading = ref(true);
+const autoSaveTimeout = ref<NodeJS.Timeout | null>(null);
+const showShortcuts = ref(false);
+
+const editForm = reactive<UpdateNoteDto & { content: string }>({
+  title: '',
+  content: '',
+  tags: [],
+  folder: ''
+});
+
+const currentNote = computed(() => notesStore.currentNote);
+
+// Character and word count
+const wordCount = computed(() => {
+  if (!editForm.content) return 0;
+  return editForm.content.trim().split(/\s+/).filter(word => word.length > 0).length;
+});
+
+const charCount = computed(() => {
+  return editForm.content?.length || 0;
+});
+
+// Fetch note on mount
+onMounted(async () => {
+  isLoading.value = true;
+  try {
+    await notesStore.fetchNote(noteId.value);
+    if (currentNote.value) {
+      Object.assign(editForm, {
+        title: currentNote.value.title,
+        content: currentNote.value.content || '',
+        tags: currentNote.value.tags || [],
+        folder: currentNote.value.folder || ''
+      });
+    }
+    
+    // Small delay to prevent flash
+    await new Promise(resolve => setTimeout(resolve, 300));
+  } catch (error) {
+    toast.add({
+      title: 'Error',
+      description: 'Failed to load note',
+      color: 'error'
+    });
+    router.push('/dashboard');
+  } finally {
+    isLoading.value = false;
+  }
+});
+
+// Auto-save on content change
+watch([() => editForm.title, () => editForm.content, () => editForm.folder], () => {
+  if (autoSaveTimeout.value) {
+    clearTimeout(autoSaveTimeout.value);
+  }
+  
+  autoSaveTimeout.value = setTimeout(() => {
+    saveNote(true);
+  }, 1000); // Auto-save after 1 second of inactivity
+});
+
+async function saveNote(silent = false) {
+  if (!editForm.title?.trim()) {
+    if (!silent) {
+      toast.add({
+        title: 'Validation Error',
+        description: 'Title is required',
+        color: 'error'
+      });
+    }
+    return;
+  }
+
+  isSaving.value = true;
+
+  try {
+    await notesStore.updateNote(noteId.value, editForm);
+    if (!silent) {
+      toast.add({
+        title: 'Success',
+        description: 'Note saved',
+        color: 'success'
+      });
+    }
+  } catch (error) {
+    if (!silent) {
+      toast.add({
+        title: 'Error',
+        description: 'Failed to save note',
+        color: 'error'
+      });
+    }
+  } finally {
+    isSaving.value = false;
+  }
+}
+
+async function deleteNote() {
+  if (!confirm(`Delete "${editForm.title}"?`)) {
+    return;
+  }
+
+  try {
+    await notesStore.deleteNote(noteId.value);
+    toast.add({
+      title: 'Success',
+      description: 'Note deleted',
+      color: 'success'
+    });
+    router.push('/dashboard');
+  } catch (error) {
+    toast.add({
+      title: 'Error',
+      description: 'Failed to delete note',
+      color: 'error'
+    });
+  }
+}
+
+function formatDate(date: Date): string {
+  return new Date(date).toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+}
+
+// Handle tags input
+const tagInput = ref('');
+
+function addTag() {
+  if (tagInput.value.trim() && !editForm.tags?.includes(tagInput.value.trim())) {
+    if (!editForm.tags) editForm.tags = [];
+    editForm.tags.push(tagInput.value.trim());
+    tagInput.value = '';
+    saveNote(true);
+  }
+}
+
+function removeTag(tag: string) {
+  if (editForm.tags) {
+    editForm.tags = editForm.tags.filter(t => t !== tag);
+    saveNote(true);
+  }
+}
+
+// Cleanup auto-save timeout
+onUnmounted(() => {
+  if (autoSaveTimeout.value) {
+    clearTimeout(autoSaveTimeout.value);
+  }
+});
+</script>
+
+<template>
+  <div class="flex flex-col h-screen bg-gray-50 dark:bg-gray-900 overflow-hidden">
+    <!-- Top Navigation Bar -->
+    <header class="sticky top-0 z-50 bg-white/80 dark:bg-gray-800/80 backdrop-blur-lg border-b border-gray-200 dark:border-gray-700 shadow-sm">
+      <div class="flex items-center justify-between h-16 px-4 md:px-6">
+        <!-- Left: Back Button & Logo -->
+        <div class="flex items-center gap-3">
+          <UButton
+            icon="i-heroicons-arrow-left"
+            color="neutral"
+            variant="ghost"
+            size="sm"
+            @click="router.push('/dashboard')"
+          />
+          <div class="flex items-center gap-2">
+            <div class="w-8 h-8 bg-gradient-to-br from-primary-500 to-primary-600 rounded-lg flex items-center justify-center shadow-lg">
+              <UIcon name="i-heroicons-document-text" class="w-5 h-5 text-white" />
+            </div>
+            <h1 class="text-lg font-bold text-gray-900 dark:text-white hidden md:block">Notes</h1>
+          </div>
+        </div>
+
+        <!-- Right: Note Actions -->
+        <div class="flex items-center gap-2">
+          <!-- Save Status -->
+          <div v-if="isSaving" class="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+            <UIcon name="i-heroicons-arrow-path" class="w-4 h-4 animate-spin" />
+            <span class="hidden sm:inline">Saving...</span>
+          </div>
+          <div v-else class="flex items-center gap-2 text-xs text-green-600 dark:text-green-400">
+            <UIcon name="i-heroicons-check-circle" class="w-4 h-4" />
+            <span class="hidden sm:inline">Saved</span>
+          </div>
+          
+          <!-- Keyboard Shortcuts -->
+          <UButton
+            icon="i-heroicons-question-mark-circle"
+            color="neutral"
+            variant="ghost"
+            size="sm"
+            @click="showShortcuts = true"
+            title="Keyboard Shortcuts"
+          />
+          
+          <!-- Delete -->
+          <UButton
+            icon="i-heroicons-trash"
+            color="error"
+            variant="ghost"
+            size="sm"
+            @click="deleteNote"
+          />
+        </div>
+      </div>
+    </header>
+
+    <!-- Loading State -->
+    <div v-if="isLoading" class="flex-1 flex items-center justify-center">
+      <div class="text-center">
+        <UIcon name="i-heroicons-arrow-path" class="w-12 h-12 animate-spin mx-auto text-primary-600 mb-4" />
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">Loading note...</h3>
+        <p class="text-sm text-gray-500 dark:text-gray-400">Please wait a moment</p>
+      </div>
+    </div>
+
+    <!-- Editor Container -->
+    <div v-else class="flex-1 flex flex-col overflow-hidden">
+      <!-- Note Header (Title & Stats) -->
+      <div class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 md:px-6 py-6">
+        <div class="max-w-5xl mx-auto">
+          <input
+            v-model="editForm.title"
+            type="text"
+            class="w-full bg-transparent border-none outline-none text-3xl md:text-4xl font-bold text-gray-900 dark:text-white placeholder-gray-400 mb-3"
+            placeholder="Untitled Note"
+          />
+          <div class="flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400 flex-wrap">
+            <span v-if="currentNote" class="flex items-center gap-1">
+              <UIcon name="i-heroicons-clock" class="w-3.5 h-3.5" />
+              {{ formatDate(currentNote.updated_at) }}
+            </span>
+            <span class="flex items-center gap-1">
+              <UIcon name="i-heroicons-document-text" class="w-3.5 h-3.5" />
+              {{ wordCount }} words
+            </span>
+            <span class="flex items-center gap-1">
+              <UIcon name="i-heroicons-chart-bar" class="w-3.5 h-3.5" />
+              {{ charCount }} characters
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Metadata Bar -->
+      <div class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 md:px-6 py-3">
+        <div class="max-w-5xl mx-auto">
+          <div class="flex items-center gap-4 text-sm flex-wrap">
+            <!-- Folder -->
+            <div class="flex items-center gap-2">
+              <UIcon name="i-heroicons-folder" class="w-4 h-4 text-gray-400" />
+              <div class="relative">
+                <input
+                  v-model="editForm.folder"
+                  type="text"
+                  list="folder-suggestions"
+                  class="bg-transparent border-none outline-none text-gray-600 dark:text-gray-400 placeholder-gray-400 w-40"
+                  placeholder="No folder"
+                />
+                <datalist id="folder-suggestions">
+                  <option v-for="folder in notesStore.folders" :key="folder" :value="folder" />
+                </datalist>
+              </div>
+            </div>
+
+            <!-- Tags -->
+            <div class="flex items-center gap-2 flex-1 min-w-0">
+              <UIcon name="i-heroicons-tag" class="w-4 h-4 text-gray-400 flex-shrink-0" />
+              <div class="flex items-center gap-1 flex-wrap">
+                <UBadge
+                  v-for="tag in editForm.tags"
+                  :key="tag"
+                  color="primary"
+                  variant="soft"
+                  size="xs"
+                  class="cursor-pointer hover:bg-primary-200 dark:hover:bg-primary-800"
+                  @click="removeTag(tag)"
+                >
+                  {{ tag }}
+                  <UIcon name="i-heroicons-x-mark" class="w-3 h-3 ml-1" />
+                </UBadge>
+                <input
+                  v-model="tagInput"
+                  type="text"
+                  class="bg-transparent border-none outline-none text-gray-600 dark:text-gray-400 placeholder-gray-400 text-sm w-24"
+                  placeholder="Add tag..."
+                  @keyup.enter="addTag"
+                  @blur="addTag"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- WYSIWYG Editor Area -->
+      <div class="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-900">
+        <div class="max-w-5xl mx-auto py-6 px-4 md:px-6">
+          <ClientOnly>
+            <TiptapEditor
+              v-model="editForm.content"
+              placeholder="Start writing..."
+            />
+          </ClientOnly>
+        </div>
+      </div>
+    </div>
+
+    <!-- Keyboard Shortcuts Modal -->
+    <Teleport to="body">
+      <Transition name="modal">
+        <div
+          v-if="showShortcuts"
+          class="fixed inset-0 z-50 flex items-center justify-center p-4"
+        >
+          <!-- Backdrop -->
+          <div
+            class="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            @click="showShortcuts = false"
+          />
+          
+          <!-- Modal -->
+          <div class="relative bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-md w-full p-6 border border-gray-200 dark:border-gray-700">
+            <!-- Header -->
+            <div class="flex items-center justify-between mb-6">
+              <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
+                Keyboard Shortcuts
+              </h3>
+              <button
+                @click="showShortcuts = false"
+                class="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+              >
+                <UIcon name="i-heroicons-x-mark" class="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+
+            <!-- Shortcuts List -->
+            <div class="space-y-4">
+              <!-- Formatting -->
+              <div>
+                <h4 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Formatting</h4>
+                <div class="space-y-2">
+                  <div class="flex items-center justify-between text-sm">
+                    <span class="text-gray-600 dark:text-gray-400">Bold</span>
+                    <kbd class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs font-mono">⌘ B</kbd>
+                  </div>
+                  <div class="flex items-center justify-between text-sm">
+                    <span class="text-gray-600 dark:text-gray-400">Italic</span>
+                    <kbd class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs font-mono">⌘ I</kbd>
+                  </div>
+                  <div class="flex items-center justify-between text-sm">
+                    <span class="text-gray-600 dark:text-gray-400">Code</span>
+                    <kbd class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs font-mono">⌘ E</kbd>
+                  </div>
+                  <div class="flex items-center justify-between text-sm">
+                    <span class="text-gray-600 dark:text-gray-400">Link</span>
+                    <kbd class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs font-mono">⌘ K</kbd>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Headings -->
+              <div>
+                <h4 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Headings</h4>
+                <div class="space-y-2">
+                  <div class="flex items-center justify-between text-sm">
+                    <span class="text-gray-600 dark:text-gray-400">Heading 1-6</span>
+                    <kbd class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs font-mono">⌘ ⌥ 1-6</kbd>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Actions -->
+              <div>
+                <h4 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Actions</h4>
+                <div class="space-y-2">
+                  <div class="flex items-center justify-between text-sm">
+                    <span class="text-gray-600 dark:text-gray-400">Undo</span>
+                    <kbd class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs font-mono">⌘ Z</kbd>
+                  </div>
+                  <div class="flex items-center justify-between text-sm">
+                    <span class="text-gray-600 dark:text-gray-400">Redo</span>
+                    <kbd class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs font-mono">⌘ ⇧ Z</kbd>
+                  </div>
+                </div>
+              </div>
+
+                <!-- Insert -->
+                <div>
+                  <h4 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Insert</h4>
+                  <div class="space-y-2">
+                    <div class="flex items-center justify-between text-sm">
+                      <span class="text-gray-600 dark:text-gray-400">Image</span>
+                      <kbd class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">Image icon</kbd>
+                    </div>
+                    <div class="flex items-center justify-between text-sm">
+                      <span class="text-gray-600 dark:text-gray-400">Table</span>
+                      <kbd class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">Table icon</kbd>
+                    </div>
+                    <div class="flex items-center justify-between text-sm">
+                      <span class="text-gray-600 dark:text-gray-400">Add/delete columns/rows</span>
+                      <kbd class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">Toolbar buttons</kbd>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+            <!-- Footer Tip -->
+            <div class="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
+              <p class="text-xs text-gray-500 dark:text-gray-400">
+                💡 Tip: Use the toolbar above the editor for formatting
+              </p>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+  </div>
+</template>
+
+<style scoped>
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(156, 163, 175, 0.3);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(156, 163, 175, 0.5);
+}
+
+/* Remove input autofill background */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0px 1000px white inset;
+  transition: background-color 5000s ease-in-out 0s;
+}
+
+.dark input:-webkit-autofill,
+.dark input:-webkit-autofill:hover,
+.dark input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0px 1000px #1f2937 inset;
+  -webkit-text-fill-color: #f3f4f6;
+}
+
+/* Modal animation */
+.modal-enter-active,
+.modal-leave-active {
+  transition: all 0.3s ease;
+}
+
+.modal-enter-active > div:last-child,
+.modal-leave-active > div:last-child {
+  transition: all 0.3s ease;
+}
+
+.modal-enter-from > div:first-child,
+.modal-leave-to > div:first-child {
+  opacity: 0;
+}
+
+.modal-enter-from > div:last-child,
+.modal-leave-to > div:last-child {
+  opacity: 0;
+  transform: scale(0.95) translateY(-20px);
+}
+</style>

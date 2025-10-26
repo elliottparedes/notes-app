@@ -1,0 +1,136 @@
+import type { UpdateNoteDto, Note } from '../../../models';
+import { executeQuery, parseJsonField } from '../../utils/db';
+import { requireAuth } from '../../utils/auth';
+
+interface NoteRow {
+  id: number;
+  user_id: number;
+  title: string;
+  content: string | null;
+  tags: string | null;
+  is_favorite: number;
+  folder: string | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export default defineEventHandler(async (event): Promise<Note> => {
+  // Authenticate user
+  const userId = await requireAuth(event);
+  const noteId = getRouterParam(event, 'id');
+  const body = await readBody<UpdateNoteDto>(event);
+
+  if (!noteId) {
+    throw createError({
+      statusCode: 400,
+      message: 'Note ID is required'
+    });
+  }
+
+  try {
+    // Check if note exists and belongs to user
+    const existingRows = await executeQuery<NoteRow[]>(
+      'SELECT id FROM notes WHERE id = ? AND user_id = ?',
+      [noteId, userId]
+    );
+
+    if (existingRows.length === 0) {
+      throw createError({
+        statusCode: 404,
+        message: 'Note not found'
+      });
+    }
+
+    // Build update query dynamically
+    const updates: string[] = [];
+    const values: unknown[] = [];
+
+    if (body.title !== undefined) {
+      if (body.title.trim() === '') {
+        throw createError({
+          statusCode: 400,
+          message: 'Title cannot be empty'
+        });
+      }
+      updates.push('title = ?');
+      values.push(body.title);
+    }
+
+    if (body.content !== undefined) {
+      updates.push('content = ?');
+      values.push(body.content);
+    }
+
+    if (body.tags !== undefined) {
+      updates.push('tags = ?');
+      values.push(body.tags && body.tags.length > 0 ? JSON.stringify(body.tags) : null);
+    }
+
+    if (body.is_favorite !== undefined) {
+      updates.push('is_favorite = ?');
+      values.push(body.is_favorite);
+    }
+
+    if (body.folder !== undefined) {
+      updates.push('folder = ?');
+      values.push(body.folder);
+    }
+
+    if (updates.length === 0) {
+      throw createError({
+        statusCode: 400,
+        message: 'No fields to update'
+      });
+    }
+
+    // Add WHERE clause parameters
+    values.push(noteId, userId);
+
+    // Execute update
+    await executeQuery(
+      `UPDATE notes SET ${updates.join(', ')} WHERE id = ? AND user_id = ?`,
+      values
+    );
+
+    // Fetch updated note
+    const rows = await executeQuery<NoteRow[]>(
+      'SELECT * FROM notes WHERE id = ?',
+      [noteId]
+    );
+
+    const row = rows[0];
+    if (!row) {
+      throw createError({
+        statusCode: 500,
+        message: 'Failed to fetch updated note'
+      });
+    }
+
+    // Transform to Note object
+    const note: Note = {
+      id: row.id,
+      user_id: row.user_id,
+      title: row.title,
+      content: row.content,
+      tags: parseJsonField<string[]>(row.tags),
+      is_favorite: Boolean(row.is_favorite),
+      folder: row.folder,
+      created_at: row.created_at,
+      updated_at: row.updated_at
+    };
+
+    return note;
+  } catch (error: unknown) {
+    // If it's already a createError, rethrow it
+    if (error && typeof error === 'object' && 'statusCode' in error) {
+      throw error;
+    }
+
+    console.error('Update note error:', error);
+    throw createError({
+      statusCode: 500,
+      message: 'Failed to update note'
+    });
+  }
+});
+
