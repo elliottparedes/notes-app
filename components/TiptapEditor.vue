@@ -13,10 +13,13 @@ import Image from '@tiptap/extension-image'
 import { marked } from 'marked'
 import type { Level } from '@tiptap/extension-heading'
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   modelValue: string
   placeholder?: string
-}>()
+  editable?: boolean
+}>(), {
+  editable: true
+})
 
 const emit = defineEmits<{
   (e: 'update:modelValue', value: string): void
@@ -26,8 +29,89 @@ const emit = defineEmits<{
 function htmlToMarkdown(html: string): string {
   if (!html) return ''
   
-  // Basic HTML to Markdown conversion
   let markdown = html
+  
+  // STEP 1: Handle complex structures first (before simple tag replacements)
+  
+  // Convert tables to markdown
+  markdown = markdown.replace(/<table[^>]*>(.*?)<\/table>/gis, (match, tableContent) => {
+    const rows: string[] = []
+    
+    // Extract all rows
+    const rowMatches = tableContent.match(/<tr[^>]*>.*?<\/tr>/gis) || []
+    
+    rowMatches.forEach((row: string, index: number) => {
+      // Extract cells (both th and td)
+      const cellMatches = row.match(/<(th|td)[^>]*>(.*?)<\/(th|td)>/gis) || []
+      const cells = cellMatches.map((cell: string) => {
+        // Remove cell tags and clean content
+        return cell.replace(/<\/?t[hd][^>]*>/gi, '').replace(/<p[^>]*>/gi, '').replace(/<\/p>/gi, '').trim()
+      })
+      
+      if (cells.length > 0) {
+        // Create markdown row
+        rows.push('| ' + cells.join(' | ') + ' |')
+        
+        // Add separator after header row (first row)
+        if (index === 0) {
+          rows.push('| ' + cells.map(() => '---').join(' | ') + ' |')
+        }
+      }
+    })
+    
+    return rows.length > 0 ? '\n' + rows.join('\n') + '\n\n' : ''
+  })
+  
+  // Convert code blocks (BEFORE inline code)
+  markdown = markdown.replace(/<pre><code[^>]*>(.*?)<\/code><\/pre>/gis, (match, code) => {
+    // Preserve the actual content and decode entities
+    const cleanCode = code
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&amp;/g, '&')
+      .replace(/&quot;/g, '"')
+      .trim()
+    return '\n```\n' + cleanCode + '\n```\n\n'
+  })
+  
+  // Convert task lists (handle the special data-type="taskList" structure)
+  markdown = markdown.replace(/<ul\s+data-type="taskList"[^>]*>(.*?)<\/ul>/gis, (match, listContent) => {
+    let taskListMarkdown = '\n'
+    
+    // Match task items - they can have data-checked before or after data-type
+    const taskItems = listContent.match(/<li[^>]*data-type="taskItem"[^>]*>(.*?)<\/li>/gis) || []
+    
+    taskItems.forEach((item: string) => {
+      // Extract the checked state
+      const isChecked = /data-checked="true"/.test(item)
+      const checkbox = isChecked ? '[x]' : '[ ]'
+      
+      // Extract content from the complex Tiptap structure
+      // Structure: <li ...><label><input...><span></span></label><div><p>content</p></div></li>
+      let content = item
+        .replace(/<li[^>]*>/gi, '')
+        .replace(/<\/li>/gi, '')
+        .replace(/<label[^>]*>.*?<\/label>/gis, '') // Remove entire label block
+        .replace(/<div[^>]*>/gi, '')
+        .replace(/<\/div>/gi, '')
+        .replace(/<p[^>]*>/gi, '')
+        .replace(/<\/p>/gi, ' ')
+        .replace(/<span[^>]*>/gi, '')
+        .replace(/<\/span>/gi, '')
+        .trim()
+      
+      if (content) {
+        taskListMarkdown += `- ${checkbox} ${content}\n`
+      }
+    })
+    
+    return taskListMarkdown + '\n'
+  })
+  
+  // STEP 2: Handle standard HTML elements
+  markdown = markdown
     // Headers
     .replace(/<h1[^>]*>(.*?)<\/h1>/gi, '# $1\n\n')
     .replace(/<h2[^>]*>(.*?)<\/h2>/gi, '## $1\n\n')
@@ -35,6 +119,11 @@ function htmlToMarkdown(html: string): string {
     .replace(/<h4[^>]*>(.*?)<\/h4>/gi, '#### $1\n\n')
     .replace(/<h5[^>]*>(.*?)<\/h5>/gi, '##### $1\n\n')
     .replace(/<h6[^>]*>(.*?)<\/h6>/gi, '###### $1\n\n')
+    // Blockquotes
+    .replace(/<blockquote[^>]*>(.*?)<\/blockquote>/gis, (match, content) => {
+      const cleaned = content.replace(/<p[^>]*>/gi, '').replace(/<\/p>/gi, '\n').trim()
+      return '\n> ' + cleaned.replace(/\n/g, '\n> ') + '\n\n'
+    })
     // Bold and italic
     .replace(/<strong[^>]*>(.*?)<\/strong>/gi, '**$1**')
     .replace(/<b[^>]*>(.*?)<\/b>/gi, '**$1**')
@@ -43,33 +132,37 @@ function htmlToMarkdown(html: string): string {
     // Strikethrough
     .replace(/<s[^>]*>(.*?)<\/s>/gi, '~~$1~~')
     .replace(/<del[^>]*>(.*?)<\/del>/gi, '~~$1~~')
-    // Code
+    // Inline code (after code blocks)
     .replace(/<code[^>]*>(.*?)<\/code>/gi, '`$1`')
-    .replace(/<pre><code[^>]*>(.*?)<\/code><\/pre>/gis, '\n```\n$1\n```\n\n')
     // Links
     .replace(/<a[^>]*href="([^"]*)"[^>]*>(.*?)<\/a>/gi, '[$2]($1)')
     // Images
     .replace(/<img[^>]*src="([^"]*)"[^>]*alt="([^"]*)"[^>]*\/?>/gi, '![$2]($1)')
     .replace(/<img[^>]*src="([^"]*)"[^>]*\/?>/gi, '![]($1)')
-    // Lists
-    .replace(/<li[^>]*>(.*?)<\/li>/gi, '- $1\n')
-    .replace(/<ul[^>]*>(.*?)<\/ul>/gis, '\n$1\n')
-    .replace(/<ol[^>]*>(.*?)<\/ol>/gis, '\n$1\n')
-    // Blockquotes
-    .replace(/<blockquote[^>]*>(.*?)<\/blockquote>/gis, (match, content) => {
-      return '\n> ' + content.trim().replace(/\n/g, '\n> ') + '\n\n'
+    // Regular lists (bullet)
+    .replace(/<ul[^>]*>(.*?)<\/ul>/gis, (match, listContent) => {
+      // Skip if it's a task list (already handled)
+      if (match.includes('data-type="taskList"')) return match
+      return '\n' + listContent + '\n'
     })
-    // Task lists
-    .replace(/<li[^>]*data-checked="true"[^>]*>(.*?)<\/li>/gi, '- [x] $1\n')
-    .replace(/<li[^>]*data-checked="false"[^>]*>(.*?)<\/li>/gi, '- [ ] $1\n')
+    // Ordered lists
+    .replace(/<ol[^>]*>(.*?)<\/ol>/gis, '\n$1\n')
+    // List items (regular)
+    .replace(/<li[^>]*>(.*?)<\/li>/gi, (match, content) => {
+      // Skip if it's a task item (already handled)
+      if (match.includes('data-type="taskItem"')) return ''
+      return '- ' + content.trim() + '\n'
+    })
     // Paragraphs
     .replace(/<p[^>]*>(.*?)<\/p>/gi, '$1\n\n')
     // Line breaks
     .replace(/<br\s*\/?>/gi, '\n')
     // Horizontal rule
     .replace(/<hr\s*\/?>/gi, '\n---\n\n')
-    // Remove remaining HTML tags
-    .replace(/<[^>]+>/g, '')
+  
+  // STEP 3: Cleanup
+  // Remove remaining HTML tags
+  markdown = markdown.replace(/<[^>]+>/g, '')
     // Clean up HTML entities
     .replace(/&nbsp;/g, ' ')
     .replace(/&lt;/g, '<')
@@ -87,7 +180,65 @@ function htmlToMarkdown(html: string): string {
 const markdownToHtml = (markdown: string): string => {
   if (!markdown) return ''
   try {
-    return marked.parse(markdown) as string
+    // Debug: Log the input markdown
+    if (markdown.includes('[ ]') || markdown.includes('[x]')) {
+      console.log('📝 Input markdown with tasks:', markdown)
+    }
+    
+    // Configure marked to support GFM (GitHub Flavored Markdown) including task lists
+    marked.setOptions({
+      gfm: true,
+      breaks: true,
+    })
+    
+    let html = marked.parse(markdown) as string
+    
+    // Debug: Log the raw HTML from marked
+    if (markdown.includes('[ ]') || markdown.includes('[x]')) {
+      console.log('🔄 Marked HTML output:', html)
+    }
+    if (html.includes('checkbox')) {
+      console.log('✅ Found checkbox in HTML')
+    }
+    
+    // Post-process: Convert marked's task list format to Tiptap's format
+    // Marked converts "- [ ] task" and "- [x] task" to <input type="checkbox"> inside <li>
+    // But Tiptap needs data-type="taskList" and data-type="taskItem" attributes
+    
+    // Step 1: Find all <ul> that contain task items (inputs with checkboxes)
+    html = html.replace(/<ul>\s*([\s\S]*?)<\/ul>/gi, (ulMatch, ulContent) => {
+      // Check if this ul contains checkboxes (task list indicators)
+      if (/<input[^>]*type="checkbox"/.test(ulContent)) {
+        console.log('Found task list, converting...')
+        console.log('Original UL content:', ulContent)
+        
+        // Convert each li with checkbox to taskItem format
+        const convertedContent = ulContent.replace(
+          /<li>\s*<input\s+([^>]*)type="checkbox"([^>]*)>\s*(.*?)<\/li>/gi,
+          (liMatch: string, before: string, after: string, content: string) => {
+            // Check if checkbox is checked
+            const isChecked = /checked/.test(before + after) ? 'true' : 'false'
+            const converted = `<li data-type="taskItem" data-checked="${isChecked}">${content.trim()}</li>`
+            console.log('Converted task item:', converted)
+            return converted
+          }
+        )
+        
+        const result = `<ul data-type="taskList">${convertedContent}</ul>`
+        console.log('Final taskList HTML:', result)
+        // Return as taskList
+        return result
+      }
+      // Return regular ul unchanged
+      return ulMatch
+    })
+    
+    // Debug: Log the final converted HTML
+    if (html.includes('taskList')) {
+      console.log('Final HTML with taskList:', html)
+    }
+    
+    return html
   } catch (error) {
     console.error('Markdown parse error:', error)
     return markdown
@@ -120,6 +271,9 @@ const editor = useEditor({
     TaskList,
     TaskItem.configure({
       nested: true,
+      HTMLAttributes: {
+        class: 'task-item-wrapper',
+      },
     }),
     Table.configure({
       resizable: true,
@@ -129,6 +283,7 @@ const editor = useEditor({
     TableCell,
   ],
   content: markdownToHtml(props.modelValue),
+  editable: props.editable,
   editorProps: {
     attributes: {
       class: 'prose prose-sm sm:prose lg:prose-lg dark:prose-invert max-w-none focus:outline-none min-h-[400px] px-4 py-6',
@@ -137,6 +292,13 @@ const editor = useEditor({
   onUpdate: ({ editor }) => {
     const html = editor.getHTML()
     const markdown = htmlToMarkdown(html)
+    
+    // Debug: Log task list conversions
+    if (html.includes('data-type="taskList"') || html.includes('data-type="taskItem"')) {
+      console.log('💾 Saving HTML with taskList:', html)
+      console.log('💾 Converted to markdown:', markdown)
+    }
+    
     emit('update:modelValue', markdown)
   },
 })
@@ -148,6 +310,13 @@ watch(() => props.modelValue, (newValue) => {
     if (currentMarkdown !== newValue) {
       editor.value.commands.setContent(markdownToHtml(newValue))
     }
+  }
+})
+
+// Watch for changes to editable prop
+watch(() => props.editable, (newEditable) => {
+  if (editor.value) {
+    editor.value.setEditable(newEditable)
   }
 })
 
@@ -176,9 +345,9 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div v-if="editor" class="tiptap-wrapper bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
-    <!-- Toolbar -->
-    <div class="flex items-center gap-2 p-3 border-b border-gray-200 dark:border-gray-700 flex-wrap">
+  <div v-if="editor" class="tiptap-wrapper bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700" :class="{ 'editor-locked': !editable }">
+    <!-- Toolbar (Hidden when locked) -->
+    <div v-if="editable" class="flex items-center gap-2 p-3 border-b border-gray-200 dark:border-gray-700 flex-wrap">
       <!-- Text Style -->
       <div class="flex items-center gap-1 border-r border-gray-200 dark:border-gray-700 pr-2">
         <button
@@ -357,6 +526,27 @@ onBeforeUnmount(() => {
 .tiptap-wrapper :deep(.ProseMirror) {
   min-height: 400px;
   outline: none;
+}
+
+/* Locked editor styles - clean read-only mode */
+.tiptap-wrapper.editor-locked {
+  background-color: #ffffff !important;
+  cursor: default;
+  border: none !important;
+}
+
+.dark .tiptap-wrapper.editor-locked {
+  background-color: #1f2937 !important;
+}
+
+.tiptap-wrapper.editor-locked :deep(.ProseMirror) {
+  cursor: default;
+  user-select: text;
+  background-color: #ffffff !important;
+}
+
+.dark .tiptap-wrapper.editor-locked :deep(.ProseMirror) {
+  background-color: #1f2937 !important;
 }
 
 .tiptap-wrapper :deep(.ProseMirror p.is-editor-empty:first-child::before) {
@@ -544,7 +734,8 @@ onBeforeUnmount(() => {
 }
 
 .tiptap-wrapper :deep(.ProseMirror ul[data-type="taskList"] li input[type="checkbox"]:focus) {
-  ring-color: #3b82f6;
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
 }
 
 .tiptap-wrapper :deep(.ProseMirror table) {

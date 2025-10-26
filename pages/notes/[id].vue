@@ -11,6 +11,9 @@ const isSaving = ref(false);
 const isLoading = ref(true);
 const autoSaveTimeout = ref<NodeJS.Timeout | null>(null);
 const showShortcuts = ref(false);
+const showDeleteModal = ref(false);
+const isDeleting = ref(false);
+const isLocked = ref(false);
 
 const editForm = reactive<UpdateNoteDto & { content: string }>({
   title: '',
@@ -45,6 +48,14 @@ onMounted(async () => {
       });
     }
     
+    // Load lock state from localStorage
+    if (process.client) {
+      const savedLockState = localStorage.getItem(`note-${noteId.value}-locked`);
+      if (savedLockState === 'true') {
+        isLocked.value = true;
+      }
+    }
+    
     // Small delay to prevent flash
     await new Promise(resolve => setTimeout(resolve, 300));
   } catch (error) {
@@ -59,8 +70,10 @@ onMounted(async () => {
   }
 });
 
-// Auto-save on content change
+// Auto-save on content change (only when not locked)
 watch([() => editForm.title, () => editForm.content, () => editForm.folder], () => {
+  if (isLocked.value) return; // Don't auto-save when locked
+  
   if (autoSaveTimeout.value) {
     clearTimeout(autoSaveTimeout.value);
   }
@@ -69,6 +82,30 @@ watch([() => editForm.title, () => editForm.content, () => editForm.folder], () 
     saveNote(true);
   }, 1000); // Auto-save after 1 second of inactivity
 });
+
+// Toggle lock state
+function toggleLock() {
+  isLocked.value = !isLocked.value;
+  
+  // Save lock state to localStorage
+  if (process.client) {
+    localStorage.setItem(`note-${noteId.value}-locked`, isLocked.value.toString());
+  }
+  
+  if (isLocked.value) {
+    toast.add({
+      title: 'Note Locked',
+      description: 'Read-only mode activated',
+      color: 'success'
+    });
+  } else {
+    toast.add({
+      title: 'Note Unlocked',
+      description: 'You can now edit this note',
+      color: 'success'
+    });
+  }
+}
 
 async function saveNote(silent = false) {
   if (!editForm.title?.trim()) {
@@ -106,10 +143,12 @@ async function saveNote(silent = false) {
   }
 }
 
-async function deleteNote() {
-  if (!confirm(`Delete "${editForm.title}"?`)) {
-    return;
-  }
+function deleteNote() {
+  showDeleteModal.value = true;
+}
+
+async function confirmDelete() {
+  isDeleting.value = true;
 
   try {
     await notesStore.deleteNote(noteId.value);
@@ -118,6 +157,7 @@ async function deleteNote() {
       description: 'Note deleted',
       color: 'success'
     });
+    showDeleteModal.value = false;
     router.push('/dashboard');
   } catch (error) {
     toast.add({
@@ -125,7 +165,13 @@ async function deleteNote() {
       description: 'Failed to delete note',
       color: 'error'
     });
+  } finally {
+    isDeleting.value = false;
   }
+}
+
+function cancelDelete() {
+  showDeleteModal.value = false;
 }
 
 function formatDate(date: Date): string {
@@ -166,7 +212,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="flex flex-col h-screen bg-gray-50 dark:bg-gray-900 overflow-hidden">
+  <div class="flex flex-col h-screen overflow-hidden" :class="isLocked ? 'bg-white dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-900'">
     <!-- Top Navigation Bar -->
     <header class="sticky top-0 z-50 bg-white/80 dark:bg-gray-800/80 backdrop-blur-lg border-b border-gray-200 dark:border-gray-700 shadow-sm">
       <div class="flex items-center justify-between h-16 px-4 md:px-6">
@@ -198,6 +244,16 @@ onUnmounted(() => {
             <UIcon name="i-heroicons-check-circle" class="w-4 h-4" />
             <span class="hidden sm:inline">Saved</span>
           </div>
+          
+          <!-- Lock/Unlock Button -->
+          <UButton
+            :icon="isLocked ? 'i-heroicons-lock-closed' : 'i-heroicons-lock-open'"
+            :color="isLocked ? 'warning' : 'neutral'"
+            variant="ghost"
+            size="sm"
+            @click="toggleLock"
+            :title="isLocked ? 'Unlock Note (Enable Editing)' : 'Lock Note (Read-Only)'"
+          />
           
           <!-- Keyboard Shortcuts -->
           <UButton
@@ -235,13 +291,26 @@ onUnmounted(() => {
       <!-- Note Header (Title & Stats) -->
       <div class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 md:px-6 py-6">
         <div class="max-w-5xl mx-auto">
+          <!-- Locked State: Read-only title -->
+          <h1
+            v-if="isLocked"
+            class="w-full bg-transparent border-none outline-none text-3xl md:text-4xl font-bold text-gray-900 dark:text-white mb-3"
+          >
+            {{ editForm.title || 'Untitled Note' }}
+          </h1>
+          <!-- Unlocked State: Editable title -->
           <input
+            v-else
             v-model="editForm.title"
             type="text"
             class="w-full bg-transparent border-none outline-none text-3xl md:text-4xl font-bold text-gray-900 dark:text-white placeholder-gray-400 mb-3"
             placeholder="Untitled Note"
           />
           <div class="flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400 flex-wrap">
+            <span v-if="isLocked" class="flex items-center gap-1 text-amber-600 dark:text-amber-400 font-medium">
+              <UIcon name="i-heroicons-lock-closed" class="w-3.5 h-3.5" />
+              Read-Only Mode
+            </span>
             <span v-if="currentNote" class="flex items-center gap-1">
               <UIcon name="i-heroicons-clock" class="w-3.5 h-3.5" />
               {{ formatDate(currentNote.updated_at) }}
@@ -258,8 +327,8 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <!-- Metadata Bar -->
-      <div class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 md:px-6 py-3">
+      <!-- Metadata Bar (Hidden when locked) -->
+      <div v-if="!isLocked" class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 md:px-6 py-3">
         <div class="max-w-5xl mx-auto">
           <div class="flex items-center gap-4 text-sm flex-wrap">
             <!-- Folder -->
@@ -308,14 +377,39 @@ onUnmounted(() => {
           </div>
         </div>
       </div>
+      
+      <!-- Tags Display (Read-only when locked) -->
+      <div v-else-if="editForm.tags && editForm.tags.length > 0" class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 md:px-6 py-3">
+        <div class="max-w-5xl mx-auto">
+          <div class="flex items-center gap-3 text-sm flex-wrap">
+            <div class="flex items-center gap-2">
+              <UIcon name="i-heroicons-folder" class="w-4 h-4 text-gray-400" />
+              <span class="text-gray-600 dark:text-gray-400">{{ editForm.folder || 'No folder' }}</span>
+            </div>
+            <div class="flex items-center gap-2 flex-wrap">
+              <UIcon name="i-heroicons-tag" class="w-4 h-4 text-gray-400" />
+              <UBadge
+                v-for="tag in editForm.tags"
+                :key="tag"
+                color="primary"
+                variant="soft"
+                size="xs"
+              >
+                {{ tag }}
+              </UBadge>
+            </div>
+          </div>
+        </div>
+      </div>
 
       <!-- WYSIWYG Editor Area -->
-      <div class="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-900">
-        <div class="max-w-5xl mx-auto py-6 px-4 md:px-6">
+      <div class="flex-1 overflow-y-auto" :class="isLocked ? 'bg-white dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-900'">
+        <div class="max-w-5xl mx-auto py-6">
           <ClientOnly>
             <TiptapEditor
               v-model="editForm.content"
               placeholder="Start writing..."
+              :editable="!isLocked"
             />
           </ClientOnly>
         </div>
@@ -426,6 +520,64 @@ onUnmounted(() => {
               <p class="text-xs text-gray-500 dark:text-gray-400">
                 💡 Tip: Use the toolbar above the editor for formatting
               </p>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+
+    <!-- Delete Confirmation Modal -->
+    <Teleport to="body">
+      <Transition name="modal">
+        <div
+          v-if="showDeleteModal"
+          class="fixed inset-0 z-50 flex items-center justify-center p-4"
+        >
+          <!-- Backdrop -->
+          <div
+            class="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            @click="cancelDelete"
+          />
+          
+          <!-- Modal -->
+          <div class="relative bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-md w-full p-6 border border-gray-200 dark:border-gray-700">
+            <!-- Icon -->
+            <div class="flex items-center justify-center w-12 h-12 mx-auto mb-4 bg-error-100 dark:bg-error-900/30 rounded-full">
+              <UIcon name="i-heroicons-exclamation-triangle" class="w-6 h-6 text-error-600 dark:text-error-400" />
+            </div>
+
+            <!-- Title -->
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white text-center mb-2">
+              Delete Note?
+            </h3>
+
+            <!-- Description -->
+            <p class="text-sm text-gray-600 dark:text-gray-400 text-center mb-6">
+              Are you sure you want to delete 
+              <span class="font-semibold text-gray-900 dark:text-white">"{{ editForm.title }}"</span>? 
+              This action cannot be undone.
+            </p>
+
+            <!-- Actions -->
+            <div class="flex gap-3">
+              <UButton
+                color="neutral"
+                variant="soft"
+                block
+                @click="cancelDelete"
+                :disabled="isDeleting"
+              >
+                Cancel
+              </UButton>
+              <UButton
+                color="error"
+                block
+                @click="confirmDelete"
+                :loading="isDeleting"
+                :disabled="isDeleting"
+              >
+                Delete
+              </UButton>
             </div>
           </div>
         </div>

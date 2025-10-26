@@ -57,7 +57,7 @@ async function handleSignup() {
 
 <template>
   <div class="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 px-4">
-    <UCard class="w-full max-w-md">
+    <UCard class="w-full max-w-sm">
       <template #header>
         <div class="text-center">
           <h1 class="text-2xl font-bold">Create Account</h1>
@@ -74,6 +74,7 @@ async function handleSignup() {
             placeholder="John Doe"
             size="lg"
             :disabled="loading"
+            class="w-full"
           />
         </div>
 
@@ -85,6 +86,7 @@ async function handleSignup() {
             placeholder="you@example.com"
             size="lg"
             :disabled="loading"
+            class="w-full"
           />
         </div>
 
@@ -96,15 +98,16 @@ async function handleSignup() {
             placeholder="••••••••"
             size="lg"
             :disabled="loading"
+            class="w-full"
           />
         </div>
 
         <UButton
           type="submit"
-          block
           size="lg"
           :loading="loading"
           :disabled="loading"
+          class="w-full"
         >
           Create Account
         </UButton>

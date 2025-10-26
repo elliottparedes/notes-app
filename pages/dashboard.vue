@@ -44,6 +44,11 @@ const renameFolderName = ref('');
 const folderToManage = ref<string | null>(null);
 const isFolderActionLoading = ref(false);
 
+// AI generation modal
+const showAiGenerateModal = ref(false);
+const aiPrompt = ref('');
+const isGeneratingAi = ref(false);
+
 // Folder colors for visual distinction
 const folderColors = [
   'text-blue-600 dark:text-blue-400',
@@ -265,6 +270,64 @@ async function handleQuickNote() {
 function handleCreateFolderFromFab() {
   showFabMenu.value = false;
   openCreateFolderModal();
+}
+
+function handleAiGenerate() {
+  showFabMenu.value = false;
+  openAiGenerateModal();
+}
+
+function openAiGenerateModal() {
+  aiPrompt.value = '';
+  showAiGenerateModal.value = true;
+}
+
+async function generateAiNote() {
+  const prompt = aiPrompt.value.trim();
+  if (!prompt) {
+    toast.add({
+      title: 'Validation Error',
+      description: 'Please enter a prompt for the AI',
+      color: 'error'
+    });
+    return;
+  }
+
+  isGeneratingAi.value = true;
+
+  try {
+    const response = await $fetch<Note>('/api/notes/generate', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${authStore.token}`
+      },
+      body: {
+        prompt: prompt,
+        folder: selectedFolder.value || null
+      }
+    });
+
+    toast.add({
+      title: 'Success',
+      description: 'AI-generated note created successfully',
+      color: 'success'
+    });
+
+    showAiGenerateModal.value = false;
+    
+    // Refresh notes and navigate to the new note
+    await notesStore.fetchNotes();
+    router.push(`/notes/${response.id}`);
+  } catch (error) {
+    console.error('AI generation error:', error);
+    toast.add({
+      title: 'Error',
+      description: 'Failed to generate note with AI. Please try again.',
+      color: 'error'
+    });
+  } finally {
+    isGeneratingAi.value = false;
+  }
 }
 
 function handleDeleteNote(note: Note) {
@@ -1116,6 +1179,81 @@ function getRenderedPreview(content: string | null): string {
       </Transition>
     </Teleport>
 
+    <!-- AI Generate Note Modal -->
+    <Teleport to="body">
+      <Transition name="modal">
+        <div
+          v-if="showAiGenerateModal"
+          class="fixed inset-0 z-50 flex items-center justify-center p-4"
+        >
+          <!-- Backdrop -->
+          <div
+            class="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            @click="showAiGenerateModal = false"
+          />
+          
+          <!-- Modal -->
+          <div class="relative bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-lg w-full p-6 border border-gray-200 dark:border-gray-700">
+            <!-- Icon -->
+            <div class="flex items-center justify-center w-12 h-12 mx-auto mb-4 bg-gradient-to-br from-emerald-100 to-emerald-200 dark:from-emerald-900/30 dark:to-emerald-800/30 rounded-full">
+              <UIcon name="i-heroicons-sparkles" class="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
+            </div>
+
+            <!-- Title -->
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white text-center mb-2">
+              Generate Note with AI
+            </h3>
+
+            <!-- Description -->
+            <p class="text-sm text-gray-600 dark:text-gray-400 text-center mb-6">
+              Describe what you want the AI to write about, and it will generate a well-formatted note for you.
+            </p>
+
+            <!-- Textarea -->
+            <textarea
+              v-model="aiPrompt"
+              placeholder="E.g., 'Write a summary of the benefits of meditation' or 'Create a study guide for JavaScript promises'"
+              class="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent mb-6 resize-none"
+              rows="5"
+              @keydown.meta.enter="generateAiNote"
+              @keydown.ctrl.enter="generateAiNote"
+            />
+
+            <!-- Helper Text -->
+            <p class="text-xs text-gray-500 dark:text-gray-400 mb-6 text-center">
+              Powered by Google Gemini 2.5 Flash • Press 
+              <kbd class="px-1.5 py-0.5 text-xs bg-gray-200 dark:bg-gray-700 rounded">⌘</kbd>
+              <kbd class="px-1.5 py-0.5 text-xs bg-gray-200 dark:bg-gray-700 rounded">Enter</kbd>
+              to generate
+            </p>
+
+            <!-- Actions -->
+            <div class="flex gap-3">
+              <UButton
+                color="neutral"
+                variant="soft"
+                block
+                @click="showAiGenerateModal = false"
+                :disabled="isGeneratingAi"
+              >
+                Cancel
+              </UButton>
+              <UButton
+                color="primary"
+                block
+                @click="generateAiNote"
+                :loading="isGeneratingAi"
+                :disabled="isGeneratingAi || !aiPrompt.trim()"
+                icon="i-heroicons-sparkles"
+              >
+                Generate
+              </UButton>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+
     <!-- Main Content -->
     <div class="flex-1 flex flex-col overflow-hidden relative">
       <!-- Notes List -->
@@ -1236,6 +1374,20 @@ function getRenderedPreview(content: string | null): string {
                 <div class="flex-1">
                   <div class="font-semibold text-gray-900 dark:text-white">Quick Note</div>
                   <div class="text-xs text-gray-500 dark:text-gray-400">With timestamp</div>
+                </div>
+              </button>
+
+              <!-- AI Generate Note -->
+              <button
+                @click="handleAiGenerate"
+                class="w-full text-left px-4 py-3.5 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 flex items-center gap-3 transition-colors"
+              >
+                <div class="w-10 h-10 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-xl flex items-center justify-center shadow-sm">
+                  <UIcon name="i-heroicons-sparkles" class="w-5 h-5 text-white" />
+                </div>
+                <div class="flex-1">
+                  <div class="font-semibold text-gray-900 dark:text-white">AI Generate</div>
+                  <div class="text-xs text-gray-500 dark:text-gray-400">Create with AI</div>
                 </div>
               </button>
 

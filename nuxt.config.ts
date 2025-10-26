@@ -24,6 +24,7 @@ export default defineNuxtConfig({
     dbPassword: process.env.DB_PASSWORD,
     dbName: process.env.DB_NAME,
     jwtSecret: process.env.JWT_SECRET,
+    openRouterApiKey: process.env.OPENROUTER_API_KEY,
     
     // Public keys exposed to client
     public: {
