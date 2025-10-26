@@ -6,6 +6,8 @@ interface AuthState {
   token: string | null;
   loading: boolean;
   error: string | null;
+  initialized: boolean;
+  initPromise: Promise<void> | null;
 }
 
 export const useAuthStore = defineStore('auth', {
@@ -13,7 +15,9 @@ export const useAuthStore = defineStore('auth', {
     user: null,
     token: null,
     loading: false,
-    error: null
+    error: null,
+    initialized: false,
+    initPromise: null
   }),
 
   getters: {
@@ -36,15 +40,13 @@ export const useAuthStore = defineStore('auth', {
 
         this.user = response.user;
         this.token = response.token;
+        this.initialized = true;
         
         // Store token in localStorage with session version
         if (process.client) {
-          console.log('💾 Saving auth token and session version');
           localStorage.setItem('auth_token', response.token);
           localStorage.setItem('session_version', Date.now().toString());
         }
-
-        console.log('✅ Signup successful, navigating to dashboard');
         
         // Navigate to dashboard
         await navigateTo('/dashboard');
@@ -68,15 +70,13 @@ export const useAuthStore = defineStore('auth', {
 
         this.user = response.user;
         this.token = response.token;
+        this.initialized = true;
         
         // Store token in localStorage with session version
         if (process.client) {
-          console.log('💾 Saving auth token and session version');
           localStorage.setItem('auth_token', response.token);
           localStorage.setItem('session_version', Date.now().toString());
         }
-
-        console.log('✅ Login successful, navigating to dashboard');
         
         // Navigate to dashboard
         await navigateTo('/dashboard');
@@ -89,32 +89,23 @@ export const useAuthStore = defineStore('auth', {
     },
 
     async logout(): Promise<void> {
-      console.log('🚪 Logging out - clearing all state');
-      
       this.user = null;
       this.token = null;
+      this.initialized = false;
       
-      // Clear ALL storage to prevent UI state issues
       if (process.client) {
-        // Clear storage
         localStorage.clear();
         sessionStorage.clear();
         
-        console.log('🧹 Cleared localStorage and sessionStorage');
-        
-        // Add a timestamp to force fresh state on next login
+        // Add timestamp to force fresh state on next login
         localStorage.setItem('last_logout', Date.now().toString());
         
-        // Wait a tiny bit to ensure storage is cleared
+        // Wait for storage to be cleared
         await new Promise(resolve => setTimeout(resolve, 100));
         
-        console.log('🔄 Forcing full page reload');
-        
-        // Force a full page reload to clear any cached state
-        // Using replace to prevent back button issues
+        // Force page reload to clear all state
         window.location.replace('/login');
       } else {
-        // Server-side fallback
         await navigateTo('/login');
       }
     },
@@ -125,6 +116,7 @@ export const useAuthStore = defineStore('auth', {
       }
 
       if (!this.token) {
+        this.initialized = true;
         return;
       }
 
@@ -140,20 +132,42 @@ export const useAuthStore = defineStore('auth', {
         this.user = response;
       } catch (err: unknown) {
         console.error('Failed to fetch current user:', err);
-        this.logout();
+        
+        // Clear invalid token
+        this.user = null;
+        this.token = null;
+        
+        if (process.client) {
+          localStorage.removeItem('auth_token');
+          localStorage.removeItem('session_version');
+        }
       } finally {
         this.loading = false;
+        this.initialized = true;
       }
     },
 
-    initializeAuth(): void {
-      if (process.client) {
-        const token = localStorage.getItem('auth_token');
-        if (token) {
-          this.token = token;
-          this.fetchCurrentUser();
-        }
+    async initializeAuth(): Promise<void> {
+      // Return existing promise if already initializing
+      if (this.initPromise) {
+        return this.initPromise;
       }
+
+      // Create initialization promise
+      this.initPromise = (async () => {
+        if (process.client) {
+          const token = localStorage.getItem('auth_token');
+          if (token) {
+            this.token = token;
+            await this.fetchCurrentUser();
+          } else {
+            this.initialized = true;
+          }
+        }
+      })();
+
+      await this.initPromise;
+      this.initPromise = null;
     }
   }
 });

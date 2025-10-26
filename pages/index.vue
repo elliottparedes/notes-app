@@ -1,16 +1,6 @@
 <script setup lang="ts">
-const authStore = useAuthStore();
-
-// The global middleware will handle redirects
-// This is just a loading state while middleware runs
-onMounted(() => {
-  // Redirect based on auth state
-  if (authStore.isAuthenticated) {
-    navigateTo('/dashboard');
-  } else {
-    navigateTo('/login');
-  }
-});
+// Global middleware will handle redirects automatically
+// This page should never actually be seen
 </script>
 
 <template>

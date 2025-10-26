@@ -99,17 +99,11 @@ if (process.client) {
 
 // Fetch notes on mount
 onMounted(async () => {
-  console.log('📱 Dashboard mounted');
-  console.log('👤 Current user:', authStore.currentUser?.name || authStore.currentUser?.email);
-  console.log('🔑 Session key:', sessionKey.value);
-  console.log('📦 LocalStorage keys:', Object.keys(localStorage));
-  
   loading.value = true;
   try {
     await notesStore.fetchNotes();
-    console.log('📝 Notes loaded:', notesStore.notes.length);
   } catch (error) {
-    console.error('❌ Failed to load notes:', error);
+    console.error('Failed to load notes:', error);
     toast.add({
       title: 'Error',
       description: 'Failed to load notes',
@@ -118,12 +112,6 @@ onMounted(async () => {
   } finally {
     loading.value = false;
   }
-
-});
-
-// Log when component unmounts
-onUnmounted(() => {
-  console.log('🗑️ Dashboard unmounted');
 });
 
 // Apply filters
@@ -166,39 +154,15 @@ function getFolderMenuPosition(folderName: string): string {
   return 'top: 0; left: 0;';
 }
 
-// Toggle folder menu - simplified
+// Toggle folder menu
 function toggleFolderMenu(folderName: string, event?: Event) {
   if (event) {
     event.preventDefault();
     event.stopPropagation();
   }
   
-  console.log('🔵 Clicked folder menu for:', folderName);
-  console.log('📍 Current activeFolderMenu:', activeFolderMenu.value);
-  
   // Toggle: if same folder, close; otherwise open new one
   activeFolderMenu.value = activeFolderMenu.value === folderName ? null : folderName;
-  
-  console.log('🟢 NEW Menu state:', activeFolderMenu.value);
-  console.log('✅ Should show menu:', activeFolderMenu.value === folderName);
-  
-  // Force next tick to ensure reactivity and check DOM
-  nextTick(() => {
-    console.log('⏭️ After nextTick, menu state:', activeFolderMenu.value);
-    
-    if (activeFolderMenu.value) {
-      const button = document.getElementById(`folder-menu-btn-${folderName}`);
-      const menu = document.querySelector(`[data-folder-menu-dropdown]`);
-      console.log('🎯 Button found:', !!button);
-      console.log('📋 Menu element found:', !!menu);
-      console.log('🔍 Menu position:', getFolderMenuPosition(folderName));
-      
-      if (menu) {
-        console.log('🎨 Menu is visible in DOM!');
-        console.log('📏 Menu dimensions:', menu.getBoundingClientRect());
-      }
-    }
-  });
 }
 
 function toggleFabMenu() {
@@ -497,17 +461,10 @@ async function deleteFolder() {
     // Move all notes to "No folder" (set folder to null)
     const notesToUpdate = notesStore.notes.filter(note => note.folder === folderName);
     
-    console.log(`🗑️ Deleting folder "${folderName}" with ${notesToUpdate.length} notes`);
-    
-    // Update each note to remove folder (use null, not undefined)
+    // Update each note to remove folder
     await Promise.all(
-      notesToUpdate.map(note => {
-        console.log(`  📝 Updating note ${note.id}: "${note.title}"`);
-        return notesStore.updateNote(note.id, { folder: null });
-      })
+      notesToUpdate.map(note => notesStore.updateNote(note.id, { folder: null }))
     );
-
-    console.log('✅ All notes updated successfully');
 
     toast.add({
       title: 'Success',
@@ -521,7 +478,7 @@ async function deleteFolder() {
 
     showDeleteFolderModal.value = false;
   } catch (error) {
-    console.error('❌ Delete folder error:', error);
+    console.error('Delete folder error:', error);
     toast.add({
       title: 'Error',
       description: 'Failed to delete folder',

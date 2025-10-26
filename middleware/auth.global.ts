@@ -1,46 +1,58 @@
-// Track if we've already attempted auto-login in this session
-let hasAttemptedAutoLogin = false;
-
-export default defineNuxtRouteMiddleware(async (to, from) => {
+export default defineNuxtRouteMiddleware(async (to) => {
+  // Skip middleware on server side - we can't access localStorage there
+  if (import.meta.server) {
+    return;
+  }
+  
   // Skip middleware for API routes and static files
   if (to.path.startsWith('/api/') || to.path.startsWith('/_nuxt/') || to.path.includes('.')) {
     return;
   }
 
   const authStore = useAuthStore();
+  const nuxtApp = useNuxtApp();
 
-  // On client-side, check for stored token and restore session (ONLY ONCE per page load)
-  if (process.client && !authStore.user && !hasAttemptedAutoLogin) {
-    hasAttemptedAutoLogin = true; // Prevent multiple attempts
+  // During initial client load/hydration, check localStorage first to avoid redirects
+  if (import.meta.client && nuxtApp.isHydrating && nuxtApp.payload.serverRendered) {
+    const hasToken = localStorage.getItem('auth_token');
     
-    const storedToken = localStorage.getItem('auth_token');
-    
-    if (storedToken) {
-      console.log('🔐 Attempting auto-login with stored token');
-      authStore.token = storedToken;
-      try {
-        await authStore.fetchCurrentUser();
-        console.log('✅ Auto-login successful');
-      } catch (error) {
-        // Token is invalid, will be cleared by fetchCurrentUser
-        console.error('❌ Auto-login failed:', error);
-        hasAttemptedAutoLogin = false; // Allow retry on next navigation
+    if (hasToken) {
+      // Has token - redirect away from auth pages
+      if (to.path === '/login' || to.path === '/signup') {
+        return navigateTo('/dashboard', { replace: true });
       }
+      return;
     }
+    
+    // No token - redirect to login if accessing protected route
+    const publicRoutes = ['/login', '/signup', '/'];
+    if (!publicRoutes.includes(to.path)) {
+      return navigateTo('/login', { replace: true });
+    }
+    
+    return;
+  }
+
+  // Wait for auth initialization on client navigation
+  if (process.client && !authStore.initialized) {
+    await authStore.initializeAuth();
+  }
+
+  // Handle root path
+  if (to.path === '/') {
+    return navigateTo(authStore.isAuthenticated ? '/dashboard' : '/login');
   }
 
   // Define public routes
-  const publicRoutes = ['/login', '/signup', '/'];
+  const publicRoutes = ['/login', '/signup'];
   const isPublicRoute = publicRoutes.includes(to.path);
 
   // Redirect logic
   if (!authStore.isAuthenticated && !isPublicRoute) {
-    // Not authenticated and trying to access protected route
     return navigateTo('/login');
   }
 
-  if (authStore.isAuthenticated && (to.path === '/login' || to.path === '/signup')) {
-    // Authenticated and trying to access auth pages
+  if (authStore.isAuthenticated && isPublicRoute) {
     return navigateTo('/dashboard');
   }
 });
