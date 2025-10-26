@@ -31,7 +31,6 @@
     "@vueuse/nuxt": "^14.0.0",
     "bcrypt": "^6.0.0",
     "jsonwebtoken": "^9.0.2",
-    "marked": "^16.4.1",
     "mysql2": "^3.15.3",
     "nuxt": "^4.2.0",
     "vue": "^3.5.22",
@@ -42,9 +41,10 @@
     "@tailwindcss/forms": "^0.5.10",
     "@types/bcrypt": "^6.0.0",
     "@types/jsonwebtoken": "^9.0.10",
-    "@types/marked": "^5.0.2",
+    "@vite-pwa/nuxt": "^1.0.7",
     "tailwindcss": "^4.1.16",
     "typescript": "^5.9.3",
-    "vue-tsc": "^3.1.2"
+    "vue-tsc": "^3.1.2",
+    "workbox-window": "^7.3.0"
   }
 }

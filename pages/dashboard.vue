@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import type { Note, CreateNoteDto } from '~/models';
-import { marked } from 'marked';
 
 const authStore = useAuthStore();
 const notesStore = useNotesStore();
 const toast = useToast();
 const router = useRouter();
+
+// Network status
+const { isOnline, wasOffline } = useNetworkStatus();
 
 const searchQuery = ref('');
 const selectedFolder = ref<string | null>(null);
@@ -102,6 +104,7 @@ onMounted(async () => {
   loading.value = true;
   try {
     await notesStore.fetchNotes();
+    await notesStore.updatePendingChangesCount();
   } catch (error) {
     console.error('Failed to load notes:', error);
     toast.add({
@@ -111,6 +114,32 @@ onMounted(async () => {
     });
   } finally {
     loading.value = false;
+  }
+});
+
+// Watch for network status changes and sync
+watch(isOnline, async (online, wasOnlineValue) => {
+  if (online && wasOnlineValue === false) {
+    // Coming back online
+    toast.add({
+      title: 'Back Online',
+      description: 'Syncing your notes...',
+      color: 'success'
+    });
+    
+    try {
+      await notesStore.syncWithServer();
+      await notesStore.updatePendingChangesCount();
+    } catch (error) {
+      console.error('Sync failed:', error);
+    }
+  } else if (!online) {
+    // Going offline
+    toast.add({
+      title: 'Offline Mode',
+      description: 'Changes will sync when you\'re back online',
+      color: 'warning'
+    });
   }
 });
 
@@ -497,20 +526,28 @@ function formatDate(date: Date): string {
   });
 }
 
-// Configure marked
-marked.setOptions({
-  breaks: true,
-  gfm: true
-});
+function formatRelativeTime(date: Date): string {
+  const now = new Date();
+  const diffMs = now.getTime() - new Date(date).getTime();
+  const diffSecs = Math.floor(diffMs / 1000);
+  const diffMins = Math.floor(diffSecs / 60);
+  const diffHours = Math.floor(diffMins / 60);
+  const diffDays = Math.floor(diffHours / 24);
+
+  if (diffSecs < 10) return 'just now';
+  if (diffSecs < 60) return `${diffSecs} seconds ago`;
+  if (diffMins < 60) return `${diffMins} minute${diffMins !== 1 ? 's' : ''} ago`;
+  if (diffHours < 24) return `${diffHours} hour${diffHours !== 1 ? 's' : ''} ago`;
+  if (diffDays < 7) return `${diffDays} day${diffDays !== 1 ? 's' : ''} ago`;
+  
+  return formatDate(date);
+}
 
 function getPreview(content: string | null): string {
   if (!content) return 'No content';
   
-  // Render markdown to HTML
-  const html = marked(content) as string;
-  
   // Strip HTML tags to get plain text
-  const text = html.replace(/<[^>]*>/g, '').trim();
+  const text = content.replace(/<[^>]*>/g, '').trim();
   
   // Limit length
   return text.substring(0, 150) + (text.length > 150 ? '...' : '');
@@ -519,11 +556,8 @@ function getPreview(content: string | null): string {
 function getRenderedPreview(content: string | null): string {
   if (!content) return '<p class="text-gray-400 dark:text-gray-500">No content</p>';
   
-  // Render markdown to HTML
-  const html = marked(content) as string;
-  
   // Limit to first 200 characters of HTML
-  const truncated = html.substring(0, 200) + (html.length > 200 ? '...' : '');
+  const truncated = content.substring(0, 200) + (content.length > 200 ? '...' : '');
   
   return truncated;
 }
@@ -703,6 +737,91 @@ function getRenderedPreview(content: string | null): string {
         </div>
       </div>
     </header>
+
+    <!-- Sync Status Banner -->
+    <div 
+      v-if="!isOnline || notesStore.syncing || notesStore.pendingChanges > 0"
+      class="bg-gradient-to-r border-b sticky top-16 z-40 transition-all duration-300"
+      :class="{
+        'from-yellow-50 to-orange-50 dark:from-yellow-900/20 dark:to-orange-900/20 border-yellow-200 dark:border-yellow-800': !isOnline,
+        'from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border-blue-200 dark:border-blue-800': isOnline && notesStore.syncing,
+        'from-gray-50 to-gray-100 dark:from-gray-800/50 dark:to-gray-700/50 border-gray-200 dark:border-gray-700': isOnline && !notesStore.syncing && notesStore.pendingChanges > 0
+      }"
+    >
+      <div class="px-4 md:px-6 py-3 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <!-- Status Icon -->
+          <div 
+            class="flex items-center justify-center w-8 h-8 rounded-full"
+            :class="{
+              'bg-yellow-100 dark:bg-yellow-900/40': !isOnline,
+              'bg-blue-100 dark:bg-blue-900/40': isOnline && notesStore.syncing,
+              'bg-gray-200 dark:bg-gray-700': isOnline && !notesStore.syncing && notesStore.pendingChanges > 0
+            }"
+          >
+            <UIcon 
+              v-if="!isOnline"
+              name="i-heroicons-wifi"
+              class="w-4 h-4 text-yellow-600 dark:text-yellow-400"
+            />
+            <UIcon 
+              v-else-if="notesStore.syncing"
+              name="i-heroicons-arrow-path"
+              class="w-4 h-4 text-blue-600 dark:text-blue-400 animate-spin"
+            />
+            <UIcon 
+              v-else
+              name="i-heroicons-clock"
+              class="w-4 h-4 text-gray-600 dark:text-gray-400"
+            />
+          </div>
+
+          <!-- Status Text -->
+          <div class="min-w-0">
+            <div 
+              class="text-sm font-medium"
+              :class="{
+                'text-yellow-800 dark:text-yellow-300': !isOnline,
+                'text-blue-800 dark:text-blue-300': isOnline && notesStore.syncing,
+                'text-gray-700 dark:text-gray-300': isOnline && !notesStore.syncing && notesStore.pendingChanges > 0
+              }"
+            >
+              <span v-if="!isOnline">You're offline</span>
+              <span v-else-if="notesStore.syncing">Syncing notes...</span>
+              <span v-else-if="notesStore.pendingChanges > 0">
+                {{ notesStore.pendingChanges }} change{{ notesStore.pendingChanges !== 1 ? 's' : '' }} pending
+              </span>
+            </div>
+            <div 
+              class="text-xs"
+              :class="{
+                'text-yellow-600 dark:text-yellow-400': !isOnline,
+                'text-blue-600 dark:text-blue-400': isOnline && notesStore.syncing,
+                'text-gray-500 dark:text-gray-400': isOnline && !notesStore.syncing && notesStore.pendingChanges > 0
+              }"
+            >
+              <span v-if="!isOnline">Your changes are saved locally</span>
+              <span v-else-if="notesStore.syncing">Please wait...</span>
+              <span v-else-if="notesStore.lastSyncTime">
+                Last synced {{ formatRelativeTime(notesStore.lastSyncTime) }}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Sync Button -->
+        <UButton
+          v-if="isOnline && !notesStore.syncing && notesStore.pendingChanges > 0"
+          size="xs"
+          color="primary"
+          variant="soft"
+          icon="i-heroicons-arrow-path"
+          @click="notesStore.syncWithServer"
+        >
+          Sync Now
+        </UButton>
+      </div>
+    </div>
 
     <!-- Folder Dropdown Menus (Teleported to body to avoid overflow clipping) - Desktop Only -->
     <Teleport to="body">

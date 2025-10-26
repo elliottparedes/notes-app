@@ -6,6 +6,9 @@ const router = useRouter();
 const notesStore = useNotesStore();
 const toast = useToast();
 
+// Network status
+const { isOnline } = useNetworkStatus();
+
 const noteId = computed(() => parseInt(route.params.id as string));
 const isSaving = ref(false);
 const isLoading = ref(true);
@@ -122,7 +125,17 @@ async function saveNote(silent = false) {
   isSaving.value = true;
 
   try {
-    await notesStore.updateNote(noteId.value, editForm);
+    // Prepare the data to send
+    const updateData: UpdateNoteDto = {
+      title: editForm.title,
+      content: editForm.content,
+      tags: editForm.tags || [],
+      folder: editForm.folder || null
+    };
+    
+    console.log('Saving note with data:', updateData);
+    
+    await notesStore.updateNote(noteId.value, updateData);
     if (!silent) {
       toast.add({
         title: 'Success',
@@ -131,6 +144,7 @@ async function saveNote(silent = false) {
       });
     }
   } catch (error) {
+    console.error('Save error:', error);
     if (!silent) {
       toast.add({
         title: 'Error',
@@ -188,16 +202,31 @@ function formatDate(date: Date): string {
 const tagInput = ref('');
 
 function addTag() {
-  if (tagInput.value.trim() && !editForm.tags?.includes(tagInput.value.trim())) {
-    if (!editForm.tags) editForm.tags = [];
-    editForm.tags.push(tagInput.value.trim());
-    tagInput.value = '';
-    saveNote(true);
+  const trimmedTag = tagInput.value.trim();
+  if (!trimmedTag) return;
+  
+  // Ensure tags is an array
+  if (!editForm.tags || editForm.tags === null) {
+    editForm.tags = [];
   }
+  
+  // Check if tag already exists
+  if (editForm.tags.includes(trimmedTag)) {
+    tagInput.value = '';
+    return;
+  }
+  
+  // Add the tag
+  editForm.tags = [...editForm.tags, trimmedTag];
+  tagInput.value = '';
+  
+  // Save immediately
+  saveNote(true);
 }
 
 function removeTag(tag: string) {
-  if (editForm.tags) {
+  if (editForm.tags && editForm.tags.length > 0) {
+    // Create a new array to trigger reactivity
     editForm.tags = editForm.tags.filter(t => t !== tag);
     saveNote(true);
   }
@@ -236,7 +265,11 @@ onUnmounted(() => {
         <!-- Right: Note Actions -->
         <div class="flex items-center gap-2">
           <!-- Save Status -->
-          <div v-if="isSaving" class="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+          <div v-if="!isOnline" class="flex items-center gap-2 text-xs text-yellow-600 dark:text-yellow-400">
+            <UIcon name="i-heroicons-wifi" class="w-4 h-4" />
+            <span class="hidden sm:inline">Offline</span>
+          </div>
+          <div v-else-if="isSaving" class="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
             <UIcon name="i-heroicons-arrow-path" class="w-4 h-4 animate-spin" />
             <span class="hidden sm:inline">Saving...</span>
           </div>

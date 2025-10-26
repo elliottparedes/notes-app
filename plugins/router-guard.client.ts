@@ -18,6 +18,12 @@ export default defineNuxtPlugin(() => {
       return;
     }
     
+    // Suppress tiptap duplicate extension warnings (known issue)
+    if (typeof message === 'string' && 
+        message.includes('Duplicate extension names')) {
+      return;
+    }
+    
     originalWarn.apply(console, args);
   };
 
