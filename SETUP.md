@@ -95,33 +95,22 @@ You should see: `attachments`, `notes`, and `users`.
 
 ## Step 3: Configure Environment Variables
 
-1. The `.env` file should already exist in the root directory. If not, create it:
+1. Copy the example environment file:
 
 ```bash
-touch .env
+cp .env.example .env
 ```
 
-2. Add your database credentials to `.env`:
-
-```env
-# Database Configuration
-DB_HOST=localhost
-DB_PORT=3306
-DB_USER=root
-DB_PASSWORD=your_mysql_password_here
-DB_NAME=markdown_notes
-
-# JWT Configuration (change this to a random string in production)
-JWT_SECRET=your_super_secret_jwt_key_change_this_in_production
-
-# Application Configuration
-NODE_ENV=development
-```
+2. Edit the `.env` file and replace all placeholder values with your actual credentials:
+   - Set your database connection details (host, port, user, password, database name)
+   - Generate a strong JWT secret (minimum 32 random characters)
+   - Add your OpenRouter API key if using AI features
+   - Set NODE_ENV to `development` for local development
 
 **Important**: 
-- Replace `your_mysql_password_here` with your actual MySQL root password
-- Change the `JWT_SECRET` to a long random string for security
+- Use strong, unique values for all secrets
 - Never commit the `.env` file to version control (it's already in `.gitignore`)
+- For production, use your hosting platform's environment variable management
 
 ## Step 4: Run the Application
 
@@ -227,16 +216,13 @@ npm run build
 npm run preview
 ```
 
-3. For deployment, set production environment variables:
-```env
-NODE_ENV=production
-DB_HOST=your_production_db_host
-DB_PORT=3306
-DB_USER=your_production_db_user
-DB_PASSWORD=your_production_db_password
-DB_NAME=markdown_notes
-JWT_SECRET=your_production_jwt_secret
-```
+3. For deployment, configure environment variables in your hosting platform's dashboard:
+   - Set `NODE_ENV=production`
+   - Configure all database credentials for your production database
+   - Use a strong, unique JWT_SECRET
+   - Add OPENROUTER_API_KEY if using AI features
+   
+   **Never** hard-code production secrets in your code or documentation.
 
 ## Features to Try
 

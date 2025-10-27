@@ -94,21 +94,17 @@ cd markdown-notes-app
 npm install
 ```
 
-3. Create a `.env` file in the root directory (use `.env.example` as template):
-```env
-# Database Configuration
-DB_HOST=localhost
-DB_PORT=3306
-DB_USER=root
-DB_PASSWORD=your_password
-DB_NAME=markdown_notes
+3. Create a `.env` file in the root directory:
 
-# JWT Configuration
-JWT_SECRET=your_jwt_secret_key_change_this_in_production
+Copy the `.env.example` file and fill in your actual values:
 
-# Application Configuration
-NODE_ENV=development
+```bash
+cp .env.example .env
 ```
+
+Then edit `.env` with your database credentials and secrets. See `.env.example` for all required variables.
+
+**Important:** Never commit your `.env` file to version control. It's already in `.gitignore`.
 
 4. Make sure your MySQL server is running and the database is created.
 
@@ -240,15 +236,18 @@ The note editor supports full markdown syntax including:
 
 ## Environment Variables
 
-| Variable | Description | Default |
+| Variable | Description | Example |
 |----------|-------------|---------|
-| `DB_HOST` | MySQL host | localhost |
-| `DB_PORT` | MySQL port | 3306 |
-| `DB_USER` | MySQL username | root |
-| `DB_PASSWORD` | MySQL password | - |
-| `DB_NAME` | Database name | markdown_notes |
-| `JWT_SECRET` | JWT secret key | - |
-| `NODE_ENV` | Environment | development |
+| `DB_HOST` | MySQL host | (your database host) |
+| `DB_PORT` | MySQL port | (your database port) |
+| `DB_USER` | MySQL username | (your database user) |
+| `DB_PASSWORD` | MySQL password | (your secure password) |
+| `DB_NAME` | Database name | (your database name) |
+| `JWT_SECRET` | JWT secret key | (minimum 32 random characters) |
+| `OPENROUTER_API_KEY` | OpenRouter API key for AI features | (your API key) |
+| `NODE_ENV` | Environment | development or production |
+
+**Note:** Copy `.env.example` to `.env` and fill in your actual values. Never commit `.env` to version control.
 
 ## Contributing
 

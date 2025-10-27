@@ -34,17 +34,13 @@ source schema.sql  # if you have the schema in a file
 
 ## 3. Configure Environment
 
-Edit the `.env` file in the project root:
+Copy the example environment file and add your credentials:
 
-```env
-DB_HOST=localhost
-DB_PORT=3306
-DB_USER=root
-DB_PASSWORD=your_password_here
-DB_NAME=markdown_notes
-JWT_SECRET=change_this_to_random_string_in_production
-NODE_ENV=development
+```bash
+cp .env.example .env
 ```
+
+Then edit `.env` with your actual database credentials and JWT secret. See `.env.example` for all required variables.
 
 ## 4. Start the App
 

@@ -1,0 +1,24 @@
+[build]
+  command = "npm run build"
+  publish = ".output/public"
+
+[build.environment]
+  NODE_VERSION = "18"
+
+# Server function for SSR
+[[redirects]]
+  from = "/*"
+  to = "/.netlify/functions/server"
+  status = 200
+
+# Environment variables should be set in Netlify UI
+# Never commit actual secrets to the repository
+# Required variables:
+#   - DB_HOST
+#   - DB_PORT
+#   - DB_USER
+#   - DB_PASSWORD
+#   - DB_NAME
+#   - JWT_SECRET
+#   - OPENROUTER_API_KEY (optional, for AI features)
+
