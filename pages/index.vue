@@ -1,26 +1,18 @@
 <script setup lang="ts">
-// Redirect immediately on both server and client
-definePageMeta({
-  middleware: 'auth'
-});
+// Server-side: redirect to login (safer default for non-authenticated users)
+if (process.server) {
+  await navigateTo('/login', { redirectCode: 302 });
+}
 
-// Client-side redirect
+// Client-side: check auth and redirect appropriately
 if (process.client) {
-  const authStore = useAuthStore();
-  
-  // Check localStorage for existing token
   const hasToken = localStorage.getItem('auth_token');
   
   if (hasToken) {
-    navigateTo('/dashboard', { replace: true });
+    await navigateTo('/dashboard', { replace: true });
   } else {
-    navigateTo('/login', { replace: true });
+    await navigateTo('/login', { replace: true });
   }
-}
-
-// Server-side: just redirect to login (safer default)
-if (process.server) {
-  navigateTo('/login', { replace: true });
 }
 </script>
 
