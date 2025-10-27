@@ -139,8 +139,12 @@ export async function clearNotes(): Promise<void> {
 // Sync queue operations
 export async function addToSyncQueue(item: Omit<SyncQueueItem, 'id' | 'timestamp' | 'retries'>): Promise<void> {
   const db = await initDB();
+  
+  // Convert to plain object to avoid DataCloneError with Proxy objects
+  const plainItem = JSON.parse(JSON.stringify(item));
+  
   const queueItem: SyncQueueItem = {
-    ...item,
+    ...plainItem,
     id: `${Date.now()}-${Math.random()}`,
     timestamp: Date.now(),
     retries: 0
