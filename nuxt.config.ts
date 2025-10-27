@@ -98,7 +98,7 @@ export default defineNuxtConfig({
 
   runtimeConfig: {
     // Private keys only available server-side at runtime
-    // These values are NOT inlined during build when properly configured
+    // Nitro loads these at runtime from environment variables, not at build time
     dbHost: process.env.DB_HOST || '',
     dbPort: process.env.DB_PORT || '3306',
     dbUser: process.env.DB_USER || '',
@@ -111,10 +111,5 @@ export default defineNuxtConfig({
     public: {
       apiBase: '/api'
     }
-  },
-
-  // Prevent inlining of environment variables into build
-  nitro: {
-    envPrefix: ['NUXT_', 'NITRO_'],
   }
 })
