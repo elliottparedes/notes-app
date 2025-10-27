@@ -56,7 +56,7 @@ Copy the output and use it as your `JWT_SECRET` in Netlify.
 Your `netlify.toml` file has been created with the correct settings:
 - Build command: `npm run build`
 - Publish directory: `.output/public`
-- Node version: 18
+- Node version: 20 (required for Vite/Vue crypto.hash support)
 - SSR redirect to Netlify Functions
 
 ## Step 3: Deploy to Netlify
