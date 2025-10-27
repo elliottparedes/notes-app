@@ -28,7 +28,7 @@ export default defineNuxtConfig({
       display: 'standalone',
       orientation: 'portrait',
       scope: '/',
-      start_url: '/',
+      start_url: '/dashboard',
       icons: [
         {
           src: '/icon-192.svg',
@@ -57,8 +57,12 @@ export default defineNuxtConfig({
       ]
     },
     workbox: {
-      navigateFallback: '/',
-      globPatterns: ['**/*.{js,css,html,png,svg,ico}'],
+      // Don't use navigateFallback for SSR - let the server handle routing
+      navigateFallback: undefined,
+      // Only cache static assets, not HTML pages
+      globPatterns: ['**/*.{js,css,png,svg,ico,woff,woff2}'],
+      // Don't cache HTML - SSR handles that
+      globIgnores: ['**/node_modules/**/*', '**/index.html'],
       runtimeCaching: [
         {
           urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
@@ -85,6 +89,18 @@ export default defineNuxtConfig({
             },
             cacheableResponse: {
               statuses: [0, 200]
+            }
+          }
+        },
+        {
+          // Cache CSS and JS from the app
+          urlPattern: /\/_nuxt\/.*/i,
+          handler: 'CacheFirst',
+          options: {
+            cacheName: 'nuxt-assets',
+            expiration: {
+              maxEntries: 100,
+              maxAgeSeconds: 60 * 60 * 24 * 30 // 30 days
             }
           }
         }
