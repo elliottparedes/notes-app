@@ -30,11 +30,26 @@ const showImageModal = ref(false)
 const linkUrl = ref('')
 const imageUrl = ref('')
 
-// Toolbar visibility
+// Toolbar visibility - load from localStorage
+const TOOLBAR_STORAGE_KEY = 'tiptap-toolbar-visible'
 const showToolbar = ref(true)
+
+// Load toolbar preference on mount
+onMounted(() => {
+  if (process.client) {
+    const saved = localStorage.getItem(TOOLBAR_STORAGE_KEY)
+    if (saved !== null) {
+      showToolbar.value = saved === 'true'
+    }
+  }
+})
 
 function toggleToolbar() {
   showToolbar.value = !showToolbar.value
+  // Save preference to localStorage
+  if (process.client) {
+    localStorage.setItem(TOOLBAR_STORAGE_KEY, String(showToolbar.value))
+  }
 }
 
 const editor = useEditor({
@@ -244,7 +259,7 @@ onBeforeUnmount(() => {
 <template>
   <div class="tiptap-editor w-full relative">
     <!-- Toggle Toolbar Button (Floating) -->
-    <button
+        <button
       v-if="editable"
       @click="toggleToolbar"
       class="absolute top-2 right-2 z-20 p-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 transition-all shadow-md"
@@ -514,7 +529,7 @@ onBeforeUnmount(() => {
             <!-- Icon -->
             <div class="flex items-center justify-center w-12 h-12 mx-auto mb-4 bg-blue-100 dark:bg-blue-900/30 rounded-full">
               <UIcon name="i-heroicons-link" class="w-6 h-6 text-blue-600 dark:text-blue-400" />
-            </div>
+  </div>
 
             <!-- Title -->
             <h3 class="text-lg font-semibold text-gray-900 dark:text-white text-center mb-2">
