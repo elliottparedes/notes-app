@@ -10,7 +10,7 @@
   # This prevents false positives on variable names (not values!)
   SECRETS_SCAN_OMIT_KEYS = "DB_HOST,DB_PORT,DB_USER,DB_PASSWORD,DB_NAME,JWT_SECRET,OPENROUTER_API_KEY,MINIO_ACCESS_KEY,MINIO_BUCKET,MINIO_ENDPOINT,MINIO_SECRET_KEY,MONGODB_URI,NUXT_SESSION_PASSWORD,MYSQL_USERNAME,MYSQL_PASSWORD,MYSQL_CONNECTION_STRING,NODE_ENV"
 
-# Server function for SSR
+# Redirect all requests to the Netlify function
 [[redirects]]
   from = "/*"
   to = "/.netlify/functions/server"
