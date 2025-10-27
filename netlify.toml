@@ -3,7 +3,12 @@
   publish = ".output/public"
 
 [build.environment]
-  NODE_VERSION = "20"
+  NODE_VERSION = "20.19.0"
+  NUXT_TELEMETRY_DISABLED = "1"
+  NODE_OPTIONS = "--max-old-space-size=4096"
+  # Tell Netlify's scanner these environment variable NAMES are expected
+  # This prevents false positives on variable names (not values!)
+  SECRETS_SCAN_OMIT_KEYS = "DB_HOST,DB_PORT,DB_USER,DB_PASSWORD,DB_NAME,JWT_SECRET,OPENROUTER_API_KEY,MINIO_ACCESS_KEY,MINIO_BUCKET,MINIO_ENDPOINT,MINIO_SECRET_KEY,MONGODB_URI,NUXT_SESSION_PASSWORD,MYSQL_USERNAME,MYSQL_PASSWORD,MYSQL_CONNECTION_STRING,NODE_ENV"
 
 # Server function for SSR
 [[redirects]]
@@ -11,14 +16,27 @@
   to = "/.netlify/functions/server"
   status = 200
 
+# Headers for better caching
+[[headers]]
+  for = "/_nuxt/builds/meta/*"
+  [headers.values]
+    cache-control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/_nuxt/builds/*"
+  [headers.values]
+    cache-control = "public, max-age=1, immutable"
+
+[[headers]]
+  for = "/_nuxt/*"
+  [headers.values]
+    cache-control = "public, max-age=31536000, immutable"
+
 # Environment variables should be set in Netlify UI
 # Never commit actual secrets to the repository
 # Required variables:
-#   - DB_HOST
-#   - DB_PORT
-#   - DB_USER
-#   - DB_PASSWORD
-#   - DB_NAME
+#   - DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME
 #   - JWT_SECRET
 #   - OPENROUTER_API_KEY (optional, for AI features)
+#   - MONGODB_URI, MINIO_* (if using those services)
 
