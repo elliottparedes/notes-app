@@ -97,18 +97,24 @@ export default defineNuxtConfig({
   },
 
   runtimeConfig: {
-    // Private keys only available server-side
-    dbHost: process.env.DB_HOST,
-    dbPort: process.env.DB_PORT,
-    dbUser: process.env.DB_USER,
-    dbPassword: process.env.DB_PASSWORD,
-    dbName: process.env.DB_NAME,
-    jwtSecret: process.env.JWT_SECRET,
-    openRouterApiKey: process.env.OPENROUTER_API_KEY,
+    // Private keys only available server-side at runtime
+    // These values are NOT inlined during build when properly configured
+    dbHost: process.env.DB_HOST || '',
+    dbPort: process.env.DB_PORT || '3306',
+    dbUser: process.env.DB_USER || '',
+    dbPassword: process.env.DB_PASSWORD || '',
+    dbName: process.env.DB_NAME || '',
+    jwtSecret: process.env.JWT_SECRET || '',
+    openRouterApiKey: process.env.OPENROUTER_API_KEY || '',
     
-    // Public keys exposed to client
+    // Public keys exposed to client (non-sensitive only)
     public: {
       apiBase: '/api'
     }
+  },
+
+  // Prevent inlining of environment variables into build
+  nitro: {
+    envPrefix: ['NUXT_', 'NITRO_'],
   }
 })

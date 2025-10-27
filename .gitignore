@@ -18,7 +18,10 @@ logs
 .fleet
 .idea
 
-# Local env files
+# Local env files - NEVER COMMIT THESE
 .env
 .env.*
 !.env.example
+
+# Netlify build output (contains inlined secrets)
+.netlify/
