@@ -1,7 +1,7 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
-  devtools: { enabled: true },
+  devtools: { enabled: true },  // Vue DevTools for debugging
   
   modules: [
     '@nuxt/ui',
@@ -34,7 +34,21 @@ export default defineNuxtConfig({
 
   typescript: {
     strict: true,
-    typeCheck: true
+    typeCheck: false  // VS Code/Cursor handles type checking via Volar extension
+  },
+  
+  vite: {
+    clearScreen: false,
+    optimizeDeps: {
+      include: ['notivue', '@tiptap/vue-3', '@tiptap/starter-kit']
+    },
+    server: {
+      watch: {
+        // Reduce file watching overhead
+        usePolling: false,
+        ignored: ['**/node_modules/**', '**/.git/**', '**/dist/**']
+      }
+    }
   },
 
   css: [
@@ -79,6 +93,9 @@ export default defineNuxtConfig({
       navigateFallback: undefined,
       globPatterns: ['**/*.{js,css,png,svg,ico,woff,woff2}'],
       globIgnores: ['**/node_modules/**/*', '**/index.html'],
+      cleanupOutdatedCaches: true,
+      clientsClaim: true,
+      skipWaiting: true,
       runtimeCaching: [
         {
           urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
@@ -126,10 +143,11 @@ export default defineNuxtConfig({
       ]
     },
     devOptions: {
-      enabled: true,  // Enable in development for testing
+      enabled: false,  // Disable PWA in dev for better performance - test in preview mode
       type: 'module',
       suppressWarnings: true
     }
+    // Note: PWA disabled in dev for performance. Test with: npm run build && npm run preview
   },
 
   runtimeConfig: {

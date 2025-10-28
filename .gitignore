@@ -1,42 +1,18 @@
-# Nuxt dev/build outputs
-.output
-.data
+node_modules
+*.log*
 .nuxt
 .nitro
 .cache
-dist
-
-# Node dependencies
-node_modules
-
-# Logs
-logs
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-
-# Misc
-.DS_Store
-.fleet
-.idea
-.vscode
-*.swp
-*.swo
-*~
-
-# Local env files - NEVER COMMIT THESE
+.output
 .env
-.env.*
-!.env.example
-
-# Netlify build output
-.netlify/
-
-# Testing
-coverage
-.nyc_output
-
-# OS
-Thumbs.db
+dist
+.DS_Store
+.vscode
+.idea
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.vercel
+.netlify

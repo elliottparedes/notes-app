@@ -20,6 +20,7 @@ const selectedFolderId = ref<number | null>(null);
 const loading = ref(false);
 const isCreating = ref(false);
 const hasInitialized = ref(false);
+const isMounted = ref(false); // Track if we're on client to prevent hydration mismatch
 
 // View mode state (grid or list)
 const viewMode = ref<'grid' | 'list'>('grid');
@@ -125,6 +126,8 @@ async function loadData() {
 }
 
 onMounted(async () => {
+  isMounted.value = true; // Mark as mounted to prevent hydration mismatch
+  
   if (process.client) {
     // Load session version
     sessionKey.value = localStorage.getItem('session_version') || 'default';
@@ -664,8 +667,8 @@ function toggleFabMenu() {
 
 <template>
   <div>
-    <!-- Loading screen while auth is initializing -->
-    <div v-if="!authStore.currentUser || !authStore.initialized" class="flex items-center justify-center h-screen bg-gray-50 dark:bg-gray-900">
+    <!-- Loading screen while auth is initializing or during SSR -->
+    <div v-if="!isMounted || !authStore.currentUser || !authStore.initialized" class="flex items-center justify-center h-screen bg-gray-50 dark:bg-gray-900">
       <div class="text-center">
         <div class="w-16 h-16 mx-auto mb-4 border-4 border-primary-500 border-t-transparent rounded-full animate-spin"></div>
         <p class="text-gray-600 dark:text-gray-400">Loading...</p>
@@ -977,78 +980,82 @@ function toggleFabMenu() {
 
             <!-- Right: Actions -->
             <div class="flex items-center gap-2">
-              <!-- Sync Status -->
-              <div class="relative">
-                <button
-                  @click="() => { if (isOnline && !notesStore.syncing && notesStore.pendingChanges > 0) notesStore.syncWithServer() }"
-                  :disabled="!isOnline || notesStore.syncing"
-                  :title="!isOnline ? 'Offline - Changes saved locally' : notesStore.syncing ? 'Syncing...' : notesStore.pendingChanges > 0 ? 'Click to sync pending changes' : 'All synced'"
-                  class="p-2 rounded-lg transition-colors relative"
-                  :class="{
-                    'text-yellow-600 dark:text-yellow-400 hover:bg-yellow-50 dark:hover:bg-yellow-900/20': !isOnline,
-                    'text-blue-600 dark:text-blue-400 cursor-wait': isOnline && notesStore.syncing,
-                    'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer': isOnline && !notesStore.syncing && notesStore.pendingChanges > 0,
-                    'text-green-600 dark:text-green-400': isOnline && !notesStore.syncing && notesStore.pendingChanges === 0
-                  }"
-                >
-                  <UIcon 
-                    v-if="!isOnline"
-                    name="i-heroicons-wifi"
-                    class="w-5 h-5"
-                  />
-                  <UIcon 
-                    v-else-if="notesStore.syncing"
-                    name="i-heroicons-arrow-path"
-                    class="w-5 h-5 animate-spin"
-                  />
-                  <UIcon 
-                    v-else-if="notesStore.pendingChanges > 0"
-                    name="i-heroicons-cloud-arrow-up"
-                    class="w-5 h-5"
-                  />
-                  <UIcon 
-                    v-else
-                    name="i-heroicons-check-circle"
-                    class="w-5 h-5"
-                  />
-                  
-                  <!-- Pending changes badge -->
-                  <span 
-                    v-if="notesStore.pendingChanges > 0 && !notesStore.syncing"
-                    class="absolute -top-1 -right-1 w-4 h-4 bg-primary-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center"
+              <!-- Sync Status (Client-only to prevent hydration mismatch) -->
+              <ClientOnly>
+                <div class="relative">
+                  <button
+                    @click="() => { if (isOnline && !notesStore.syncing && notesStore.pendingChanges > 0) notesStore.syncWithServer() }"
+                    :disabled="!isOnline || notesStore.syncing"
+                    :title="!isOnline ? 'Offline - Changes saved locally' : notesStore.syncing ? 'Syncing...' : notesStore.pendingChanges > 0 ? 'Click to sync pending changes' : 'All synced'"
+                    class="p-2 rounded-lg transition-colors relative"
+                    :class="{
+                      'text-yellow-600 dark:text-yellow-400 hover:bg-yellow-50 dark:hover:bg-yellow-900/20': !isOnline,
+                      'text-blue-600 dark:text-blue-400 cursor-wait': isOnline && notesStore.syncing,
+                      'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer': isOnline && !notesStore.syncing && notesStore.pendingChanges > 0,
+                      'text-green-600 dark:text-green-400': isOnline && !notesStore.syncing && notesStore.pendingChanges === 0
+                    }"
                   >
-                    {{ notesStore.pendingChanges > 9 ? '9+' : notesStore.pendingChanges }}
-                  </span>
-                </button>
-              </div>
+                    <UIcon 
+                      v-if="!isOnline"
+                      name="i-heroicons-wifi"
+                      class="w-5 h-5"
+                    />
+                    <UIcon 
+                      v-else-if="notesStore.syncing"
+                      name="i-heroicons-arrow-path"
+                      class="w-5 h-5 animate-spin"
+                    />
+                    <UIcon 
+                      v-else-if="notesStore.pendingChanges > 0"
+                      name="i-heroicons-cloud-arrow-up"
+                      class="w-5 h-5"
+                    />
+                    <UIcon 
+                      v-else
+                      name="i-heroicons-check-circle"
+                      class="w-5 h-5"
+                    />
+                    
+                    <!-- Pending changes badge -->
+                    <span 
+                      v-if="notesStore.pendingChanges > 0 && !notesStore.syncing"
+                      class="absolute -top-1 -right-1 w-4 h-4 bg-primary-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center"
+                    >
+                      {{ notesStore.pendingChanges > 9 ? '9+' : notesStore.pendingChanges }}
+                    </span>
+                  </button>
+                </div>
+              </ClientOnly>
 
-              <!-- View Mode Toggle (Desktop Only) -->
-              <div v-if="displayedNotes.length > 0 || loading" class="hidden md:flex items-center gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1 border border-gray-200 dark:border-gray-700">
-                <button
-                  @click="setViewMode('grid')"
-                  :class="[
-                    'p-2 rounded-md transition-all',
-                    viewMode === 'grid' 
-                      ? 'bg-white dark:bg-gray-700 text-primary-600 dark:text-primary-400 shadow-sm' 
-                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
-                  ]"
-                  title="Grid view"
-                >
-                  <UIcon name="i-heroicons-squares-2x2" class="w-5 h-5" />
-                </button>
-                <button
-                  @click="setViewMode('list')"
-                  :class="[
-                    'p-2 rounded-md transition-all',
-                    viewMode === 'list' 
-                      ? 'bg-white dark:bg-gray-700 text-primary-600 dark:text-primary-400 shadow-sm' 
-                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
-                  ]"
-                  title="List view"
-                >
-                  <UIcon name="i-heroicons-bars-3" class="w-5 h-5" />
-                </button>
-              </div>
+              <!-- View Mode Toggle (Desktop Only) - Client-only since it loads from localStorage -->
+              <ClientOnly>
+                <div v-if="displayedNotes.length > 0 || loading" class="hidden md:flex items-center gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1 border border-gray-200 dark:border-gray-700">
+                  <button
+                    @click="setViewMode('grid')"
+                    :class="[
+                      'p-2 rounded-md transition-all',
+                      viewMode === 'grid' 
+                        ? 'bg-white dark:bg-gray-700 text-primary-600 dark:text-primary-400 shadow-sm' 
+                        : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                    ]"
+                    title="Grid view"
+                  >
+                    <UIcon name="i-heroicons-squares-2x2" class="w-5 h-5" />
+                  </button>
+                  <button
+                    @click="setViewMode('list')"
+                    :class="[
+                      'p-2 rounded-md transition-all',
+                      viewMode === 'list' 
+                        ? 'bg-white dark:bg-gray-700 text-primary-600 dark:text-primary-400 shadow-sm' 
+                        : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                    ]"
+                    title="List view"
+                  >
+                    <UIcon name="i-heroicons-bars-3" class="w-5 h-5" />
+                  </button>
+                </div>
+              </ClientOnly>
 
               <!-- Search -->
               <div class="flex items-center gap-2">
@@ -1135,10 +1142,12 @@ function toggleFabMenu() {
                   </div>
 
                   <div class="flex items-center gap-3 mt-3">
-                    <span class="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
-                      <UIcon name="i-heroicons-calendar" class="w-3 h-3" />
-                      {{ formatDate(note.updated_at) }}
-                    </span>
+                    <ClientOnly>
+                      <span class="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
+                        <UIcon name="i-heroicons-calendar" class="w-3 h-3" />
+                        {{ formatDate(note.updated_at) }}
+                      </span>
+                    </ClientOnly>
 
                     <div v-if="note.tags && note.tags.length > 0" class="flex gap-1">
                       <UBadge
@@ -1181,10 +1190,12 @@ function toggleFabMenu() {
                       </div>
 
                       <div class="hidden md:flex items-center gap-3">
-                        <span class="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1 whitespace-nowrap">
-                          <UIcon name="i-heroicons-calendar" class="w-3 h-3" />
-                          {{ formatDate(note.updated_at) }}
-                        </span>
+                        <ClientOnly>
+                          <span class="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1 whitespace-nowrap">
+                            <UIcon name="i-heroicons-calendar" class="w-3 h-3" />
+                            {{ formatDate(note.updated_at) }}
+                          </span>
+                        </ClientOnly>
 
                         <div v-if="note.tags && note.tags.length > 0" class="flex gap-1">
                           <UBadge

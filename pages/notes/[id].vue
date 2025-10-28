@@ -360,19 +360,21 @@ onUnmounted(() => {
 
         <!-- Right: Note Actions -->
         <div class="flex items-center gap-2">
-          <!-- Save Status -->
-          <div v-if="!isOnline" class="flex items-center gap-2 text-xs text-yellow-600 dark:text-yellow-400">
-            <UIcon name="i-heroicons-wifi" class="w-4 h-4" />
-            <span class="hidden sm:inline">Offline</span>
-          </div>
-          <div v-else-if="isSaving" class="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-            <UIcon name="i-heroicons-arrow-path" class="w-4 h-4 animate-spin" />
-            <span class="hidden sm:inline">Saving...</span>
-          </div>
-          <div v-else class="flex items-center gap-2 text-xs text-green-600 dark:text-green-400">
-            <UIcon name="i-heroicons-check-circle" class="w-4 h-4" />
-            <span class="hidden sm:inline">Saved</span>
-          </div>
+          <!-- Save Status (Client-only to prevent hydration mismatch) -->
+          <ClientOnly>
+            <div v-if="!isOnline" class="flex items-center gap-2 text-xs text-yellow-600 dark:text-yellow-400">
+              <UIcon name="i-heroicons-wifi" class="w-4 h-4" />
+              <span class="hidden sm:inline">Offline</span>
+            </div>
+            <div v-else-if="isSaving" class="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+              <UIcon name="i-heroicons-arrow-path" class="w-4 h-4 animate-spin" />
+              <span class="hidden sm:inline">Saving...</span>
+            </div>
+            <div v-else class="flex items-center gap-2 text-xs text-green-600 dark:text-green-400">
+              <UIcon name="i-heroicons-check-circle" class="w-4 h-4" />
+              <span class="hidden sm:inline">Saved</span>
+            </div>
+          </ClientOnly>
           
           <!-- Lock/Unlock Button -->
           <UButton
@@ -440,10 +442,12 @@ onUnmounted(() => {
               <UIcon name="i-heroicons-lock-closed" class="w-3.5 h-3.5" />
               Read-Only Mode
             </span>
-            <span v-if="currentNote" class="flex items-center gap-1">
-              <UIcon name="i-heroicons-clock" class="w-3.5 h-3.5" />
-              {{ formatDate(currentNote.updated_at) }}
-            </span>
+            <ClientOnly>
+              <span v-if="currentNote" class="flex items-center gap-1">
+                <UIcon name="i-heroicons-clock" class="w-3.5 h-3.5" />
+                {{ formatDate(currentNote.updated_at) }}
+              </span>
+            </ClientOnly>
             <span class="flex items-center gap-1">
               <UIcon name="i-heroicons-document-text" class="w-3.5 h-3.5" />
               {{ wordCount }} words
