@@ -15,15 +15,19 @@ const selectedFolder = ref<string | null>(null);
 const loading = ref(false);
 const isCreating = ref(false);
 
+// View mode state (grid or list)
+const viewMode = ref<'grid' | 'list'>('grid');
+
+// Save view mode preference
+function setViewMode(mode: 'grid' | 'list') {
+  viewMode.value = mode;
+  if (process.client) {
+    localStorage.setItem('notes_view_mode', mode);
+  }
+}
+
 // Session key to force re-render on new sessions
 const sessionKey = ref('default');
-
-// Initialize session key on client only, after mount
-onMounted(() => {
-  if (process.client) {
-    sessionKey.value = localStorage.getItem('session_version') || 'default';
-  }
-});
 
 // Mobile menu and search states
 const isMobileMenuOpen = ref(false);
@@ -106,6 +110,17 @@ if (process.client) {
 
 // Fetch notes on mount
 onMounted(async () => {
+  if (process.client) {
+    // Load session version
+    sessionKey.value = localStorage.getItem('session_version') || 'default';
+    
+    // Load view mode preference
+    const savedViewMode = localStorage.getItem('notes_view_mode') as 'grid' | 'list' | null;
+    if (savedViewMode) {
+      viewMode.value = savedViewMode;
+    }
+  }
+
   loading.value = true;
   try {
     await notesStore.loadFolderOrder();
@@ -682,8 +697,38 @@ function getRenderedPreview(content: string | null): string {
           </div>
         </div>
 
-        <!-- Right: Search & User Menu -->
+        <!-- Right: View Toggle (Desktop Only), Search & User Menu -->
         <div class="flex items-center gap-2">
+          <!-- View Mode Toggle (Desktop Only) -->
+          <div v-if="displayedNotes.length > 0 || loading" class="hidden md:flex items-center gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1 border border-gray-200 dark:border-gray-700">
+            <button
+              @click="setViewMode('grid')"
+              :class="[
+                'p-2 rounded-md transition-all',
+                viewMode === 'grid' 
+                  ? 'bg-white dark:bg-gray-700 text-primary-600 dark:text-primary-400 shadow-sm' 
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+              ]"
+              :title="'Grid view'"
+              aria-label="Grid view"
+            >
+              <UIcon name="i-heroicons-squares-2x2" class="w-5 h-5" />
+            </button>
+            <button
+              @click="setViewMode('list')"
+              :class="[
+                'p-2 rounded-md transition-all',
+                viewMode === 'list' 
+                  ? 'bg-white dark:bg-gray-700 text-primary-600 dark:text-primary-400 shadow-sm' 
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+              ]"
+              :title="'List view'"
+              aria-label="List view"
+            >
+              <UIcon name="i-heroicons-bars-3" class="w-5 h-5" />
+            </button>
+          </div>
+
           <!-- Expandable Search -->
           <div class="flex items-center gap-2">
             <transition name="search-expand">
@@ -1404,24 +1449,121 @@ function getRenderedPreview(content: string | null): string {
           </UButton>
         </div>
 
-        <div v-else class="grid gap-4">
+        <!-- Notes Display -->
+        <div v-else>
+          <!-- Grid View (Desktop Only, when grid mode) -->
+          <div v-if="viewMode === 'grid'" class="hidden md:grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div
+              v-for="note in displayedNotes"
+              :key="note.id"
+              class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 hover:shadow-md transition-all cursor-pointer group"
+              @click="router.push(`/notes/${note.id}`)"
+            >
+              <div class="p-5">
+                <div class="flex items-start justify-between mb-2">
+                  <div class="flex-1 min-w-0">
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-1 truncate group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors">
+                      {{ note.title }}
+                    </h3>
+                    <div 
+                      class="text-sm text-gray-600 dark:text-gray-400 line-clamp-2 prose prose-sm dark:prose-invert max-w-none"
+                      v-html="getRenderedPreview(note.content)"
+                    />
+                  </div>
+                  <div class="flex items-center gap-1 ml-4">
+                    <UButton
+                      icon="i-heroicons-trash"
+                      color="error"
+                      variant="ghost"
+                      size="xs"
+                      @click.stop="handleDeleteNote(note)"
+                    />
+                  </div>
+                </div>
+
+                <div class="flex items-center gap-3 mt-3">
+                  <span class="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
+                    <UIcon name="i-heroicons-calendar" class="w-3 h-3" />
+                    {{ formatDate(note.updated_at) }}
+                  </span>
+                  
+                  <span v-if="note.folder" class="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
+                    <UIcon name="i-heroicons-folder" class="w-3 h-3" />
+                    {{ note.folder }}
+                  </span>
+
+                  <div v-if="note.tags && note.tags.length > 0" class="flex gap-1">
+                    <UBadge
+                      v-for="tag in note.tags.slice(0, 3)"
+                      :key="tag"
+                      color="primary"
+                      variant="soft"
+                      size="xs"
+                    >
+                      {{ tag }}
+                    </UBadge>
+                    <span v-if="note.tags.length > 3" class="text-xs text-gray-400">
+                      +{{ note.tags.length - 3 }}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- List View (Always on mobile, or desktop when list mode selected) -->
+          <!-- When grid mode: shows on mobile only (md:hidden). When list mode: shows everywhere -->
+          <div :class="viewMode === 'grid' ? 'md:hidden space-y-2' : 'space-y-2'">
           <div
             v-for="note in displayedNotes"
             :key="note.id"
             class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 hover:shadow-md transition-all cursor-pointer group"
             @click="router.push(`/notes/${note.id}`)"
           >
-            <div class="p-5">
-              <div class="flex items-start justify-between mb-2">
-                <div class="flex-1 min-w-0">
-                  <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-1 truncate group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors">
-                    {{ note.title }}
-                  </h3>
-                  <div 
-                    class="text-sm text-gray-600 dark:text-gray-400 line-clamp-2 prose prose-sm dark:prose-invert max-w-none"
-                    v-html="getRenderedPreview(note.content)"
-                  />
+            <div class="p-4">
+              <div class="flex items-center justify-between">
+                <div class="flex-1 min-w-0 flex items-center gap-4">
+                  <!-- Title and Preview -->
+                  <div class="flex-1 min-w-0">
+                    <h3 class="text-base font-semibold text-gray-900 dark:text-white truncate group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors mb-1">
+                      {{ note.title }}
+                    </h3>
+                    <div 
+                      class="text-sm text-gray-600 dark:text-gray-400 line-clamp-1 prose prose-sm dark:prose-invert max-w-none"
+                      v-html="getRenderedPreview(note.content)"
+                    />
+                  </div>
+
+                  <!-- Metadata -->
+                  <div class="hidden md:flex items-center gap-3">
+                    <span class="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1 whitespace-nowrap">
+                      <UIcon name="i-heroicons-calendar" class="w-3 h-3" />
+                      {{ formatDate(note.updated_at) }}
+                    </span>
+                    
+                    <span v-if="note.folder" class="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1 whitespace-nowrap">
+                      <UIcon name="i-heroicons-folder" class="w-3 h-3" />
+                      {{ note.folder }}
+                    </span>
+
+                    <div v-if="note.tags && note.tags.length > 0" class="flex gap-1">
+                      <UBadge
+                        v-for="tag in note.tags.slice(0, 2)"
+                        :key="tag"
+                        color="primary"
+                        variant="soft"
+                        size="xs"
+                      >
+                        {{ tag }}
+                      </UBadge>
+                      <span v-if="note.tags.length > 2" class="text-xs text-gray-400">
+                        +{{ note.tags.length - 2 }}
+                      </span>
+                    </div>
+                  </div>
                 </div>
+
+                <!-- Actions -->
                 <div class="flex items-center gap-1 ml-4">
                   <UButton
                     icon="i-heroicons-trash"
@@ -1432,34 +1574,8 @@ function getRenderedPreview(content: string | null): string {
                   />
                 </div>
               </div>
-
-              <div class="flex items-center gap-3 mt-3">
-                <span class="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
-                  <UIcon name="i-heroicons-calendar" class="w-3 h-3" />
-                  {{ formatDate(note.updated_at) }}
-                </span>
-                
-                <span v-if="note.folder" class="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
-                  <UIcon name="i-heroicons-folder" class="w-3 h-3" />
-                  {{ note.folder }}
-                </span>
-
-                <div v-if="note.tags && note.tags.length > 0" class="flex gap-1">
-                  <UBadge
-                    v-for="tag in note.tags.slice(0, 3)"
-                    :key="tag"
-                    color="primary"
-                    variant="soft"
-                    size="xs"
-                  >
-                    {{ tag }}
-                  </UBadge>
-                  <span v-if="note.tags.length > 3" class="text-xs text-gray-400">
-                    +{{ note.tags.length - 3 }}
-                  </span>
-                </div>
-              </div>
             </div>
+          </div>
           </div>
         </div>
       </div>
