@@ -143,6 +143,17 @@ onMounted(async () => {
   }
 });
 
+// Refresh notes when navigating back to dashboard
+onActivated(async () => {
+  // Refresh the notes list to show any newly created notes
+  try {
+    await notesStore.fetchNotes();
+    await notesStore.updatePendingChangesCount();
+  } catch (error) {
+    console.error('Failed to refresh notes:', error);
+  }
+});
+
 // Watch for network status changes and sync
 watch(isOnline, async (online, wasOnlineValue) => {
   if (online && wasOnlineValue === false) {
@@ -398,8 +409,7 @@ async function generateAiNote() {
 
     showAiGenerateModal.value = false;
     
-    // Refresh notes and navigate to the new note
-    await notesStore.fetchNotes();
+    // Navigate directly to the new note - it will appear in the list when user navigates back
     router.push(`/notes/${response.id}`);
   } catch (error) {
     console.error('AI generation error:', error);

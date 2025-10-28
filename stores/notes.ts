@@ -196,7 +196,7 @@ export const useNotesStore = defineStore('notes', {
 
           // Save to local storage immediately
           await saveNote(tempNote);
-          this.notes.push(tempNote);
+          // Don't add to notes array yet - let it appear when user navigates back
           this.currentNote = tempNote;
 
           // If online, try to sync immediately
@@ -211,11 +211,7 @@ export const useNotesStore = defineStore('notes', {
                 body: data
               });
 
-              // Replace temp note with real note
-              const index = this.notes.findIndex(n => n.id === tempNote.id);
-              if (index !== -1) {
-                this.notes[index] = response;
-              }
+              // Update current note with server response
               this.currentNote = response;
 
               // Update local storage with real note (convert to plain object)
