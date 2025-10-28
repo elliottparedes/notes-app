@@ -281,6 +281,32 @@ async function handleQuickNote() {
   }
 }
 
+async function handleListNote() {
+  if (isCreating.value) return;
+  
+  showFabMenu.value = false;
+  isCreating.value = true;
+  
+  try {
+    const noteData: CreateNoteDto = {
+      title: 'New List',
+      content: '<ul data-type="taskList"><li data-type="taskItem" data-checked="false"><p></p></li></ul>',
+      folder: selectedFolder.value || null
+    };
+    
+    const note = await notesStore.createNote(noteData);
+    router.push(`/notes/${note.id}`);
+  } catch (error) {
+    toast.add({
+      title: 'Error',
+      description: 'Failed to create list note',
+      color: 'error'
+    });
+  } finally {
+    isCreating.value = false;
+  }
+}
+
 function handleCreateFolderFromFab() {
   showFabMenu.value = false;
   openCreateFolderModal();
@@ -1618,6 +1644,21 @@ function getRenderedPreview(content: string | null): string {
                 <div class="flex-1">
                   <div class="font-semibold text-gray-900 dark:text-white">Quick Note</div>
                   <div class="text-xs text-gray-500 dark:text-gray-400">With timestamp</div>
+                </div>
+              </button>
+
+              <!-- List Note -->
+              <button
+                @click="handleListNote"
+                :disabled="isCreating"
+                class="w-full text-left px-4 py-3.5 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-orange-50 dark:hover:bg-orange-900/20 flex items-center gap-3 transition-colors disabled:opacity-50"
+              >
+                <div class="w-10 h-10 bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl flex items-center justify-center shadow-sm">
+                  <UIcon name="i-heroicons-list-bullet" class="w-5 h-5 text-white" />
+                </div>
+                <div class="flex-1">
+                  <div class="font-semibold text-gray-900 dark:text-white">New List</div>
+                  <div class="text-xs text-gray-500 dark:text-gray-400">With checkbox ready</div>
                 </div>
               </button>
 
