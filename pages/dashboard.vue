@@ -716,7 +716,7 @@ function toggleFabMenu() {
       <!-- Left Sidebar (Desktop Only) -->
       <aside class="hidden md:flex md:flex-col w-64 lg:w-72 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700">
         <!-- Sidebar Header -->
-        <div class="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+        <div class="flex items-center justify-between h-14 px-4">
           <div class="flex items-center gap-3">
             <div class="w-8 h-8 bg-gradient-to-br from-primary-500 to-primary-600 rounded-lg flex items-center justify-center shadow-lg">
               <UIcon name="i-heroicons-document-text" class="w-5 h-5 text-white" />

@@ -39,8 +39,11 @@ export const useToast = () => {
     const message = description ? `${title}: ${description}` : title
     
     // Push notification using Notivue
-    // Configuration in nuxt.config.ts ensures pauseOnHover: false
-    push[type](message)
+    // Pass duration to override global config if needed
+    push[type]({
+      message,
+      duration: duration || 1500 // Default to 1.5 seconds for faster dismissal
+    })
   }
   
   return {

@@ -29,7 +29,7 @@ export default defineNuxtConfig({
     avoidDuplicates: true,
     pauseOnHover: false, // Disable pause on hover
     pauseOnTouch: false, // Disable pause on touch
-    autoClear: 3000 // Duration in milliseconds
+    autoClear: 1500 // Duration in milliseconds (1.5 seconds)
   } as any,
 
   typescript: {
