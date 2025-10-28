@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import type { Note, CreateNoteDto } from '~/models';
+import type { NoteTemplate } from '~/types/noteTemplate';
+import { noteTemplates } from '~/utils/noteTemplates';
 
 // Dashboard page
 const authStore = useAuthStore();
@@ -59,6 +61,9 @@ const isFolderActionLoading = ref(false);
 const showAiGenerateModal = ref(false);
 const aiPrompt = ref('');
 const isGeneratingAi = ref(false);
+
+// Template selection modal
+const showTemplateModal = ref(false);
 
 // Folder colors for visual distinction
 const folderColors = [
@@ -320,6 +325,44 @@ function handleAiGenerate() {
 function openAiGenerateModal() {
   aiPrompt.value = '';
   showAiGenerateModal.value = true;
+}
+
+function handleTemplateNote() {
+  showFabMenu.value = false;
+  showTemplateModal.value = true;
+}
+
+async function createNoteFromTemplate(template: NoteTemplate) {
+  if (isCreating.value) return;
+  
+  showTemplateModal.value = false;
+  isCreating.value = true;
+  
+  try {
+    const noteData: CreateNoteDto = {
+      title: template.title,
+      content: template.content,
+      folder: selectedFolder.value || null
+    };
+    
+    const note = await notesStore.createNote(noteData);
+    
+    toast.add({
+      title: 'Success',
+      description: `Created note from ${template.title} template`,
+      color: 'success'
+    });
+    
+    router.push(`/notes/${note.id}`);
+  } catch (error) {
+    toast.add({
+      title: 'Error',
+      description: 'Failed to create note from template',
+      color: 'error'
+    });
+  } finally {
+    isCreating.value = false;
+  }
 }
 
 async function generateAiNote() {
@@ -1470,6 +1513,99 @@ function getRenderedPreview(content: string | null): string {
       </Transition>
     </Teleport>
 
+    <!-- Template Selection Modal -->
+    <Teleport to="body">
+      <Transition name="modal">
+        <div
+          v-if="showTemplateModal"
+          class="fixed inset-0 z-50 flex items-center justify-center p-4"
+        >
+          <!-- Backdrop -->
+          <div
+            class="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            @click="showTemplateModal = false"
+          />
+          
+          <!-- Modal -->
+          <div class="relative bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-4xl w-full max-h-[85vh] border border-gray-200 dark:border-gray-700 flex flex-col">
+            <!-- Header -->
+            <div class="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+              <div>
+                <h3 class="text-xl font-semibold text-gray-900 dark:text-white">Choose a Template</h3>
+                <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">Select a pre-made template to get started quickly</p>
+              </div>
+              <button
+                @click="showTemplateModal = false"
+                class="p-2 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+              >
+                <UIcon name="i-heroicons-x-mark" class="w-6 h-6" />
+              </button>
+            </div>
+
+            <!-- Template Grid (Scrollable) -->
+            <div class="flex-1 overflow-y-auto p-6">
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <button
+                  v-for="template in noteTemplates"
+                  :key="template.id"
+                  @click="createNoteFromTemplate(template)"
+                  :disabled="isCreating"
+                  class="group relative bg-gradient-to-br p-[2px] rounded-xl hover:shadow-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                  :class="template.color"
+                >
+                  <!-- Inner card -->
+                  <div class="bg-white dark:bg-gray-800 rounded-xl p-5 h-full flex flex-col">
+                    <!-- Icon and Title -->
+                    <div class="flex items-start gap-4 mb-3">
+                      <div 
+                        class="w-12 h-12 bg-gradient-to-br rounded-xl flex items-center justify-center shadow-md flex-shrink-0 group-hover:scale-110 transition-transform"
+                        :class="template.color"
+                      >
+                        <UIcon :name="template.icon" class="w-6 h-6 text-white" />
+                      </div>
+                      <div class="flex-1 min-w-0">
+                        <h4 class="text-lg font-semibold text-gray-900 dark:text-white mb-1">
+                          {{ template.title }}
+                        </h4>
+                        <p class="text-sm text-gray-600 dark:text-gray-400 line-clamp-2">
+                          {{ template.description }}
+                        </p>
+                      </div>
+                    </div>
+
+                    <!-- Preview indicator -->
+                    <div class="mt-auto pt-3 border-t border-gray-200 dark:border-gray-700">
+                      <div class="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+                        <span>Click to create</span>
+                        <UIcon name="i-heroicons-arrow-right" class="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </div>
+                    </div>
+                  </div>
+                </button>
+              </div>
+            </div>
+
+            <!-- Footer -->
+            <div class="p-6 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                  <UIcon name="i-heroicons-information-circle" class="w-5 h-5" />
+                  <span>{{ noteTemplates.length }} templates available</span>
+                </div>
+                <UButton
+                  color="neutral"
+                  variant="soft"
+                  @click="showTemplateModal = false"
+                >
+                  Cancel
+                </UButton>
+              </div>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+
     <!-- Main Content -->
     <div class="flex-1 flex flex-col overflow-hidden relative">
       <!-- Current Folder Indicator (Mobile Only) -->
@@ -1693,6 +1829,20 @@ function getRenderedPreview(content: string | null): string {
                 <div class="flex-1">
                   <div class="font-semibold text-gray-900 dark:text-white">New List</div>
                   <div class="text-xs text-gray-500 dark:text-gray-400">With checkbox ready</div>
+                </div>
+              </button>
+
+              <!-- From Template -->
+              <button
+                @click="handleTemplateNote"
+                class="w-full text-left px-4 py-3.5 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 flex items-center gap-3 transition-colors"
+              >
+                <div class="w-10 h-10 bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-sm">
+                  <UIcon name="i-heroicons-document-duplicate" class="w-5 h-5 text-white" />
+                </div>
+                <div class="flex-1">
+                  <div class="font-semibold text-gray-900 dark:text-white">From Template</div>
+                  <div class="text-xs text-gray-500 dark:text-gray-400">Use a pre-made template</div>
                 </div>
               </button>
 
