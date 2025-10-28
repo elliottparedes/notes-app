@@ -29,6 +29,17 @@
   [headers.values]
     cache-control = "public, max-age=31536000, immutable"
 
+[[headers]]
+  for = "/manifest.webmanifest"
+  [headers.values]
+    Content-Type = "application/manifest+json"
+    cache-control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    cache-control = "public, max-age=0, must-revalidate"
+
 # Environment variables should be set in Netlify UI
 # Never commit actual secrets to the repository
 # Required variables:
