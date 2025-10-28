@@ -17,6 +17,7 @@ const showShortcuts = ref(false);
 const showDeleteModal = ref(false);
 const isDeleting = ref(false);
 const isLocked = ref(false);
+const showEditorToolbar = ref(true);
 
 const editForm = reactive<UpdateNoteDto & { content: string }>({
   title: '',
@@ -37,8 +38,24 @@ const charCount = computed(() => {
   return editForm.content?.length || 0;
 });
 
+// Toggle editor toolbar
+function toggleEditorToolbar() {
+  showEditorToolbar.value = !showEditorToolbar.value;
+  // Save preference to localStorage
+  if (process.client) {
+    localStorage.setItem('tiptap-toolbar-visible', String(showEditorToolbar.value));
+  }
+}
+
 // Fetch note on mount
 onMounted(async () => {
+  if (process.client) {
+    const savedToolbar = localStorage.getItem('tiptap-toolbar-visible');
+    if (savedToolbar !== null) {
+      showEditorToolbar.value = savedToolbar === 'true';
+    }
+  }
+  
   isLoading.value = true;
   try {
     await notesStore.fetchNote(noteId.value);
@@ -356,6 +373,16 @@ onUnmounted(() => {
               <UIcon name="i-heroicons-chart-bar" class="w-3.5 h-3.5" />
               {{ charCount }} characters
             </span>
+            <!-- Toolbar Toggle Button -->
+            <button
+              v-if="!isLocked"
+              @click="toggleEditorToolbar"
+              class="flex items-center gap-1 px-2 py-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors group"
+              :title="showEditorToolbar ? 'Hide Toolbar' : 'Show Toolbar'"
+            >
+              <UIcon :name="showEditorToolbar ? 'i-heroicons-eye-slash' : 'i-heroicons-eye'" class="w-3.5 h-3.5" />
+              <span class="hidden sm:inline">{{ showEditorToolbar ? 'Hide' : 'Show' }} Toolbar</span>
+            </button>
           </div>
         </div>
       </div>
@@ -443,6 +470,7 @@ onUnmounted(() => {
               v-model="editForm.content"
               placeholder="Start writing..."
               :editable="!isLocked"
+              :showToolbar="showEditorToolbar"
             />
           </ClientOnly>
         </div>

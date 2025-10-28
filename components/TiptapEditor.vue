@@ -16,12 +16,15 @@ const props = withDefaults(defineProps<{
   modelValue: string
   placeholder?: string
   editable?: boolean
+  showToolbar?: boolean
 }>(), {
-  editable: true
+  editable: true,
+  showToolbar: true
 })
 
 const emit = defineEmits<{
   (e: 'update:modelValue', value: string): void
+  (e: 'update:showToolbar', value: boolean): void
 }>()
 
 // Modal states
@@ -30,27 +33,12 @@ const showImageModal = ref(false)
 const linkUrl = ref('')
 const imageUrl = ref('')
 
-// Toolbar visibility - load from localStorage
-const TOOLBAR_STORAGE_KEY = 'tiptap-toolbar-visible'
-const showToolbar = ref(true)
+// Toolbar visibility - controlled by parent now
+const showToolbar = computed(() => props.showToolbar ?? true)
 
-// Load toolbar preference on mount
-onMounted(() => {
-  if (process.client) {
-    const saved = localStorage.getItem(TOOLBAR_STORAGE_KEY)
-    if (saved !== null) {
-      showToolbar.value = saved === 'true'
-    }
-  }
+defineExpose({
+  showToolbar
 })
-
-function toggleToolbar() {
-  showToolbar.value = !showToolbar.value
-  // Save preference to localStorage
-  if (process.client) {
-    localStorage.setItem(TOOLBAR_STORAGE_KEY, String(showToolbar.value))
-  }
-}
 
 const editor = useEditor({
   editable: props.editable,
@@ -258,17 +246,6 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="tiptap-editor w-full relative">
-    <!-- Toggle Toolbar Button (Floating) -->
-        <button
-      v-if="editable"
-      @click="toggleToolbar"
-      class="absolute top-2 right-2 z-20 p-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 transition-all shadow-md"
-      :class="{ 'top-16': showToolbar }"
-      :title="showToolbar ? 'Hide Toolbar (Distraction-free)' : 'Show Toolbar'"
-    >
-      <UIcon :name="showToolbar ? 'i-heroicons-eye-slash' : 'i-heroicons-eye'" class="w-5 h-5 text-gray-600 dark:text-gray-400" />
-    </button>
-
     <!-- Toolbar (only show when editable) -->
     <Transition name="toolbar">
       <div v-if="editable && showToolbar" class="toolbar sticky top-0 z-10 flex flex-wrap gap-1 p-2 bg-gray-100 dark:bg-gray-800 border-b border-gray-300 dark:border-gray-600 rounded-t-lg">
