@@ -22,6 +22,7 @@ const showEditorToolbar = ref(true);
 const showFolderDropdown = ref(false);
 const folderDropdownPos = ref({ top: 0, left: 0 });
 const folderButtonRef = ref<HTMLButtonElement | null>(null);
+const isPolishing = ref(false);
 
 const editForm = reactive<UpdateNoteDto & { content: string }>({
   title: '',
@@ -328,6 +329,56 @@ function removeTag(tag: string) {
   }
 }
 
+// Polish note with AI
+async function polishNote() {
+  if (!editForm.title?.trim() && !editForm.content?.trim()) {
+    toast.add({
+      title: 'Nothing to Polish',
+      description: 'Add some content to your note first',
+      color: 'warning'
+    });
+    return;
+  }
+
+  isPolishing.value = true;
+
+  try {
+    const authStore = useAuthStore();
+    const response = await $fetch<{ title: string; content: string }>('/api/notes/polish', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${authStore.token}`
+      },
+      body: {
+        title: editForm.title || 'Untitled Note',
+        content: editForm.content || ''
+      }
+    });
+
+    // Update the note with the polished content
+    editForm.title = response.title;
+    editForm.content = response.content;
+
+    toast.add({
+      title: 'Note Polished! ✨',
+      description: 'Your note has been cleaned and organized',
+      color: 'success'
+    });
+
+    // Save the changes
+    await saveNote(true);
+  } catch (error: any) {
+    console.error('Polish error:', error);
+    toast.add({
+      title: 'Polish Failed',
+      description: error.data?.message || 'Failed to polish note with AI',
+      color: 'error'
+    });
+  } finally {
+    isPolishing.value = false;
+  }
+}
+
 // Cleanup auto-save timeout
 onUnmounted(() => {
   if (autoSaveTimeout.value) {
@@ -473,7 +524,8 @@ onUnmounted(() => {
       <!-- Metadata Bar (Hidden when locked) -->
       <div v-if="!isLocked" class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 md:px-6 py-3">
         <div class="max-w-5xl mx-auto">
-          <div class="flex items-center gap-4 text-sm flex-wrap">
+          <div class="flex items-center justify-between gap-4 text-sm flex-wrap">
+            <div class="flex items-center gap-4 flex-wrap flex-1 min-w-0">
             <!-- Folder -->
             <div class="flex items-center gap-2 relative">
               <UIcon name="i-heroicons-folder" class="w-4 h-4 text-gray-400" />
@@ -544,6 +596,22 @@ onUnmounted(() => {
                 />
               </div>
             </div>
+            </div>
+            
+            <!-- Polish with AI Button -->
+            <button
+              @click="polishNote"
+              :disabled="isPolishing"
+              class="polish-ai-button group relative inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white rounded-lg transition-all duration-300 hover:scale-105 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 flex-shrink-0"
+              title="Polish with AI"
+            >
+              <UIcon 
+                name="i-heroicons-sparkles" 
+                :class="isPolishing ? 'animate-spin' : 'group-hover:animate-pulse'" 
+                class="w-4 h-4" 
+              />
+              <span>{{ isPolishing ? 'Polishing...' : 'Polish' }}</span>
+            </button>
           </div>
         </div>
       </div>
@@ -758,6 +826,36 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+/* Polish AI Button - Stunning Purple Gradient */
+.polish-ai-button {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+  background-size: 200% 200%;
+  animation: gradient-shift 3s ease infinite;
+  box-shadow: 0 4px 15px 0 rgba(102, 126, 234, 0.4);
+}
+
+.polish-ai-button:hover:not(:disabled) {
+  background: linear-gradient(135deg, #5568d3 0%, #6a3f92 50%, #e082ea 100%);
+  background-size: 200% 200%;
+  box-shadow: 0 6px 20px 0 rgba(102, 126, 234, 0.6);
+}
+
+.polish-ai-button:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+@keyframes gradient-shift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
 /* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 8px;
