@@ -1071,7 +1071,7 @@ function toggleFabMenu() {
                   />
                 </transition>
                 <button
-                  @click="() => { 
+                  @mousedown.prevent="() => { 
                     if (isSearchExpanded) {
                       searchQuery = '';
                       isSearchExpanded = false;
