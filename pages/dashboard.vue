@@ -108,6 +108,7 @@ if (process.client) {
 onMounted(async () => {
   loading.value = true;
   try {
+    await notesStore.loadFolderOrder();
     await notesStore.fetchNotes();
     await notesStore.updatePendingChangesCount();
   } catch (error) {
@@ -841,6 +842,25 @@ function getRenderedPreview(content: string | null): string {
       >
         <button
           type="button"
+          @click="notesStore.moveFolderLeft(folder)"
+          :disabled="folders.indexOf(folder) === 0"
+          class="w-48 text-left px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <UIcon name="i-heroicons-arrow-left" class="w-5 h-5 text-gray-500" />
+          <span>Move Left</span>
+        </button>
+        <button
+          type="button"
+          @click="notesStore.moveFolderRight(folder)"
+          :disabled="folders.indexOf(folder) === folders.length - 1"
+          class="w-48 text-left px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <UIcon name="i-heroicons-arrow-right" class="w-5 h-5 text-gray-500" />
+          <span>Move Right</span>
+        </button>
+        <div class="my-1 border-t border-gray-200 dark:border-gray-700"></div>
+        <button
+          type="button"
           @click="openRenameFolderModal(folder); activeFolderMenu = null"
           class="w-48 text-left px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-3"
         >
@@ -972,6 +992,25 @@ function getRenderedPreview(content: string | null): string {
                           data-folder-menu-dropdown
                           class="absolute left-4 right-4 top-full mt-1 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-xl py-2 z-50"
                         >
+                          <button
+                            type="button"
+                            @click="notesStore.moveFolderLeft(folder)"
+                            :disabled="folders.indexOf(folder) === 0"
+                            class="w-full text-left px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            <UIcon name="i-heroicons-arrow-left" class="w-5 h-5 text-gray-500" />
+                            <span>Move Left</span>
+                          </button>
+                          <button
+                            type="button"
+                            @click="notesStore.moveFolderRight(folder)"
+                            :disabled="folders.indexOf(folder) === folders.length - 1"
+                            class="w-full text-left px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            <UIcon name="i-heroicons-arrow-right" class="w-5 h-5 text-gray-500" />
+                            <span>Move Right</span>
+                          </button>
+                          <div class="my-1 border-t border-gray-200 dark:border-gray-700"></div>
                           <button
                             type="button"
                             @click="openRenameFolderModal(folder); activeFolderMenu = null; isMobileMenuOpen = false"

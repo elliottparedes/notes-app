@@ -57,7 +57,7 @@ export default defineEventHandler(async (event): Promise<AuthResponse> => {
 
     // Fetch created user
     const users = await executeQuery<User[]>(
-      'SELECT id, email, name, created_at, updated_at FROM users WHERE id = ?',
+      'SELECT id, email, name, folder_order, created_at, updated_at FROM users WHERE id = ?',
       [result.insertId]
     );
 
@@ -68,6 +68,9 @@ export default defineEventHandler(async (event): Promise<AuthResponse> => {
         message: 'Failed to create user'
       });
     }
+    
+    // Ensure folder_order is null for new users
+    user.folder_order = null;
 
     // Generate JWT token
     const token = generateToken(user);

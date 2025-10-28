@@ -12,6 +12,7 @@ interface NotesState {
   syncing: boolean;
   lastSyncTime: Date | null;
   pendingChanges: number;
+  folderOrder: string[];
 }
 
 export const useNotesStore = defineStore('notes', {
@@ -23,7 +24,8 @@ export const useNotesStore = defineStore('notes', {
     filters: {},
     syncing: false,
     lastSyncTime: null,
-    pendingChanges: 0
+    pendingChanges: 0,
+    folderOrder: []
   }),
 
   getters: {
@@ -61,7 +63,18 @@ export const useNotesStore = defineStore('notes', {
           folderSet.add(note.folder);
         }
       });
-      return Array.from(folderSet).sort();
+      const allFolders = Array.from(folderSet);
+      
+      // If no custom order, use alphabetical sort
+      if (state.folderOrder.length === 0) {
+        return allFolders.sort();
+      }
+      
+      // Sort by custom order, putting new folders at the end
+      const ordered = state.folderOrder.filter(folder => allFolders.includes(folder));
+      const newFolders = allFolders.filter(folder => !state.folderOrder.includes(folder)).sort();
+      
+      return [...ordered, ...newFolders];
     },
 
     allTags: (state): string[] => {
@@ -422,6 +435,115 @@ export const useNotesStore = defineStore('notes', {
 
     setCurrentNote(note: Note | null): void {
       this.currentNote = note;
+    },
+
+    // Folder ordering methods
+    async loadFolderOrder(): Promise<void> {
+      if (process.client) {
+        try {
+          // First, try to load from server if online
+          if (navigator.onLine) {
+            const authStore = useAuthStore();
+            if (authStore.token) {
+              try {
+                const response = await $fetch<{ folder_order: string[] | null }>('/api/user/folder-order', {
+                  headers: {
+                    Authorization: `Bearer ${authStore.token}`
+                  }
+                });
+                
+                if (response.folder_order) {
+                  this.folderOrder = response.folder_order;
+                  // Save to localStorage as cache
+                  localStorage.setItem('folder_order', JSON.stringify(this.folderOrder));
+                  return;
+                }
+              } catch (err) {
+                console.error('Failed to load folder order from server:', err);
+              }
+            }
+          }
+          
+          // Fallback to localStorage
+          const stored = localStorage.getItem('folder_order');
+          if (stored) {
+            try {
+              this.folderOrder = JSON.parse(stored);
+            } catch (err) {
+              console.error('Failed to parse folder order:', err);
+              this.folderOrder = [];
+            }
+          }
+        } catch (err) {
+          console.error('Error loading folder order:', err);
+        }
+      }
+    },
+
+    async saveFolderOrder(): Promise<void> {
+      if (process.client) {
+        // Always save to localStorage for offline access
+        localStorage.setItem('folder_order', JSON.stringify(this.folderOrder));
+        
+        // Try to sync with server if online
+        if (navigator.onLine) {
+          const authStore = useAuthStore();
+          if (authStore.token) {
+            try {
+              await $fetch('/api/user/folder-order', {
+                method: 'PUT',
+                headers: {
+                  Authorization: `Bearer ${authStore.token}`
+                },
+                body: {
+                  folder_order: this.folderOrder
+                }
+              });
+            } catch (err) {
+              console.error('Failed to save folder order to server:', err);
+              // Silently fail - localStorage will serve as backup
+            }
+          }
+        }
+      }
+    },
+
+    moveFolderLeft(folderName: string): void {
+      // Ensure folder order is initialized with all current folders
+      const currentFolders = this.folders;
+      if (this.folderOrder.length === 0) {
+        this.folderOrder = [...currentFolders];
+      }
+
+      const index = this.folderOrder.indexOf(folderName);
+      if (index > 0) {
+        // Swap with previous folder
+        const temp = this.folderOrder[index - 1];
+        if (temp !== undefined) {
+          this.folderOrder[index - 1] = folderName;
+          this.folderOrder[index] = temp;
+          this.saveFolderOrder();
+        }
+      }
+    },
+
+    moveFolderRight(folderName: string): void {
+      // Ensure folder order is initialized with all current folders
+      const currentFolders = this.folders;
+      if (this.folderOrder.length === 0) {
+        this.folderOrder = [...currentFolders];
+      }
+
+      const index = this.folderOrder.indexOf(folderName);
+      if (index !== -1 && index < this.folderOrder.length - 1) {
+        // Swap with next folder
+        const temp = this.folderOrder[index + 1];
+        if (temp !== undefined) {
+          this.folderOrder[index + 1] = folderName;
+          this.folderOrder[index] = temp;
+          this.saveFolderOrder();
+        }
+      }
     }
   }
 });

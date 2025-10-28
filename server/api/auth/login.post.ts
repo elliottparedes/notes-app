@@ -1,5 +1,5 @@
 import type { UserLoginDto, UserWithPassword, User, AuthResponse } from '../../../models';
-import { executeQuery } from '../../utils/db';
+import { executeQuery, parseJsonField } from '../../utils/db';
 import { comparePassword } from '../../utils/auth';
 import { generateToken } from '../../utils/jwt';
 
@@ -16,8 +16,8 @@ export default defineEventHandler(async (event): Promise<AuthResponse> => {
 
   try {
     // Fetch user with password
-    const users = await executeQuery<UserWithPassword[]>(
-      'SELECT id, email, name, password_hash, created_at, updated_at FROM users WHERE email = ?',
+    const users = await executeQuery<Array<UserWithPassword & { folder_order: string | null }>>(
+      'SELECT id, email, name, password_hash, folder_order, created_at, updated_at FROM users WHERE email = ?',
       [body.email]
     );
 
@@ -43,11 +43,12 @@ export default defineEventHandler(async (event): Promise<AuthResponse> => {
       });
     }
 
-    // Remove password_hash from response
+    // Remove password_hash from response and parse folder_order
     const user: User = {
       id: userWithPassword.id,
       email: userWithPassword.email,
       name: userWithPassword.name,
+      folder_order: parseJsonField<string[]>(userWithPassword.folder_order),
       created_at: userWithPassword.created_at,
       updated_at: userWithPassword.updated_at
     };

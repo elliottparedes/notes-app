@@ -12,7 +12,8 @@
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
     "clean": "rm -rf .nuxt node_modules/.vite node_modules/.cache",
-    "fresh": "npm run clean && npm run dev"
+    "fresh": "npm run clean && npm run dev",
+    "migrate": "node migrations/run-migration.js"
   },
   "dependencies": {
     "@nuxt/ui": "^4.1.0",
