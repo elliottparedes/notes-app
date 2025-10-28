@@ -71,9 +71,12 @@ const sessionKey = ref('default');
 
 // Watch search expansion to focus input
 watch(isSearchExpanded, (expanded) => {
-  if (expanded && searchInputRef.value) {
+  if (expanded) {
+    // Wait for both the DOM update and the transition to start
     nextTick(() => {
-      searchInputRef.value?.focus();
+      setTimeout(() => {
+        searchInputRef.value?.focus();
+      }, 50); // Small delay to ensure transition has started
     });
   }
 });
