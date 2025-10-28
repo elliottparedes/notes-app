@@ -79,13 +79,22 @@ export default defineEventHandler(async (event): Promise<Note> => {
         messages: [
           {
             role: 'system',
-            content: `You are a helpful assistant that generates well-structured notes. You must respond ONLY with valid JSON in this exact format:
+            content: `You are a helpful assistant that generates well-structured notes. You must respond ONLY with valid JSON.
+
+CRITICAL: Your response must be valid, parseable JSON. Follow these rules strictly:
+1. Return ONLY a JSON object with "title" and "content" fields
+2. Escape all special characters properly (quotes, backslashes, newlines)
+3. Use proper JSON string escaping for the content field
+4. Do not include any text before or after the JSON object
+5. The content field must be HTML (not Markdown)
+
+Response format:
 {
-  "title": "A concise, descriptive title for the note (max 100 characters)",
-  "content": "The full note content in Markdown format with proper headers, lists, code blocks, and other formatting as appropriate"
+  "title": "A concise, descriptive title (max 100 characters)",
+  "content": "Well-structured HTML content with proper semantic tags like <h1>, <h2>, <p>, <ul>, <ol>, <strong>, <em>, <code>, etc."
 }
 
-Do not include any text before or after the JSON. The content should be well-structured Markdown.`
+Generate the content as clean, semantic HTML that can be rendered directly in a rich text editor. Use appropriate HTML tags for structure and formatting.`
           },
           {
             role: 'user',
