@@ -44,6 +44,53 @@ export const useFoldersStore = defineStore('folders', {
         
         return descendants;
       };
+    },
+
+    // Helper to get siblings of a folder (for determining move up/down availability)
+    getSiblings() {
+      return (folderId: number): Folder[] => {
+        const folder = this.getFolderById(folderId);
+        if (!folder) return [];
+
+        // If it's a root folder, get all root folders
+        if (folder.parent_id === null) {
+          return this.folderTree;
+        }
+
+        // Otherwise, get children of the parent from the tree (not flat array)
+        // We need to search the tree because the flat array doesn't have children
+        const findInTree = (folders: Folder[], targetId: number): Folder | undefined => {
+          for (const f of folders) {
+            if (f.id === targetId) return f;
+            if (f.children) {
+              const found = findInTree(f.children, targetId);
+              if (found) return found;
+            }
+          }
+          return undefined;
+        };
+
+        const parent = findInTree(this.folderTree, folder.parent_id);
+        return parent?.children || [];
+      };
+    },
+
+    // Check if folder can move up
+    canMoveUp() {
+      return (folderId: number): boolean => {
+        const siblings = this.getSiblings(folderId);
+        const index = siblings.findIndex(f => f.id === folderId);
+        return index > 0;
+      };
+    },
+
+    // Check if folder can move down
+    canMoveDown() {
+      return (folderId: number): boolean => {
+        const siblings = this.getSiblings(folderId);
+        const index = siblings.findIndex(f => f.id === folderId);
+        return index !== -1 && index < siblings.length - 1;
+      };
     }
   },
 
@@ -65,8 +112,8 @@ export const useFoldersStore = defineStore('folders', {
           }
         });
 
-        // Store tree structure
-        this.folderTree = folderTree;
+        // Store tree structure - create new array to ensure reactivity
+        this.folderTree = [...folderTree];
         
         // Flatten tree into array for fast lookups by ID
         const flattenFolders = (folders: Folder[]): Folder[] => {
@@ -225,6 +272,37 @@ export const useFoldersStore = defineStore('folders', {
     saveExpandedState(): void {
       if (process.client) {
         localStorage.setItem('expanded_folders', JSON.stringify(Array.from(this.expandedFolderIds)));
+      }
+    },
+
+    async reorderFolder(folderId: number, direction: 'up' | 'down'): Promise<void> {
+      this.loading = true;
+      this.error = null;
+
+      try {
+        const authStore = useAuthStore();
+        
+        if (!authStore.token) {
+          throw new Error('Not authenticated');
+        }
+
+        await $fetch(`/api/folders/${folderId}/reorder`, {
+          method: 'PUT',
+          headers: {
+            Authorization: `Bearer ${authStore.token}`
+          },
+          body: {
+            direction
+          }
+        });
+
+        // Refresh folder tree to reflect new order
+        await this.fetchFolders();
+      } catch (err: unknown) {
+        this.error = err instanceof Error ? err.message : 'Failed to reorder folder';
+        throw err;
+      } finally {
+        this.loading = false;
       }
     }
   }

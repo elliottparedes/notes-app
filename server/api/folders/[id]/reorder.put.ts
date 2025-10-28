@@ -1,0 +1,136 @@
+import { requireAuth } from '~/server/utils/auth';
+import { executeQuery, parseJsonField } from '~/server/utils/db';
+import type { Folder } from '~/models';
+
+interface ReorderDto {
+  direction: 'up' | 'down';
+}
+
+export default defineEventHandler(async (event) => {
+  const userId = await requireAuth(event);
+  const folderId = parseInt(event.context.params?.id || '0');
+  
+  if (!folderId) {
+    throw createError({
+      statusCode: 400,
+      statusMessage: 'Invalid folder ID'
+    });
+  }
+
+  try {
+    const body = await readBody<ReorderDto>(event);
+    
+    if (!body.direction || !['up', 'down'].includes(body.direction)) {
+      throw createError({
+        statusCode: 400,
+        statusMessage: 'Invalid direction. Must be "up" or "down"'
+      });
+    }
+
+    // Get the folder to reorder
+    const folderResults = await executeQuery<Folder[]>(
+      'SELECT id, user_id, name, parent_id FROM folders WHERE id = ? AND user_id = ?',
+      [folderId, userId]
+    );
+
+    if (folderResults.length === 0) {
+      throw createError({
+        statusCode: 404,
+        statusMessage: 'Folder not found'
+      });
+    }
+
+    const folder = folderResults[0];
+
+    // Get all sibling folders (folders with the same parent_id)
+    const siblings = await executeQuery<Folder[]>(
+      'SELECT id, user_id, name, parent_id FROM folders WHERE user_id = ? AND ' +
+      (folder.parent_id === null 
+        ? 'parent_id IS NULL' 
+        : 'parent_id = ?') +
+      ' ORDER BY created_at ASC',
+      folder.parent_id === null ? [userId] : [userId, folder.parent_id]
+    );
+
+    // Get user's current folder order
+    const userResults = await executeQuery<Array<{ folder_order: string | null }>>(
+      'SELECT folder_order FROM users WHERE id = ?',
+      [userId]
+    );
+
+    let folderOrder = parseJsonField<Record<string, number[]>>(userResults[0]?.folder_order) || {};
+    
+    // Handle old data format (array of strings) - reset to empty object
+    if (Array.isArray(folderOrder)) {
+      folderOrder = {};
+    }
+    
+    // Create a key for this level (root or parent_id)
+    const levelKey = folder.parent_id === null ? 'root' : `parent_${folder.parent_id}`;
+    
+    // Get current order for this level or create default order
+    let currentOrder = folderOrder[levelKey] || siblings.map(s => s.id);
+    
+    // Ensure all siblings are in the order array
+    siblings.forEach(sibling => {
+      if (!currentOrder.includes(sibling.id)) {
+        currentOrder.push(sibling.id);
+      }
+    });
+    
+    // Remove any IDs that are no longer siblings
+    const siblingIds = new Set(siblings.map(s => s.id));
+    currentOrder = currentOrder.filter(id => siblingIds.has(id));
+
+    // Find the current index
+    const currentIndex = currentOrder.indexOf(folderId);
+    
+    if (currentIndex === -1) {
+      throw createError({
+        statusCode: 400,
+        statusMessage: 'Folder not found in order'
+      });
+    }
+
+    // Calculate new index
+    const newIndex = body.direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+
+    // Check bounds
+    if (newIndex < 0 || newIndex >= currentOrder.length) {
+      throw createError({
+        statusCode: 400,
+        statusMessage: `Cannot move ${body.direction}. Already at ${body.direction === 'up' ? 'top' : 'bottom'}.`
+      });
+    }
+
+    // Swap positions
+    [currentOrder[currentIndex], currentOrder[newIndex]] = [currentOrder[newIndex], currentOrder[currentIndex]];
+
+    // Update folder order
+    folderOrder[levelKey] = currentOrder;
+
+    // Save to database
+    await executeQuery(
+      'UPDATE users SET folder_order = ? WHERE id = ?',
+      [JSON.stringify(folderOrder), userId]
+    );
+
+    return {
+      success: true,
+      message: `Folder moved ${body.direction}`,
+      folder_order: folderOrder
+    };
+  } catch (error: unknown) {
+    // If it's already a createError, rethrow it
+    if (error && typeof error === 'object' && 'statusCode' in error) {
+      throw error;
+    }
+
+    console.error('Reorder folder error:', error);
+    throw createError({
+      statusCode: 500,
+      statusMessage: 'Failed to reorder folder'
+    });
+  }
+});
+

@@ -14,6 +14,8 @@ interface Emits {
   (e: 'create-subfolder', parentId: number): void;
   (e: 'rename', folderId: number): void;
   (e: 'delete', folderId: number): void;
+  (e: 'move-up', folderId: number): void;
+  (e: 'move-down', folderId: number): void;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -76,6 +78,10 @@ const folderColors = [
 const folderColor = computed(() => {
   return folderColors[props.depth % folderColors.length] || 'text-blue-600 dark:text-blue-400';
 });
+
+// Check if folder can be moved up or down
+const canMoveUp = computed(() => foldersStore.canMoveUp(props.folder.id));
+const canMoveDown = computed(() => foldersStore.canMoveDown(props.folder.id));
 
 // Close context menu when clicking outside
 onMounted(() => {
@@ -168,6 +174,25 @@ onMounted(() => {
           :style="{ top: `${menuPosition.top}px`, left: `${menuPosition.left}px` }"
         >
           <button
+            v-if="canMoveUp"
+            type="button"
+            @click="emit('move-up', folder.id); showContextMenu = false"
+            class="w-full text-left px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-3"
+          >
+            <UIcon name="i-heroicons-arrow-up" class="w-5 h-5 text-gray-500" />
+            <span>Move Up</span>
+          </button>
+          <button
+            v-if="canMoveDown"
+            type="button"
+            @click="emit('move-down', folder.id); showContextMenu = false"
+            class="w-full text-left px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-3"
+          >
+            <UIcon name="i-heroicons-arrow-down" class="w-5 h-5 text-gray-500" />
+            <span>Move Down</span>
+          </button>
+          <div v-if="canMoveUp || canMoveDown" class="my-1 border-t border-gray-200 dark:border-gray-700"></div>
+          <button
             type="button"
             @click="emit('create-subfolder', folder.id); showContextMenu = false"
             class="w-full text-left px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-3"
@@ -211,6 +236,8 @@ onMounted(() => {
           @create-subfolder="emit('create-subfolder', $event)"
           @rename="emit('rename', $event)"
           @delete="emit('delete', $event)"
+          @move-up="emit('move-up', $event)"
+          @move-down="emit('move-down', $event)"
         />
       </div>
     </Transition>

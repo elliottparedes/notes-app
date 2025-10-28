@@ -293,6 +293,42 @@ function handleDeleteFolder(folderId: number) {
   showDeleteFolderModal.value = true;
 }
 
+async function handleMoveUp(folderId: number) {
+  try {
+    await foldersStore.reorderFolder(folderId, 'up');
+    toast.add({
+      title: 'Success',
+      description: 'Folder moved up',
+      color: 'success'
+    });
+  } catch (error) {
+    console.error('Move up error:', error);
+    toast.add({
+      title: 'Error',
+      description: 'Failed to move folder up',
+      color: 'error'
+    });
+  }
+}
+
+async function handleMoveDown(folderId: number) {
+  try {
+    await foldersStore.reorderFolder(folderId, 'down');
+    toast.add({
+      title: 'Success',
+      description: 'Folder moved down',
+      color: 'success'
+    });
+  } catch (error) {
+    console.error('Move down error:', error);
+    toast.add({
+      title: 'Error',
+      description: 'Failed to move folder down',
+      color: 'error'
+    });
+  }
+}
+
 // Folder CRUD operations
 function openCreateFolderModal() {
   newFolderName.value = '';
@@ -745,6 +781,8 @@ function toggleFabMenu() {
                 @create-subfolder="handleCreateSubfolder"
                 @rename="handleRenameFolder"
                 @delete="handleDeleteFolder"
+                @move-up="handleMoveUp"
+                @move-down="handleMoveDown"
               />
             </div>
           </div>
@@ -870,18 +908,20 @@ function toggleFabMenu() {
 
                   <!-- Folder Tree -->
                   <div v-else class="space-y-0.5">
-                    <FolderTreeItem
-                      v-for="folder in foldersStore.folderTree"
-                      :key="folder.id"
-                      :folder="folder"
-                      :selected-id="selectedFolderId"
-                      :is-expanded="foldersStore.expandedFolderIds.has(folder.id)"
-                      @select="selectFolder"
-                      @toggle="handleToggleFolder"
-                      @create-subfolder="handleCreateSubfolder"
-                      @rename="handleRenameFolder"
-                      @delete="handleDeleteFolder"
-                    />
+                  <FolderTreeItem
+                    v-for="folder in foldersStore.folderTree"
+                    :key="folder.id"
+                    :folder="folder"
+                    :selected-id="selectedFolderId"
+                    :is-expanded="foldersStore.expandedFolderIds.has(folder.id)"
+                    @select="selectFolder"
+                    @toggle="handleToggleFolder"
+                    @create-subfolder="handleCreateSubfolder"
+                    @rename="handleRenameFolder"
+                    @delete="handleDeleteFolder"
+                    @move-up="handleMoveUp"
+                    @move-down="handleMoveDown"
+                  />
                   </div>
                 </div>
               </div>
