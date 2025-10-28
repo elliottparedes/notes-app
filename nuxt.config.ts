@@ -23,7 +23,7 @@ export default defineNuxtConfig({
       name: 'Markdown Notes',
       short_name: 'Notes',
       description: 'Offline-first markdown notes app',
-      theme_color: '#3b82f6',
+      theme_color: '#10b981',
       background_color: '#ffffff',
       display: 'standalone',
       orientation: 'portrait',
