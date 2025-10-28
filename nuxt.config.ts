@@ -7,15 +7,41 @@ export default defineNuxtConfig({
     '@nuxt/ui',
     '@pinia/nuxt',
     '@vueuse/nuxt',
-    '@vite-pwa/nuxt'
+    '@vite-pwa/nuxt',
+    'notivue/nuxt'
   ],
+
+  hooks: {
+    // Override @nuxt/ui's useToast with our custom one
+    'imports:extend': (imports) => {
+      // Remove @nuxt/ui's useToast
+      const index = imports.findIndex(i => i.name === 'useToast' && i.from.includes('@nuxt/ui'))
+      if (index !== -1) {
+        imports.splice(index, 1)
+      }
+    }
+  },
+
+  notivue: {
+    position: 'top-right',
+    limit: 5,
+    enqueue: true,
+    avoidDuplicates: true,
+    pauseOnHover: false, // Disable pause on hover
+    pauseOnTouch: false, // Disable pause on touch
+    autoClear: 3000 // Duration in milliseconds
+  } as any,
 
   typescript: {
     strict: true,
     typeCheck: true
   },
 
-  css: ['~/assets/css/main.css'],
+  css: [
+    '~/assets/css/main.css',
+    'notivue/notification.css',
+    'notivue/animations.css'
+  ],
 
   pwa: {
     registerType: 'autoUpdate',

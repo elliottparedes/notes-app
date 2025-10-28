@@ -1,5 +1,5 @@
 <script setup lang="ts">
-const toaster = { position: 'top-right' as const }
+import { Notivue, Notification, pastelTheme } from 'notivue'
 
 useHead({
   link: [
@@ -16,7 +16,10 @@ useHead({
 </script>
 
 <template>
-  <UApp :toaster="toaster">
+  <UApp>
+    <Notivue v-slot="item">
+      <Notification :item="item" :theme="pastelTheme" />
+    </Notivue>
     <VitePwaManifest />
     <NuxtPage />
   </UApp>
