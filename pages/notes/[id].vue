@@ -241,9 +241,9 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="flex flex-col h-screen overflow-hidden" :class="isLocked ? 'bg-white dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-900'">
+  <div class="min-h-screen" :class="isLocked ? 'bg-white dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-900'">
     <!-- Top Navigation Bar -->
-    <header class="sticky top-0 z-50 bg-white/80 dark:bg-gray-800/80 backdrop-blur-lg border-b border-gray-200 dark:border-gray-700 shadow-sm">
+    <header class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm">
       <div class="flex items-center justify-between h-16 px-4 md:px-6">
         <!-- Left: Back Button & Logo -->
         <div class="flex items-center gap-3">
@@ -311,7 +311,7 @@ onUnmounted(() => {
     </header>
 
     <!-- Loading State -->
-    <div v-if="isLoading" class="flex-1 flex items-center justify-center">
+    <div v-if="isLoading" class="flex items-center justify-center py-20">
       <div class="text-center">
         <UIcon name="i-heroicons-arrow-path" class="w-12 h-12 animate-spin mx-auto text-primary-600 mb-4" />
         <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">Loading note...</h3>
@@ -320,7 +320,7 @@ onUnmounted(() => {
     </div>
 
     <!-- Editor Container -->
-    <div v-else class="flex-1 flex flex-col overflow-hidden">
+    <div v-else>
       <!-- Note Header (Title & Stats) -->
       <div class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 md:px-6 py-6">
         <div class="max-w-5xl mx-auto">
@@ -436,8 +436,8 @@ onUnmounted(() => {
       </div>
 
       <!-- WYSIWYG Editor Area -->
-      <div class="flex-1 overflow-y-auto" :class="isLocked ? 'bg-white dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-900'">
-        <div class="max-w-5xl mx-auto py-6">
+      <div class="pb-20" :class="isLocked ? 'bg-white dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-900'">
+        <div class="max-w-5xl mx-auto py-6 px-4 md:px-6">
           <ClientOnly>
             <TiptapEditor
               v-model="editForm.content"
