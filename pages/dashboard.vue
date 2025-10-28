@@ -724,7 +724,7 @@ function getRenderedPreview(content: string | null): string {
         </div>
 
         <!-- Right: View Toggle (Desktop Only), Search & User Menu -->
-        <div class="flex items-center gap-2">
+        <div class="flex items-center gap-2 flex-shrink-0">
           <!-- View Mode Toggle (Desktop Only) -->
           <div v-if="displayedNotes.length > 0 || loading" class="hidden md:flex items-center gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1 border border-gray-200 dark:border-gray-700">
             <button
@@ -764,7 +764,7 @@ function getRenderedPreview(content: string | null): string {
                 v-model="searchQuery"
                 type="text"
                 placeholder="Search notes..."
-                class="w-48 md:w-64 px-3 py-2 text-sm bg-gray-100 dark:bg-gray-700 border-none rounded-lg text-gray-900 dark:text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                class="w-32 sm:w-48 md:w-64 px-3 py-2 text-sm bg-gray-100 dark:bg-gray-700 border-none rounded-lg text-gray-900 dark:text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
                 @blur="() => { if (!searchQuery) isSearchExpanded = false }"
               />
             </transition>
@@ -777,7 +777,7 @@ function getRenderedPreview(content: string | null): string {
                   isSearchExpanded = true;
                 }
               }"
-              class="p-2 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+              class="p-2 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex-shrink-0"
               :class="{ 'bg-primary-100 dark:bg-primary-900/30 text-primary-600': isSearchExpanded }"
               aria-label="Toggle search"
             >
@@ -785,8 +785,8 @@ function getRenderedPreview(content: string | null): string {
             </button>
           </div>
 
-          <!-- User Menu -->
-          <div class="relative">
+          <!-- User Menu (Desktop Only) -->
+          <div class="relative hidden md:block flex-shrink-0">
             <button 
               type="button"
               data-user-menu-button
@@ -980,6 +980,23 @@ function getRenderedPreview(content: string | null): string {
               >
                 <UIcon name="i-heroicons-x-mark" class="w-6 h-6" />
               </button>
+            </div>
+
+            <!-- User Profile Section -->
+            <div class="p-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50">
+              <div class="flex items-center gap-3">
+                <div class="w-12 h-12 bg-gradient-to-br from-primary-400 to-primary-600 rounded-full flex items-center justify-center text-white text-lg font-semibold flex-shrink-0">
+                  {{ userInitial }}
+                </div>
+                <div class="flex-1 min-w-0">
+                  <p class="text-sm font-semibold text-gray-900 dark:text-white truncate">
+                    {{ authStore.currentUser?.name || 'User' }}
+                  </p>
+                  <p class="text-xs text-gray-500 dark:text-gray-400 truncate">
+                    {{ authStore.currentUser?.email }}
+                  </p>
+                </div>
+              </div>
             </div>
 
             <!-- Filters & Folders -->
@@ -1455,8 +1472,25 @@ function getRenderedPreview(content: string | null): string {
 
     <!-- Main Content -->
     <div class="flex-1 flex flex-col overflow-hidden relative">
+      <!-- Current Folder Indicator (Mobile Only) -->
+      <div class="md:hidden px-4 pt-4 pb-2">
+        <div class="flex items-center gap-2">
+          <UIcon 
+            :name="selectedFolder ? 'i-heroicons-folder' : 'i-heroicons-document-text'" 
+            class="w-4 h-4" 
+            :class="selectedFolder ? getFolderColor(selectedFolder) : 'text-primary-600 dark:text-primary-400'"
+          />
+          <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
+            {{ selectedFolder || 'All Notes' }}
+          </span>
+          <span class="text-xs px-2 py-0.5 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400">
+            {{ displayedNotes.length }}
+          </span>
+        </div>
+      </div>
+
       <!-- Notes List -->
-      <div class="flex-1 overflow-y-auto p-6">
+      <div class="flex-1 overflow-y-auto p-6 md:pt-6 pt-2">
         <div v-if="loading" class="text-center py-12">
           <UIcon name="i-heroicons-arrow-path" class="w-8 h-8 animate-spin mx-auto text-gray-400" />
         </div>
