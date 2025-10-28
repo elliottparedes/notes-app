@@ -779,8 +779,53 @@ function getRenderedPreview(content: string | null): string {
           </div>
         </div>
 
-        <!-- Right: View Toggle (Desktop Only), Search & User Menu -->
+        <!-- Right: Sync Status, View Toggle (Desktop Only), Search & User Menu -->
         <div class="flex items-center gap-2 flex-shrink-0">
+          <!-- Sync Status Icon -->
+          <div class="relative">
+            <button
+              @click="() => { if (isOnline && !notesStore.syncing && notesStore.pendingChanges > 0) notesStore.syncWithServer() }"
+              :disabled="!isOnline || notesStore.syncing"
+              :title="!isOnline ? 'Offline - Changes saved locally' : notesStore.syncing ? 'Syncing...' : notesStore.pendingChanges > 0 ? 'Click to sync pending changes' : 'All synced'"
+              class="p-2 rounded-lg transition-colors relative"
+              :class="{
+                'text-yellow-600 dark:text-yellow-400 hover:bg-yellow-50 dark:hover:bg-yellow-900/20': !isOnline,
+                'text-blue-600 dark:text-blue-400 cursor-wait': isOnline && notesStore.syncing,
+                'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer': isOnline && !notesStore.syncing && notesStore.pendingChanges > 0,
+                'text-green-600 dark:text-green-400': isOnline && !notesStore.syncing && notesStore.pendingChanges === 0
+              }"
+            >
+              <UIcon 
+                v-if="!isOnline"
+                name="i-heroicons-wifi"
+                class="w-5 h-5"
+              />
+              <UIcon 
+                v-else-if="notesStore.syncing"
+                name="i-heroicons-arrow-path"
+                class="w-5 h-5 animate-spin"
+              />
+              <UIcon 
+                v-else-if="notesStore.pendingChanges > 0"
+                name="i-heroicons-cloud-arrow-up"
+                class="w-5 h-5"
+              />
+              <UIcon 
+                v-else
+                name="i-heroicons-check-circle"
+                class="w-5 h-5"
+              />
+              
+              <!-- Pending changes badge -->
+              <span 
+                v-if="notesStore.pendingChanges > 0 && !notesStore.syncing"
+                class="absolute -top-1 -right-1 w-4 h-4 bg-primary-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center"
+              >
+                {{ notesStore.pendingChanges > 9 ? '9+' : notesStore.pendingChanges }}
+              </span>
+            </button>
+          </div>
+
           <!-- View Mode Toggle (Desktop Only) -->
           <div v-if="displayedNotes.length > 0 || loading" class="hidden md:flex items-center gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1 border border-gray-200 dark:border-gray-700">
             <button
@@ -878,91 +923,6 @@ function getRenderedPreview(content: string | null): string {
         </div>
       </div>
     </header>
-
-    <!-- Sync Status Banner -->
-    <div 
-      v-if="!isOnline || notesStore.syncing || notesStore.pendingChanges > 0"
-      class="bg-gradient-to-r border-b sticky top-16 z-40 transition-all duration-300"
-      :class="{
-        'from-yellow-50 to-orange-50 dark:from-yellow-900/20 dark:to-orange-900/20 border-yellow-200 dark:border-yellow-800': !isOnline,
-        'from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border-blue-200 dark:border-blue-800': isOnline && notesStore.syncing,
-        'from-gray-50 to-gray-100 dark:from-gray-800/50 dark:to-gray-700/50 border-gray-200 dark:border-gray-700': isOnline && !notesStore.syncing && notesStore.pendingChanges > 0
-      }"
-    >
-      <div class="px-4 md:px-6 py-3 flex items-center justify-between">
-        <div class="flex items-center gap-3">
-          <!-- Status Icon -->
-          <div 
-            class="flex items-center justify-center w-8 h-8 rounded-full"
-            :class="{
-              'bg-yellow-100 dark:bg-yellow-900/40': !isOnline,
-              'bg-blue-100 dark:bg-blue-900/40': isOnline && notesStore.syncing,
-              'bg-gray-200 dark:bg-gray-700': isOnline && !notesStore.syncing && notesStore.pendingChanges > 0
-            }"
-          >
-            <UIcon 
-              v-if="!isOnline"
-              name="i-heroicons-wifi"
-              class="w-4 h-4 text-yellow-600 dark:text-yellow-400"
-            />
-            <UIcon 
-              v-else-if="notesStore.syncing"
-              name="i-heroicons-arrow-path"
-              class="w-4 h-4 text-blue-600 dark:text-blue-400 animate-spin"
-            />
-            <UIcon 
-              v-else
-              name="i-heroicons-clock"
-              class="w-4 h-4 text-gray-600 dark:text-gray-400"
-            />
-          </div>
-
-          <!-- Status Text -->
-          <div class="min-w-0">
-            <div 
-              class="text-sm font-medium"
-              :class="{
-                'text-yellow-800 dark:text-yellow-300': !isOnline,
-                'text-blue-800 dark:text-blue-300': isOnline && notesStore.syncing,
-                'text-gray-700 dark:text-gray-300': isOnline && !notesStore.syncing && notesStore.pendingChanges > 0
-              }"
-            >
-              <span v-if="!isOnline">You're offline</span>
-              <span v-else-if="notesStore.syncing">Syncing notes...</span>
-              <span v-else-if="notesStore.pendingChanges > 0">
-                {{ notesStore.pendingChanges }} change{{ notesStore.pendingChanges !== 1 ? 's' : '' }} pending
-              </span>
-            </div>
-            <div 
-              class="text-xs"
-              :class="{
-                'text-yellow-600 dark:text-yellow-400': !isOnline,
-                'text-blue-600 dark:text-blue-400': isOnline && notesStore.syncing,
-                'text-gray-500 dark:text-gray-400': isOnline && !notesStore.syncing && notesStore.pendingChanges > 0
-              }"
-            >
-              <span v-if="!isOnline">Your changes are saved locally</span>
-              <span v-else-if="notesStore.syncing">Please wait...</span>
-              <span v-else-if="notesStore.lastSyncTime">
-                Last synced {{ formatRelativeTime(notesStore.lastSyncTime) }}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        <!-- Sync Button -->
-        <UButton
-          v-if="isOnline && !notesStore.syncing && notesStore.pendingChanges > 0"
-          size="xs"
-          color="primary"
-          variant="soft"
-          icon="i-heroicons-arrow-path"
-          @click="notesStore.syncWithServer"
-        >
-          Sync Now
-        </UButton>
-      </div>
-    </div>
 
     <!-- Folder Dropdown Menus (Teleported to body to avoid overflow clipping) - Desktop Only -->
     <Teleport to="body">
