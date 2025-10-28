@@ -698,7 +698,14 @@ function getRenderedPreview(content: string | null): string {
               />
             </transition>
             <button
-              @click="isSearchExpanded = !isSearchExpanded"
+              @click="() => { 
+                if (isSearchExpanded) {
+                  searchQuery = '';
+                  isSearchExpanded = false;
+                } else {
+                  isSearchExpanded = true;
+                }
+              }"
               class="p-2 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
               :class="{ 'bg-primary-100 dark:bg-primary-900/30 text-primary-600': isSearchExpanded }"
               aria-label="Toggle search"
