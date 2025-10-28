@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import type { UpdateNoteDto } from '~/models';
+import type { UpdateNoteDto, Folder } from '~/models';
 
 const route = useRoute();
 const router = useRouter();
 const notesStore = useNotesStore();
+const foldersStore = useFoldersStore();
 const toast = useToast();
 
 // Network status
@@ -18,15 +19,70 @@ const showDeleteModal = ref(false);
 const isDeleting = ref(false);
 const isLocked = ref(false);
 const showEditorToolbar = ref(true);
+const showFolderDropdown = ref(false);
+const folderDropdownPos = ref({ top: 0, left: 0 });
+const folderButtonRef = ref<HTMLButtonElement | null>(null);
 
 const editForm = reactive<UpdateNoteDto & { content: string }>({
   title: '',
   content: '',
   tags: [],
-  folder: ''
+  folder: '',
+  folder_id: null as number | null
 });
 
 const currentNote = computed(() => notesStore.currentNote);
+
+// Selected folder name for display
+const selectedFolderName = computed(() => {
+  if (!editForm.folder_id) return null;
+  
+  const folder = foldersStore.getFolderById(editForm.folder_id);
+  if (!folder) return null;
+  
+  // Build full path
+  const path: string[] = [];
+  let current = folder;
+  while (current) {
+    path.unshift(current.name);
+    if (current.parent_id === null) break;
+    const parent = foldersStore.getFolderById(current.parent_id);
+    if (!parent) break;
+    current = parent;
+  }
+  
+  return path.join(' › ');
+});
+
+// Function to select a folder for the note
+function selectFolderForNote(folderId: number | null) {
+  editForm.folder_id = folderId;
+  editForm.folder = folderId ? foldersStore.getFolderById(folderId)?.name || null : null;
+}
+
+// Close dropdown when clicking outside
+onMounted(() => {
+  const handleClickOutside = (event: MouseEvent) => {
+    if (!showFolderDropdown.value) return;
+    
+    const target = event.target as HTMLElement;
+    
+    // Check if click is on the folder button or inside the dropdown
+    if (folderButtonRef.value?.contains(target)) return;
+    
+    // Check if click is inside the dropdown (it's teleported to body)
+    const dropdown = document.querySelector('[data-folder-dropdown]');
+    if (dropdown?.contains(target)) return;
+    
+    showFolderDropdown.value = false;
+  };
+  
+  document.addEventListener('click', handleClickOutside);
+  
+  onUnmounted(() => {
+    document.removeEventListener('click', handleClickOutside);
+  });
+});
 
 // Character and word count
 const wordCount = computed(() => {
@@ -47,6 +103,22 @@ function toggleEditorToolbar() {
   }
 }
 
+// Position folder dropdown
+watch(showFolderDropdown, (show) => {
+  if (show) {
+    nextTick(() => {
+      const button = folderButtonRef.value;
+      if (button) {
+        const rect = button.getBoundingClientRect();
+        folderDropdownPos.value = {
+          top: rect.bottom + 4,
+          left: rect.left
+        };
+      }
+    });
+  }
+});
+
 // Fetch note on mount
 onMounted(async () => {
   if (process.client) {
@@ -58,13 +130,19 @@ onMounted(async () => {
   
   isLoading.value = true;
   try {
-    await notesStore.fetchNote(noteId.value);
+    // Fetch folders and note in parallel
+    await Promise.all([
+      foldersStore.fetchFolders(),
+      notesStore.fetchNote(noteId.value)
+    ]);
+    
     if (currentNote.value) {
       Object.assign(editForm, {
         title: currentNote.value.title,
         content: currentNote.value.content || '',
         tags: currentNote.value.tags || [],
-        folder: currentNote.value.folder || ''
+        folder: currentNote.value.folder || '',
+        folder_id: currentNote.value.folder_id || null
       });
     }
     
@@ -91,7 +169,7 @@ onMounted(async () => {
 });
 
 // Auto-save on content change (only when not locked)
-watch([() => editForm.title, () => editForm.content, () => editForm.folder], () => {
+watch([() => editForm.title, () => editForm.content, () => editForm.folder_id], () => {
   if (isLocked.value) return; // Don't auto-save when locked
   
   if (autoSaveTimeout.value) {
@@ -147,7 +225,8 @@ async function saveNote(silent = false) {
       title: editForm.title,
       content: editForm.content,
       tags: editForm.tags || [],
-      folder: editForm.folder || null
+      folder: editForm.folder || null,
+      folder_id: editForm.folder_id || null
     };
     
     console.log('Saving note with data:', updateData);
@@ -392,20 +471,47 @@ onUnmounted(() => {
         <div class="max-w-5xl mx-auto">
           <div class="flex items-center gap-4 text-sm flex-wrap">
             <!-- Folder -->
-            <div class="flex items-center gap-2">
+            <div class="flex items-center gap-2 relative">
               <UIcon name="i-heroicons-folder" class="w-4 h-4 text-gray-400" />
-              <div class="relative">
-                <input
-                  v-model="editForm.folder"
-                  type="text"
-                  list="folder-suggestions"
-                  class="bg-transparent border-none outline-none text-gray-600 dark:text-gray-400 placeholder-gray-400 w-40"
-                  placeholder="No folder"
-                />
-                <datalist id="folder-suggestions">
-                  <option v-for="folder in notesStore.folders" :key="folder" :value="folder" />
-                </datalist>
-              </div>
+              <button
+                ref="folderButtonRef"
+                type="button"
+                @click="showFolderDropdown = !showFolderDropdown"
+                class="bg-transparent text-left text-gray-600 dark:text-gray-400 placeholder-gray-400 w-48 hover:text-gray-900 dark:hover:text-gray-200 transition-colors flex items-center gap-2"
+              >
+                <span class="truncate">{{ selectedFolderName || 'No folder' }}</span>
+                <UIcon name="i-heroicons-chevron-down" class="w-3 h-3 flex-shrink-0" />
+              </button>
+              
+              <!-- Folder Dropdown -->
+              <Teleport to="body">
+                <div
+                  v-if="showFolderDropdown"
+                  data-folder-dropdown
+                  @click.stop
+                  class="fixed z-[9999] w-64 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-xl py-2 max-h-96 overflow-y-auto"
+                  :style="{ top: `${folderDropdownPos.top}px`, left: `${folderDropdownPos.left}px` }"
+                >
+                  <button
+                    type="button"
+                    @click="selectFolderForNote(null); showFolderDropdown = false"
+                    class="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                    :class="(editForm.folder_id ?? null) === null ? 'bg-gray-100 dark:bg-gray-700 font-medium' : ''"
+                  >
+                    <UIcon name="i-heroicons-document-text" class="w-4 h-4 inline mr-2 text-gray-500" />
+                    No folder
+                  </button>
+                  <div class="border-t border-gray-200 dark:border-gray-700 my-1"></div>
+                  <FolderSelectorItem
+                    v-for="folder in foldersStore.folderTree"
+                    :key="folder.id"
+                    :folder="folder"
+                    :selected-id="editForm.folder_id ?? null"
+                    :depth="0"
+                    @select="(id) => { selectFolderForNote(id); showFolderDropdown = false; }"
+                  />
+                </div>
+              </Teleport>
             </div>
 
             <!-- Tags -->
@@ -438,15 +544,15 @@ onUnmounted(() => {
         </div>
       </div>
       
-      <!-- Tags Display (Read-only when locked) -->
-      <div v-else-if="editForm.tags && editForm.tags.length > 0" class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 md:px-6 py-3">
+      <!-- Folder & Tags Display (Read-only when locked) -->
+      <div v-else-if="(selectedFolderName || editForm.tags?.length)" class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 md:px-6 py-3">
         <div class="max-w-5xl mx-auto">
           <div class="flex items-center gap-3 text-sm flex-wrap">
-            <div class="flex items-center gap-2">
+            <div v-if="selectedFolderName || !editForm.folder_id" class="flex items-center gap-2">
               <UIcon name="i-heroicons-folder" class="w-4 h-4 text-gray-400" />
-              <span class="text-gray-600 dark:text-gray-400">{{ editForm.folder || 'No folder' }}</span>
+              <span class="text-gray-600 dark:text-gray-400">{{ selectedFolderName || 'No folder' }}</span>
             </div>
-            <div class="flex items-center gap-2 flex-wrap">
+            <div v-if="editForm.tags && editForm.tags.length > 0" class="flex items-center gap-2 flex-wrap">
               <UIcon name="i-heroicons-tag" class="w-4 h-4 text-gray-400" />
               <UBadge
                 v-for="tag in editForm.tags"

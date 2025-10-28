@@ -51,8 +51,25 @@ export const useAuthStore = defineStore('auth', {
         // Navigate to dashboard
         await navigateTo('/dashboard');
       } catch (err: unknown) {
-        this.error = err instanceof Error ? err.message : 'Signup failed';
-        throw err;
+        // Extract error message from $fetch error response
+        let errorMessage = 'Signup failed';
+        
+        if (err && typeof err === 'object') {
+          // Check for Nuxt error structure (err.data.message)
+          if ('data' in err && err.data && typeof err.data === 'object' && 'message' in err.data) {
+            errorMessage = String(err.data.message);
+          }
+          // Fallback to err.message for standard errors
+          else if ('message' in err && typeof err.message === 'string') {
+            errorMessage = err.message;
+          }
+        }
+        
+        this.error = errorMessage;
+        
+        // Create a new error with the extracted message to throw
+        const error = new Error(errorMessage);
+        throw error;
       } finally {
         this.loading = false;
       }
@@ -81,8 +98,25 @@ export const useAuthStore = defineStore('auth', {
         // Navigate to dashboard
         await navigateTo('/dashboard');
       } catch (err: unknown) {
-        this.error = err instanceof Error ? err.message : 'Login failed';
-        throw err;
+        // Extract error message from $fetch error response
+        let errorMessage = 'Login failed';
+        
+        if (err && typeof err === 'object') {
+          // Check for Nuxt error structure (err.data.message)
+          if ('data' in err && err.data && typeof err.data === 'object' && 'message' in err.data) {
+            errorMessage = String(err.data.message);
+          }
+          // Fallback to err.message for standard errors
+          else if ('message' in err && typeof err.message === 'string') {
+            errorMessage = err.message;
+          }
+        }
+        
+        this.error = errorMessage;
+        
+        // Create a new error with the extracted message to throw
+        const error = new Error(errorMessage);
+        throw error;
       } finally {
         this.loading = false;
       }

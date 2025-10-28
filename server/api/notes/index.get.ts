@@ -10,6 +10,7 @@ interface NoteRow {
   tags: string | null;
   is_favorite: number;
   folder: string | null;
+  folder_id: number | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -34,6 +35,7 @@ export default defineEventHandler(async (event): Promise<Note[]> => {
       tags: parseJsonField<string[]>(row.tags),
       is_favorite: Boolean(row.is_favorite),
       folder: row.folder,
+      folder_id: row.folder_id || null,
       created_at: row.created_at,
       updated_at: row.updated_at
     }));

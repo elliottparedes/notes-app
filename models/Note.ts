@@ -5,7 +5,8 @@ export interface Note {
   content: string | null;
   tags: string[] | null;
   is_favorite: boolean;
-  folder: string | null;
+  folder: string | null; // Legacy - keep for backward compatibility
+  folder_id: number | null; // New - references folders table
   created_at: Date;
   updated_at: Date;
 }
@@ -15,7 +16,8 @@ export interface CreateNoteDto {
   content?: string;
   tags?: string[];
   is_favorite?: boolean;
-  folder?: string | null | undefined;
+  folder?: string | null | undefined; // Legacy
+  folder_id?: number | null | undefined; // New
 }
 
 export interface UpdateNoteDto {
@@ -23,12 +25,14 @@ export interface UpdateNoteDto {
   content?: string;
   tags?: string[];
   is_favorite?: boolean;
-  folder?: string | null | undefined;
+  folder?: string | null | undefined; // Legacy
+  folder_id?: number | null | undefined; // New
 }
 
 export interface NoteFilters {
   search?: string;
-  folder?: string;
+  folder?: string; // Legacy
+  folder_id?: number | null; // New
   tags?: string[];
 }
 

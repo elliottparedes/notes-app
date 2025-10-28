@@ -41,7 +41,16 @@ export const useNotesStore = defineStore('notes', {
         );
       }
 
-      if (state.filters.folder) {
+      // Support both legacy folder string and new folder_id
+      if (state.filters.folder_id !== undefined) {
+        if (state.filters.folder_id === null) {
+          // Show notes with no folder
+          filtered = filtered.filter(note => note.folder_id === null);
+        } else {
+          filtered = filtered.filter(note => note.folder_id === state.filters.folder_id);
+        }
+      } else if (state.filters.folder) {
+        // Legacy support
         filtered = filtered.filter(note => note.folder === state.filters.folder);
       }
 
@@ -56,6 +65,7 @@ export const useNotesStore = defineStore('notes', {
       );
     },
 
+    // Legacy getter - keeping for backward compatibility
     folders: (state): string[] => {
       const folderSet = new Set<string>();
       state.notes.forEach(note => {
@@ -190,6 +200,7 @@ export const useNotesStore = defineStore('notes', {
             tags: plainData.tags ? JSON.parse(JSON.stringify(plainData.tags)) : null,
             is_favorite: plainData.is_favorite || false,
             folder: plainData.folder || null,
+            folder_id: plainData.folder_id ?? null,
             created_at: new Date(),
             updated_at: new Date()
           };

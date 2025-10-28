@@ -11,6 +11,7 @@ interface NoteRow {
   tags: string | null;
   is_favorite: number;
   folder: string | null;
+  folder_id: number | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -18,6 +19,7 @@ interface NoteRow {
 interface GenerateNoteRequest {
   prompt: string;
   folder?: string | null;
+  folder_id?: number | null;
 }
 
 interface OpenRouterResponse {
@@ -146,14 +148,15 @@ Generate the content as clean, semantic HTML that can be rendered directly in a 
 
     // Insert note
     const result = await executeQuery<ResultSetHeader>(
-      'INSERT INTO notes (user_id, title, content, tags, is_favorite, folder) VALUES (?, ?, ?, ?, ?, ?)',
+      'INSERT INTO notes (user_id, title, content, tags, is_favorite, folder, folder_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
       [
         userId,
         title,
         content,
         null, // No tags initially
         false,
-        body.folder || null
+        body.folder || null,
+        body.folder_id ?? null
       ]
     );
 
@@ -180,6 +183,7 @@ Generate the content as clean, semantic HTML that can be rendered directly in a 
       tags: parseJsonField<string[]>(row.tags),
       is_favorite: Boolean(row.is_favorite),
       folder: row.folder,
+      folder_id: row.folder_id || null,
       created_at: row.created_at,
       updated_at: row.updated_at
     };
