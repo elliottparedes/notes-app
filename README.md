@@ -1,36 +1,42 @@
 # Markdown Notes App
 
-A full-stack Nuxt 3 application for creating, viewing, and managing markdown notes with user authentication.
+A modern, offline-first Progressive Web App (PWA) for creating, viewing, and managing markdown notes with user authentication.
 
 ## Features
 
-- 🔐 User authentication (signup, login, logout)
-- 📝 Create, read, update, and delete markdown notes
-- 🎨 Beautiful UI with NuxtUI components
-- 🏷️ Tag and organize notes with folders
-- ⭐ Mark notes as favorites
-- 🔍 Search and filter notes
-- 📱 Responsive design
-- 🌙 Dark mode support
-- 🔒 Type-safe with strict TypeScript
-- 💾 MySQL database with connection pooling
-- 🎭 State management with Pinia
+- 🔐 **User authentication** - Secure signup, login, and JWT-based sessions
+- 📝 **Rich text editing** - TipTap editor with markdown support
+- 🤖 **AI-powered notes** - Generate notes with Google Gemini 2.5 Flash
+- 📱 **Offline-first** - Full PWA support with IndexedDB caching
+- 🔄 **Automatic sync** - Changes sync when you're back online
+- 🎨 **Beautiful UI** - Modern design with NuxtUI components
+- 🏷️ **Organization** - Folders and tags for easy note management
+- 🔍 **Search** - Fast search across all your notes
+- 🌙 **Dark mode** - Automatic dark mode support
+- 📱 **Responsive** - Works perfectly on mobile, tablet, and desktop
+- 🔒 **Type-safe** - Built with strict TypeScript
+- 💾 **MySQL database** - Reliable data storage with connection pooling
+- 🎭 **State management** - Pinia stores for reactive state
 
 ## Tech Stack
 
-- **Frontend**: Nuxt 3, Vue 3, TypeScript, NuxtUI
-- **Backend**: Nuxt 3 Server API, Node.js
-- **Database**: MySQL
+- **Frontend**: Nuxt 3, Vue 3, TypeScript, NuxtUI, TailwindCSS
+- **Editor**: TipTap (extensible rich text editor)
+- **Backend**: Nuxt 3 Server API, Nitro
+- **Database**: MySQL with connection pooling
 - **Authentication**: JWT (JSON Web Tokens)
 - **Password Hashing**: bcrypt
-- **Markdown Rendering**: marked
 - **State Management**: Pinia
+- **Offline Storage**: IndexedDB via Dexie.js
+- **PWA**: Vite PWA Plugin with Workbox
+- **AI**: OpenRouter API with Google Gemini 2.5 Flash
 
 ## Prerequisites
 
-- Node.js 18+ 
+- Node.js 20+ (required for Vite and Workbox)
 - MySQL 5.7+ or MySQL 8+
 - npm or yarn
+- OpenRouter API key (optional, for AI features)
 
 ## Database Setup
 
@@ -58,7 +64,7 @@ CREATE TABLE notes (
   id INT PRIMARY KEY AUTO_INCREMENT,
   user_id INT NOT NULL,
   title VARCHAR(255) NOT NULL,
-  content TEXT,
+  content MEDIUMTEXT,
   tags JSON,
   is_favorite BOOLEAN DEFAULT FALSE,
   folder VARCHAR(100),
@@ -200,30 +206,36 @@ markdown-notes-app/
 
 1. **Sign Up**: Create a new account with email and password
 2. **Login**: Access your account with credentials
-3. **Auto-login**: Stay logged in with JWT tokens stored in localStorage
+3. **Auto-login**: Stay logged in with JWT tokens
+4. **Secure Sessions**: Automatic token refresh and validation
 
 ### Notes Management
 
-1. **Create Notes**: Click "New Note" to create a markdown note
-2. **Edit Notes**: Click "Edit" on any note to modify it
-3. **Delete Notes**: Click "Delete" to remove a note (with confirmation)
-4. **Favorite Notes**: Star important notes for quick access
-5. **Organize**: Group notes into folders
-6. **Tag Notes**: Add tags for better organization
-7. **Search**: Use the search bar to find notes by title or content
-8. **Filter**: Filter by folder or favorites
+1. **Create Notes**: Multiple options
+   - New Note (blank)
+   - Quick Note (with timestamp)
+   - AI Generate (create with AI assistance)
+2. **Rich Text Editor**: TipTap editor with markdown support
+3. **Folders**: Organize notes into custom folders
+4. **Search & Filter**: Find notes quickly by title or content
+5. **Offline Support**: Create and edit notes without internet
+6. **Auto-sync**: Changes automatically sync when back online
 
-### Markdown Support
+### AI Features
 
-The note editor supports full markdown syntax including:
-- Headers (h1-h6)
-- **Bold** and *italic* text
-- Lists (ordered and unordered)
-- Links and images
-- Code blocks and inline code
-- Blockquotes
-- Tables
-- And more!
+1. **AI Note Generation**: Describe what you want, and AI creates a formatted note
+2. **Powered by Google Gemini 2.5 Flash**: Fast and intelligent responses
+3. **Keyboard Shortcuts**: Press `Cmd/Ctrl + Enter` to generate
+
+### Offline Mode
+
+The app works completely offline:
+- View all your notes
+- Create new notes
+- Edit existing notes
+- Changes saved locally in IndexedDB
+- Automatic sync when internet returns
+- Sync status indicator shows pending changes
 
 ## Security Features
 
@@ -248,6 +260,33 @@ The note editor supports full markdown syntax including:
 | `NODE_ENV` | Environment | development or production |
 
 **Note:** Copy `.env.example` to `.env` and fill in your actual values. Never commit `.env` to version control.
+
+## Deployment
+
+### Netlify Deployment
+
+This app is optimized for Netlify deployment:
+
+1. **Environment Variables**: Set all required environment variables in Netlify dashboard
+   - Go to: Site configuration → Environment variables
+   - Add: `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`, `JWT_SECRET`, `OPENROUTER_API_KEY`
+
+2. **Build Settings**: Configured in `netlify.toml`
+   - Node version: 20
+   - Build command: `npm run build`
+   - Publish directory: `.output/public`
+
+3. **PWA Support**: Service worker is automatically generated for production
+
+See `NETLIFY_DEPLOYMENT.md` for detailed deployment instructions.
+
+### Other Platforms
+
+The app can be deployed to any Node.js hosting platform:
+- **Vercel**: Works out of the box
+- **Railway**: Set environment variables and deploy
+- **DigitalOcean App Platform**: Configure via UI
+- **Docker**: Dockerfile included
 
 ## Contributing
 

@@ -63,7 +63,7 @@ CREATE TABLE notes (
   id INT PRIMARY KEY AUTO_INCREMENT,
   user_id INT NOT NULL,
   title VARCHAR(255) NOT NULL,
-  content TEXT,
+  content MEDIUMTEXT,
   tags JSON,
   is_favorite BOOLEAN DEFAULT FALSE,
   folder VARCHAR(100),

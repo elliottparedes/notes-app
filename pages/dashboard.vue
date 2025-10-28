@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { Note, CreateNoteDto } from '~/models';
 
+// Dashboard page
 const authStore = useAuthStore();
 const notesStore = useNotesStore();
 const toast = useToast();
@@ -15,10 +16,14 @@ const loading = ref(false);
 const isCreating = ref(false);
 
 // Session key to force re-render on new sessions
-const sessionKey = ref('');
-if (process.client) {
-  sessionKey.value = localStorage.getItem('session_version') || 'default';
-}
+const sessionKey = ref('default');
+
+// Initialize session key on client only, after mount
+onMounted(() => {
+  if (process.client) {
+    sessionKey.value = localStorage.getItem('session_version') || 'default';
+  }
+});
 
 // Mobile menu and search states
 const isMobileMenuOpen = ref(false);
@@ -564,16 +569,17 @@ function getRenderedPreview(content: string | null): string {
 </script>
 
 <template>
-  <!-- Loading screen while auth is initializing (prevents layout flash) -->
-  <div v-if="!authStore.currentUser" class="flex items-center justify-center h-screen bg-gray-50 dark:bg-gray-900">
-    <div class="text-center">
-      <div class="w-16 h-16 mx-auto mb-4 border-4 border-primary-500 border-t-transparent rounded-full animate-spin"></div>
-      <p class="text-gray-600 dark:text-gray-400">Loading...</p>
+  <div>
+    <!-- Loading screen while auth is initializing (prevents layout flash) -->
+    <div v-if="!authStore.currentUser || !authStore.initialized" class="flex items-center justify-center h-screen bg-gray-50 dark:bg-gray-900">
+      <div class="text-center">
+        <div class="w-16 h-16 mx-auto mb-4 border-4 border-primary-500 border-t-transparent rounded-full animate-spin"></div>
+        <p class="text-gray-600 dark:text-gray-400">Loading...</p>
+      </div>
     </div>
-  </div>
 
-  <!-- Main dashboard (only render when user is loaded) -->
-  <div v-else :key="`dashboard-${authStore.currentUser?.id}-${sessionKey}`" class="flex flex-col h-screen bg-gray-50 dark:bg-gray-900 overflow-hidden">
+    <!-- Main dashboard (only render when user is loaded) -->
+    <div v-else :key="`dashboard-${authStore.currentUser?.id}-${sessionKey}`" class="flex flex-col h-screen bg-gray-50 dark:bg-gray-900 overflow-hidden">
     <!-- Top Navigation Bar -->
     <header class="sticky top-0 z-50 bg-white/80 dark:bg-gray-800/80 backdrop-blur-lg border-b border-gray-200 dark:border-gray-700 shadow-sm">
       <div class="flex items-center justify-between h-16 px-4 md:px-6">
@@ -1503,7 +1509,7 @@ function getRenderedPreview(content: string | null): string {
         </button>
       </div>
     </div>
-
+  </div>
   </div>
 </template>
 

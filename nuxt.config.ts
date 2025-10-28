@@ -18,7 +18,9 @@ export default defineNuxtConfig({
   css: ['~/assets/css/main.css'],
 
   pwa: {
+    disable: process.env.NODE_ENV === 'development',  // Completely disable in dev
     registerType: 'autoUpdate',
+    injectRegister: false, // Don't inject SW registration script in dev
     manifest: {
       name: 'Markdown Notes',
       short_name: 'Notes',
@@ -57,11 +59,8 @@ export default defineNuxtConfig({
       ]
     },
     workbox: {
-      // Don't use navigateFallback for SSR - let the server handle routing
       navigateFallback: undefined,
-      // Only cache static assets, not HTML pages
       globPatterns: ['**/*.{js,css,png,svg,ico,woff,woff2}'],
-      // Don't cache HTML - SSR handles that
       globIgnores: ['**/node_modules/**/*', '**/index.html'],
       runtimeCaching: [
         {
@@ -71,7 +70,7 @@ export default defineNuxtConfig({
             cacheName: 'google-fonts-cache',
             expiration: {
               maxEntries: 10,
-              maxAgeSeconds: 60 * 60 * 24 * 365 // 1 year
+              maxAgeSeconds: 60 * 60 * 24 * 365
             },
             cacheableResponse: {
               statuses: [0, 200]
@@ -85,7 +84,7 @@ export default defineNuxtConfig({
             cacheName: 'gstatic-fonts-cache',
             expiration: {
               maxEntries: 10,
-              maxAgeSeconds: 60 * 60 * 24 * 365 // 1 year
+              maxAgeSeconds: 60 * 60 * 24 * 365
             },
             cacheableResponse: {
               statuses: [0, 200]
@@ -93,21 +92,24 @@ export default defineNuxtConfig({
           }
         },
         {
-          // Cache CSS and JS from the app
           urlPattern: /\/_nuxt\/.*/i,
-          handler: 'CacheFirst',
+          handler: 'NetworkFirst',
           options: {
             cacheName: 'nuxt-assets',
             expiration: {
               maxEntries: 100,
-              maxAgeSeconds: 60 * 60 * 24 * 30 // 30 days
+              maxAgeSeconds: 60 * 60 * 24 * 7 // 7 days instead of 30
+            },
+            networkTimeoutSeconds: 3,
+            cacheableResponse: {
+              statuses: [0, 200]
             }
           }
         }
       ]
     },
     devOptions: {
-      enabled: true,
+      enabled: false,
       type: 'module'
     }
   },
