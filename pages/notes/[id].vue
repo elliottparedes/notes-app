@@ -517,6 +517,21 @@ onUnmounted(() => {
               <UIcon :name="showEditorToolbar ? 'i-heroicons-eye-slash' : 'i-heroicons-eye'" class="w-3.5 h-3.5" />
               <span class="hidden sm:inline">{{ showEditorToolbar ? 'Hide' : 'Show' }} Toolbar</span>
             </button>
+            <!-- Polish with AI Button -->
+            <button
+              v-if="!isLocked"
+              @click="polishNote"
+              :disabled="isPolishing"
+              class="polish-ai-button-small group relative inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-white rounded-md transition-all duration-300 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+              :title="isPolishing ? 'Polishing with AI...' : 'Polish with AI'"
+            >
+              <UIcon 
+                name="i-heroicons-sparkles" 
+                :class="isPolishing ? 'animate-spin' : 'group-hover:animate-pulse'" 
+                class="w-3.5 h-3.5" 
+              />
+              <span class="hidden sm:inline">{{ isPolishing ? 'Polishing...' : 'Polish' }}</span>
+            </button>
           </div>
         </div>
       </div>
@@ -524,8 +539,7 @@ onUnmounted(() => {
       <!-- Metadata Bar (Hidden when locked) -->
       <div v-if="!isLocked" class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 md:px-6 py-3">
         <div class="max-w-5xl mx-auto">
-          <div class="flex items-center justify-between gap-4 text-sm flex-wrap">
-            <div class="flex items-center gap-4 flex-wrap flex-1 min-w-0">
+          <div class="flex items-center gap-4 text-sm flex-wrap">
             <!-- Folder -->
             <div class="flex items-center gap-2 relative">
               <UIcon name="i-heroicons-folder" class="w-4 h-4 text-gray-400" />
@@ -596,22 +610,6 @@ onUnmounted(() => {
                 />
               </div>
             </div>
-            </div>
-            
-            <!-- Polish with AI Button -->
-            <button
-              @click="polishNote"
-              :disabled="isPolishing"
-              class="polish-ai-button group relative inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white rounded-lg transition-all duration-300 hover:scale-105 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 flex-shrink-0"
-              title="Polish with AI"
-            >
-              <UIcon 
-                name="i-heroicons-sparkles" 
-                :class="isPolishing ? 'animate-spin' : 'group-hover:animate-pulse'" 
-                class="w-4 h-4" 
-              />
-              <span>{{ isPolishing ? 'Polishing...' : 'Polish' }}</span>
-            </button>
           </div>
         </div>
       </div>
@@ -826,22 +824,22 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-/* Polish AI Button - Stunning Purple Gradient */
-.polish-ai-button {
+/* Polish AI Button - Stunning Purple Gradient (Small Version) */
+.polish-ai-button-small {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
   background-size: 200% 200%;
   animation: gradient-shift 3s ease infinite;
-  box-shadow: 0 4px 15px 0 rgba(102, 126, 234, 0.4);
+  box-shadow: 0 2px 8px 0 rgba(102, 126, 234, 0.3);
 }
 
-.polish-ai-button:hover:not(:disabled) {
+.polish-ai-button-small:hover:not(:disabled) {
   background: linear-gradient(135deg, #5568d3 0%, #6a3f92 50%, #e082ea 100%);
   background-size: 200% 200%;
-  box-shadow: 0 6px 20px 0 rgba(102, 126, 234, 0.6);
+  box-shadow: 0 3px 12px 0 rgba(102, 126, 234, 0.5);
 }
 
-.polish-ai-button:active:not(:disabled) {
-  transform: scale(0.98);
+.polish-ai-button-small:active:not(:disabled) {
+  transform: scale(0.95);
 }
 
 @keyframes gradient-shift {
