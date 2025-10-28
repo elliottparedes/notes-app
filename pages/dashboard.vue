@@ -495,6 +495,9 @@ async function createFolder() {
       folder: name
     });
 
+    // Refresh notes list to make the new folder appear immediately
+    await notesStore.fetchNotes();
+
     toast.add({
       title: 'Success',
       description: `Folder "${name}" created`,
