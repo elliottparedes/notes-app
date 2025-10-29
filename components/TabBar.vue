@@ -108,10 +108,9 @@ function truncateTitle(title: string, maxLength: number = 25): string {
 
 <template>
   <div 
-    v-if="tabNotes.length > 0"
-    class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 overflow-x-auto"
+    class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 overflow-x-auto min-h-[48px]"
   >
-    <div ref="tabsContainer" class="flex items-center min-w-max">
+    <div ref="tabsContainer" class="flex items-center min-w-max h-full min-h-[48px]">
       <div
         v-for="note in tabNotes"
         :key="note.id"
