@@ -103,10 +103,16 @@ export default defineEventHandler(async (event): Promise<Note> => {
       values
     );
 
-    // Fetch updated note
-    const rows = await executeQuery<NoteRow[]>(
-      'SELECT * FROM notes WHERE id = ?',
-      [noteId]
+    // Fetch updated note WITH sharing information
+    const rows = await executeQuery<any[]>(
+      `SELECT n.*, 
+        sn.permission as share_permission,
+        (SELECT COUNT(*) FROM shared_notes WHERE note_id = n.id) > 0 as is_shared
+       FROM notes n
+       LEFT JOIN shared_notes sn ON n.id = sn.note_id AND sn.shared_with_user_id = ?
+       WHERE n.id = ?
+       LIMIT 1`,
+      [userId, noteId]
     );
 
     const row = rows[0];
@@ -128,7 +134,9 @@ export default defineEventHandler(async (event): Promise<Note> => {
       folder: row.folder,
       folder_id: row.folder_id || null,
       created_at: row.created_at,
-      updated_at: row.updated_at
+      updated_at: row.updated_at,
+      is_shared: Boolean(row.is_shared),
+      share_permission: row.share_permission || undefined
     };
 
     return note;

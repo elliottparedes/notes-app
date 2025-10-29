@@ -44,6 +44,11 @@ const folderDropdownPos = ref({ top: 0, left: 0 });
 const folderButtonRef = ref<HTMLButtonElement | null>(null);
 const isPolishing = ref(false);
 
+// Track previous values for change detection (to handle collaborative notes correctly)
+const prevTitle = ref<string>('');
+const prevContent = ref<string>('');
+const prevFolderId = ref<number | null>(null);
+
 // FAB menu state
 const showFabMenu = ref(false);
 
@@ -76,6 +81,11 @@ const isGeneratingAi = ref(false);
 
 // Template selection modal
 const showTemplateModal = ref(false);
+
+// Recipe import modal
+const showRecipeImportModal = ref(false);
+const recipeUrl = ref('');
+const isImportingRecipe = ref(false);
 
 // Share note modal
 const showShareModal = ref(false);
@@ -261,6 +271,11 @@ watch(activeNote, (note, oldNote) => {
       editForm.folder = note.folder || '';
       editForm.folder_id = note.folder_id || null;
       // Don't update editForm.content - CollaborativeEditor manages it via Y.Doc
+      
+      // Initialize previous values for change detection
+      prevTitle.value = note.title;
+      prevContent.value = editForm.content; // Keep current content value
+      prevFolderId.value = note.folder_id || null;
     } else {
       // For regular notes, only sync if content actually changed or it's a different note
       const isDifferentNote = !oldNote || oldNote.id !== note.id;
@@ -274,6 +289,11 @@ watch(activeNote, (note, oldNote) => {
           folder: note.folder || '',
           folder_id: note.folder_id || null
         });
+        
+        // Initialize previous values for change detection
+        prevTitle.value = note.title;
+        prevContent.value = note.content || '';
+        prevFolderId.value = note.folder_id || null;
       }
     }
     
@@ -286,24 +306,39 @@ watch(activeNote, (note, oldNote) => {
 }, { immediate: true });
 
 // Auto-save on content change (only when not locked)
-// IMPORTANT: Skip auto-save for collaborative notes (Y.Doc handles syncing)
-watch([() => editForm.title, () => editForm.content, () => editForm.folder_id], () => {
-  if (isLocked.value || !activeNote.value) return;
-  
-  // Skip auto-save for collaborative notes - Y.Doc handles syncing
-  if (activeNote.value.is_shared || activeNote.value.share_permission) {
-    console.log('[Dashboard] Skipping auto-save for collaborative note');
-    return;
+// IMPORTANT: Skip auto-save for collaborative notes title/content (Y.Doc handles syncing)
+// But ALWAYS save folder_id changes (Y.Doc doesn't handle metadata)
+watch([() => editForm.title, () => editForm.content, () => editForm.folder_id], 
+  ([newTitle, newContent, newFolderId]) => {
+    if (isLocked.value || !activeNote.value) return;
+    
+    // Detect what changed
+    const titleChanged = newTitle !== prevTitle.value;
+    const contentChanged = newContent !== prevContent.value;
+    const folderChanged = newFolderId !== prevFolderId.value;
+    
+    // Update previous values (handle undefined)
+    prevTitle.value = (newTitle as string) || '';
+    prevContent.value = (newContent as string) || '';
+    prevFolderId.value = (newFolderId as number | null) ?? null;
+    
+    // For collaborative notes: skip auto-save for title/content (Y.Doc handles it)
+    // BUT always save folder changes (Y.Doc doesn't handle metadata)
+    const isCollaborative = activeNote.value.is_shared || activeNote.value.share_permission;
+    if (isCollaborative && (titleChanged || contentChanged) && !folderChanged) {
+      console.log('[Dashboard] Skipping auto-save for collaborative note title/content');
+      return;
+    }
+    
+    if (autoSaveTimeout.value) {
+      clearTimeout(autoSaveTimeout.value);
+    }
+    
+    autoSaveTimeout.value = setTimeout(() => {
+      saveNote(true);
+    }, 1000); // Auto-save after 1 second of inactivity
   }
-  
-  if (autoSaveTimeout.value) {
-    clearTimeout(autoSaveTimeout.value);
-  }
-  
-  autoSaveTimeout.value = setTimeout(() => {
-    saveNote(true);
-  }, 1000); // Auto-save after 1 second of inactivity
-});
+);
 
 const userInitial = computed(() => {
   const name = (authStore.currentUser?.name || authStore.currentUser?.email || 'User') as string;
@@ -843,6 +878,74 @@ async function generateAiNote() {
     });
   } finally {
     isGeneratingAi.value = false;
+  }
+}
+
+function handleRecipeImport() {
+  showFabMenu.value = false;
+  openRecipeImportModal();
+}
+
+function openRecipeImportModal() {
+  recipeUrl.value = '';
+  showRecipeImportModal.value = true;
+}
+
+async function importRecipe() {
+  const url = recipeUrl.value.trim();
+  if (!url) {
+    toast.add({
+      title: 'Validation Error',
+      description: 'Please enter a recipe URL',
+      color: 'error'
+    });
+    return;
+  }
+
+  // Basic URL validation
+  try {
+    new URL(url);
+  } catch {
+    toast.add({
+      title: 'Validation Error',
+      description: 'Please enter a valid URL',
+      color: 'error'
+    });
+    return;
+  }
+
+  isImportingRecipe.value = true;
+
+  try {
+    const response = await $fetch<Note>('/api/notes/import-recipe', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${authStore.token}`
+      },
+      body: {
+        url: url,
+        folder_id: null
+      }
+    });
+
+    toast.add({
+      title: 'Success',
+      description: 'Recipe imported successfully',
+      color: 'success'
+    });
+
+    showRecipeImportModal.value = false;
+    await notesStore.fetchNotes();
+    notesStore.openTab(response.id);
+  } catch (error: any) {
+    console.error('Recipe import error:', error);
+    toast.add({
+      title: 'Error',
+      description: error.data?.message || 'Failed to import recipe. Please try again.',
+      color: 'error'
+    });
+  } finally {
+    isImportingRecipe.value = false;
   }
 }
 
@@ -2007,6 +2110,20 @@ onMounted(() => {
                     <div class="text-xs text-gray-500 dark:text-gray-400">Create with AI</div>
                   </div>
                 </button>
+
+                <!-- Import Recipe -->
+                <button
+                  @click="handleRecipeImport"
+                  class="w-full text-left px-4 py-3.5 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-rose-50 dark:hover:bg-rose-900/20 flex items-center gap-3 transition-colors"
+                >
+                  <div class="w-10 h-10 bg-gradient-to-br from-rose-500 to-rose-600 rounded-xl flex items-center justify-center shadow-sm">
+                    <UIcon name="i-heroicons-cake" class="w-5 h-5 text-white" />
+                  </div>
+                  <div class="flex-1">
+                    <div class="font-semibold text-gray-900 dark:text-white">Import Recipe</div>
+                    <div class="text-xs text-gray-500 dark:text-gray-400">From URL</div>
+                  </div>
+                </button>
               </div>
             </div>
           </Transition>
@@ -2150,6 +2267,37 @@ onMounted(() => {
             <div class="flex gap-3">
               <UButton color="neutral" variant="soft" block @click="showAiGenerateModal = false" :disabled="isGeneratingAi">Cancel</UButton>
               <UButton color="primary" block @click="generateAiNote" :loading="isGeneratingAi" :disabled="isGeneratingAi || !aiPrompt.trim()" icon="i-heroicons-sparkles">Generate</UButton>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+
+    <!-- Recipe Import Modal -->
+    <Teleport to="body">
+      <Transition name="modal">
+        <div v-if="showRecipeImportModal" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" @click="showRecipeImportModal = false" />
+          <div class="relative bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-lg w-full p-6 border border-gray-200 dark:border-gray-700">
+            <div class="flex items-center justify-center w-12 h-12 mx-auto mb-4 bg-gradient-to-br from-rose-100 to-rose-200 dark:from-rose-900/30 dark:to-rose-800/30 rounded-full">
+              <UIcon name="i-heroicons-cake" class="w-6 h-6 text-rose-600 dark:text-rose-400" />
+            </div>
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white text-center mb-2">Import Recipe from URL</h3>
+            <p class="text-sm text-gray-600 dark:text-gray-400 text-center mb-6">Enter the URL of a recipe page, and we'll extract the ingredients and instructions for you.</p>
+            <input 
+              v-model="recipeUrl" 
+              type="url" 
+              placeholder="https://example.com/recipe" 
+              class="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-transparent mb-6" 
+              @keyup.enter="importRecipe" 
+              autofocus 
+            />
+            <p class="text-xs text-gray-500 dark:text-gray-400 mb-6 text-center">
+              Powered by AI • We'll try to extract recipe data automatically
+            </p>
+            <div class="flex gap-3">
+              <UButton color="neutral" variant="soft" block @click="showRecipeImportModal = false" :disabled="isImportingRecipe">Cancel</UButton>
+              <UButton color="primary" block @click="importRecipe" :loading="isImportingRecipe" :disabled="isImportingRecipe || !recipeUrl.trim()" icon="i-heroicons-cake">Import</UButton>
             </div>
           </div>
         </div>

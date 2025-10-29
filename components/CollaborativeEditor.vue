@@ -504,7 +504,9 @@ onMounted(() => {
       if (props.initialContent && editorIsEmpty) {
         // Only initialize if the editor is truly empty
         console.log(`[CollabEditor ${props.noteId}] 📝 Initializing editor with database content`)
-        editor.value.commands.setContent(props.initialContent, { emitUpdate: false })
+        // Use emitUpdate: true to sync content to Y.Doc for other collaborators
+        editor.value.commands.setContent(props.initialContent, { emitUpdate: true })
+        console.log(`[CollabEditor ${props.noteId}] ✅ Content loaded and synced to Y.Doc`)
       } else if (!editorIsEmpty) {
         console.log(`[CollabEditor ${props.noteId}] ♻️ Editor already has content, skipping initialization`)
       } else {
