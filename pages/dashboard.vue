@@ -494,7 +494,7 @@ async function handleCreateNote() {
     const noteData: CreateNoteDto = {
       title: 'Untitled Note',
       content: '',
-      folder_id: selectedFolderId.value
+      folder_id: null
     };
     
     const note = await notesStore.createNote(noteData);
@@ -532,7 +532,7 @@ async function handleQuickNote() {
     const noteData: CreateNoteDto = {
       title: `Quick Note - ${timestamp}`,
       content: '',
-      folder_id: selectedFolderId.value
+      folder_id: null
     };
     
     const note = await notesStore.createNote(noteData);
@@ -559,7 +559,7 @@ async function handleListNote() {
     const noteData: CreateNoteDto = {
       title: 'New List',
       content: '<ul data-type="taskList"><li data-type="taskItem" data-checked="false"><p></p></li></ul>',
-      folder_id: selectedFolderId.value
+      folder_id: null
     };
     
     const note = await notesStore.createNote(noteData);
@@ -574,12 +574,6 @@ async function handleListNote() {
   } finally {
     isCreating.value = false;
   }
-}
-
-function handleCreateFolderFromFab() {
-  showFabMenu.value = false;
-  newFolderParentId.value = selectedFolderId.value;
-  openCreateFolderModal();
 }
 
 function handleAiGenerate() {
@@ -607,7 +601,7 @@ async function createNoteFromTemplate(template: NoteTemplate) {
     const noteData: CreateNoteDto = {
       title: template.title,
       content: template.content,
-      folder_id: selectedFolderId.value
+      folder_id: null
     };
     
     const note = await notesStore.createNote(noteData);
@@ -652,7 +646,7 @@ async function generateAiNote() {
       },
       body: {
         prompt: prompt,
-        folder_id: selectedFolderId.value
+        folder_id: null
       }
     });
 
@@ -1007,38 +1001,45 @@ onMounted(() => {
         <div class="flex-1 overflow-y-auto p-3">
           <!-- Quick Notes Section -->
           <div class="mb-4">
-            <button
-              @click="selectAllNotes"
-              class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-            >
+            <div class="w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300">
               <UIcon name="i-heroicons-bolt" class="w-5 h-5" />
               <span class="flex-1 text-left">Quick Notes</span>
               <span class="text-xs px-2 py-0.5 rounded-full bg-gray-200 dark:bg-gray-600">
                 {{ notesWithoutFolder.length }}
               </span>
-            </button>
+            </div>
             
             <!-- Notes without folders -->
             <div v-if="notesWithoutFolder.length > 0" class="mt-1 space-y-0.5">
               <div
                 v-for="note in notesWithoutFolder"
                 :key="`note-${note.id}`"
-                @click="handleOpenNote(note.id)"
-                class="group/note flex items-center gap-2 rounded-lg transition-colors hover:bg-gray-100 dark:hover:bg-gray-700/50 cursor-pointer px-3 py-2"
+                class="group/note flex items-center gap-2 rounded-lg transition-colors hover:bg-gray-100 dark:hover:bg-gray-700/50 px-3 py-2"
                 :class="notesStore.activeTabId === note.id ? 'bg-primary-50 dark:bg-primary-900/20' : ''"
               >
-                <UIcon 
-                  name="i-heroicons-document-text" 
-                  class="w-4 h-4 flex-shrink-0"
-                  :class="notesStore.activeTabId === note.id ? 'text-primary-600 dark:text-primary-400' : 'text-gray-400'"
-                />
-                <span 
-                  class="flex-1 text-sm truncate"
-                  :class="notesStore.activeTabId === note.id ? 'text-primary-700 dark:text-primary-300 font-medium' : 'text-gray-700 dark:text-gray-300'"
-                  :title="note.title"
+                <div @click="handleOpenNote(note.id)" class="flex items-center gap-2 flex-1 min-w-0 cursor-pointer">
+                  <UIcon 
+                    name="i-heroicons-document-text" 
+                    class="w-4 h-4 flex-shrink-0"
+                    :class="notesStore.activeTabId === note.id ? 'text-primary-600 dark:text-primary-400' : 'text-gray-400'"
+                  />
+                  <span 
+                    class="flex-1 text-sm truncate"
+                    :class="notesStore.activeTabId === note.id ? 'text-primary-700 dark:text-primary-300 font-medium' : 'text-gray-700 dark:text-gray-300'"
+                    :title="note.title"
+                  >
+                    {{ note.title }}
+                  </span>
+                </div>
+                
+                <!-- Note Options Button -->
+                <button
+                  @click.stop="handleDeleteNote(note)"
+                  class="flex-shrink-0 p-1.5 rounded-md opacity-0 group-hover/note:opacity-100 hover:bg-red-100 dark:hover:bg-red-900/20 transition-all"
+                  title="Delete note"
                 >
-                  {{ note.title }}
-                </span>
+                  <UIcon name="i-heroicons-trash" class="w-3.5 h-3.5 text-red-600 dark:text-red-400" />
+                </button>
               </div>
             </div>
           </div>
@@ -1085,6 +1086,7 @@ onMounted(() => {
                 @move-up="handleMoveUp"
                 @move-down="handleMoveDown"
                 @open-note="handleFolderNoteClick"
+                @delete-note="(noteId) => handleDeleteNote(notesStore.notes.find(n => n.id === noteId)!)"
               />
             </div>
           </div>
@@ -1169,38 +1171,45 @@ onMounted(() => {
               <div class="flex-1 overflow-y-auto p-3">
                 <!-- Quick Notes Section -->
                 <div class="mb-4">
-                  <button
-                    @click="selectAllNotes"
-                    class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-                  >
+                  <div class="w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300">
                     <UIcon name="i-heroicons-bolt" class="w-5 h-5" />
                     <span class="flex-1 text-left">Quick Notes</span>
                     <span class="text-xs px-2 py-0.5 rounded-full bg-gray-200 dark:bg-gray-600">
                       {{ notesWithoutFolder.length }}
                     </span>
-                  </button>
+                  </div>
                   
                   <!-- Notes without folders -->
                   <div v-if="notesWithoutFolder.length > 0" class="mt-1 space-y-0.5">
                     <div
                       v-for="note in notesWithoutFolder"
                       :key="`note-${note.id}`"
-                      @click="handleOpenNote(note.id)"
-                      class="group/note flex items-center gap-2 rounded-lg transition-colors hover:bg-gray-100 dark:hover:bg-gray-700/50 cursor-pointer px-3 py-2"
+                      class="group/note flex items-center gap-2 rounded-lg transition-colors hover:bg-gray-100 dark:hover:bg-gray-700/50 px-3 py-2"
                       :class="notesStore.activeTabId === note.id ? 'bg-primary-50 dark:bg-primary-900/20' : ''"
                     >
-                      <UIcon 
-                        name="i-heroicons-document-text" 
-                        class="w-4 h-4 flex-shrink-0"
-                        :class="notesStore.activeTabId === note.id ? 'text-primary-600 dark:text-primary-400' : 'text-gray-400'"
-                      />
-                      <span 
-                        class="flex-1 text-sm truncate"
-                        :class="notesStore.activeTabId === note.id ? 'text-primary-700 dark:text-primary-300 font-medium' : 'text-gray-700 dark:text-gray-300'"
-                        :title="note.title"
+                      <div @click="handleOpenNote(note.id)" class="flex items-center gap-2 flex-1 min-w-0 cursor-pointer">
+                        <UIcon 
+                          name="i-heroicons-document-text" 
+                          class="w-4 h-4 flex-shrink-0"
+                          :class="notesStore.activeTabId === note.id ? 'text-primary-600 dark:text-primary-400' : 'text-gray-400'"
+                        />
+                        <span 
+                          class="flex-1 text-sm truncate"
+                          :class="notesStore.activeTabId === note.id ? 'text-primary-700 dark:text-primary-300 font-medium' : 'text-gray-700 dark:text-gray-300'"
+                          :title="note.title"
+                        >
+                          {{ note.title }}
+                        </span>
+                      </div>
+                      
+                      <!-- Note Options Button -->
+                      <button
+                        @click.stop="handleDeleteNote(note)"
+                        class="flex-shrink-0 p-1.5 rounded-md opacity-100 hover:bg-red-100 dark:hover:bg-red-900/20 transition-all"
+                        title="Delete note"
                       >
-                        {{ note.title }}
-                      </span>
+                        <UIcon name="i-heroicons-trash" class="w-3.5 h-3.5 text-red-600 dark:text-red-400" />
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -1247,6 +1256,7 @@ onMounted(() => {
                       @move-up="handleMoveUp"
                       @move-down="handleMoveDown"
                       @open-note="handleFolderNoteClick"
+                      @delete-note="(noteId) => handleDeleteNote(notesStore.notes.find(n => n.id === noteId)!)"
                     />
                   </div>
                 </div>
@@ -1422,21 +1432,24 @@ onMounted(() => {
           </div>
 
           <!-- Note Editor - Everything Scrolls Together -->
-          <div v-else class="max-w-5xl mx-auto px-4 md:px-6 py-6 pb-16">
-            <!-- Title -->
-            <h1
-              v-if="isLocked"
-              class="w-full bg-transparent border-none outline-none text-3xl md:text-4xl font-bold text-gray-900 dark:text-white mb-3"
-            >
-              {{ editForm.title || 'Untitled Note' }}
-            </h1>
-            <input
-              v-else
-              v-model="editForm.title"
-              type="text"
-              class="w-full bg-transparent border-none outline-none text-3xl md:text-4xl font-bold text-gray-900 dark:text-white placeholder-gray-400 mb-3 focus:outline-none focus:ring-0"
-              placeholder="Untitled Note"
-            />
+          <div v-else>
+            <!-- Header Section - Full Width -->
+            <div class="border-b border-gray-200 dark:border-gray-700 shadow-sm bg-gradient-to-b from-transparent to-gray-50/50 dark:to-gray-800/50">
+              <div class="max-w-5xl mx-auto px-4 md:px-6 pt-6 pb-4">
+                <!-- Title -->
+                <h1
+                  v-if="isLocked"
+                  class="w-full bg-transparent border-none outline-none text-3xl md:text-4xl font-bold text-gray-900 dark:text-white mb-3"
+                >
+                  {{ editForm.title || 'Untitled Note' }}
+                </h1>
+                <input
+                  v-else
+                  v-model="editForm.title"
+                  type="text"
+                  class="w-full bg-transparent border-none outline-none text-3xl md:text-4xl font-bold text-gray-900 dark:text-white placeholder-gray-400 mb-3 focus:outline-none focus:ring-0"
+                  placeholder="Untitled Note"
+                />
             
             <!-- Stats Row -->
             <div class="flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400 flex-wrap mb-3">
@@ -1461,7 +1474,7 @@ onMounted(() => {
             </div>
 
             <!-- Metadata: Folder + Tags -->
-            <div v-if="!isLocked" class="flex items-center gap-4 text-sm flex-wrap mb-6">
+            <div v-if="!isLocked" class="flex items-center gap-4 text-sm flex-wrap">
               <!-- Folder -->
               <div class="flex items-center gap-2 relative">
                 <UIcon name="i-heroicons-folder" class="w-3.5 h-3.5 text-gray-400" />
@@ -1535,7 +1548,7 @@ onMounted(() => {
             </div>
             
             <!-- Read-only metadata -->
-            <div v-else-if="(selectedFolderName || editForm.tags?.length)" class="flex items-center gap-3 text-xs flex-wrap mb-6">
+            <div v-else-if="(selectedFolderName || editForm.tags?.length)" class="flex items-center gap-3 text-xs flex-wrap">
               <div v-if="selectedFolderName || !editForm.folder_id" class="flex items-center gap-2">
                 <UIcon name="i-heroicons-folder" class="w-3.5 h-3.5 text-gray-400" />
                 <span class="text-gray-600 dark:text-gray-400">{{ selectedFolderName || 'No folder' }}</span>
@@ -1553,16 +1566,20 @@ onMounted(() => {
                 </UBadge>
               </div>
             </div>
+              </div>
+            </div>
 
-            <!-- Editor - No Toolbar, Keyboard Only -->
-            <ClientOnly>
-              <TiptapEditor
-                v-model="editForm.content"
-                placeholder="Start writing... Right-click for options or press ? for keyboard shortcuts"
-                :editable="!isLocked"
-                :showToolbar="false"
-              />
-            </ClientOnly>
+            <!-- Editor Section - Editable Content -->
+            <div class="max-w-5xl mx-auto px-4 md:px-6 py-6 pb-16">
+              <ClientOnly>
+                <TiptapEditor
+                  v-model="editForm.content"
+                  placeholder="Start writing... Right-click for options or press ? for keyboard shortcuts"
+                  :editable="!isLocked"
+                  :showToolbar="false"
+                />
+              </ClientOnly>
+            </div>
           </div>
         </div>
 
@@ -1646,23 +1663,6 @@ onMounted(() => {
                   <div class="flex-1">
                     <div class="font-semibold text-gray-900 dark:text-white">AI Generate</div>
                     <div class="text-xs text-gray-500 dark:text-gray-400">Create with AI</div>
-                  </div>
-                </button>
-
-                <!-- Divider -->
-                <div class="my-2 border-t border-gray-200 dark:border-gray-700"></div>
-
-                <!-- New Folder -->
-                <button
-                  @click="handleCreateFolderFromFab"
-                  class="w-full text-left px-4 py-3.5 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-blue-900/20 flex items-center gap-3 transition-colors"
-                >
-                  <div class="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center shadow-sm">
-                    <UIcon name="i-heroicons-folder-plus" class="w-5 h-5 text-white" />
-                  </div>
-                  <div class="flex-1">
-                    <div class="font-semibold text-gray-900 dark:text-white">New Folder</div>
-                    <div class="text-xs text-gray-500 dark:text-gray-400">Organize your notes</div>
                   </div>
                 </button>
               </div>

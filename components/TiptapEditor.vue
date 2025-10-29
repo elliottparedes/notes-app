@@ -3,6 +3,7 @@ import { useEditor, EditorContent } from '@tiptap/vue-3'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
 import Link from '@tiptap/extension-link'
+import Underline from '@tiptap/extension-underline'
 import TaskList from '@tiptap/extension-task-list'
 import TaskItem from '@tiptap/extension-task-item'
 import { Table } from '@tiptap/extension-table'
@@ -50,7 +51,12 @@ const editor = useEditor({
   editable: props.editable,
   content: props.modelValue || '',
   extensions: [
-    StarterKit,
+    StarterKit.configure({
+      heading: {
+        levels: [1, 2, 3, 4, 5, 6]
+      }
+    }),
+    Underline,
     Placeholder.configure({
       placeholder: props.placeholder || 'Start writing...'
     }),
@@ -58,6 +64,18 @@ const editor = useEditor({
       openOnClick: false,
       HTMLAttributes: {
         class: 'text-primary-600 dark:text-primary-400 hover:underline cursor-pointer'
+      },
+      // Enable keyboard shortcuts
+      addKeyboardShortcuts() {
+        return {
+          'Mod-k': () => {
+            // Trigger the link modal
+            const previousUrl = this.editor.getAttributes('link').href
+            linkUrl.value = previousUrl || ''
+            showLinkModal.value = true
+            return true
+          }
+        }
       }
     }),
     TaskList,
@@ -117,6 +135,10 @@ function toggleBold() {
 
 function toggleItalic() {
   editor.value?.chain().focus().toggleItalic().run()
+}
+
+function toggleUnderline() {
+  editor.value?.chain().focus().toggleUnderline().run()
 }
 
 function toggleStrike() {
@@ -756,6 +778,15 @@ onBeforeUnmount(() => {
             <span class="text-xs text-gray-400">⌘I</span>
           </button>
           <button
+            @click="toggleUnderline(); closeContextMenu()"
+            class="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+            :class="editor?.isActive('underline') ? 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20' : 'text-gray-700 dark:text-gray-300'"
+          >
+            <UIcon name="i-heroicons-underline" class="w-4 h-4" />
+            <span class="flex-1 text-left">Underline</span>
+            <span class="text-xs text-gray-400">⌘U</span>
+          </button>
+          <button
             @click="toggleStrike(); closeContextMenu()"
             class="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
             :class="editor?.isActive('strike') ? 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20' : 'text-gray-700 dark:text-gray-300'"
@@ -1137,13 +1168,17 @@ onBeforeUnmount(() => {
   list-style-type: square;
 }
 
-/* Bold, Italic, etc */
+/* Bold, Italic, Underline, etc */
 .tiptap-editor .ProseMirror strong {
   font-weight: 700;
 }
 
 .tiptap-editor .ProseMirror em {
   font-style: italic;
+}
+
+.tiptap-editor .ProseMirror u {
+  text-decoration: underline;
 }
 
 .tiptap-editor .ProseMirror code {

@@ -17,6 +17,7 @@ interface Emits {
   (e: 'move-up', folderId: number): void;
   (e: 'move-down', folderId: number): void;
   (e: 'open-note', noteId: number): void;
+  (e: 'delete-note', noteId: number): void;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -255,28 +256,38 @@ onMounted(() => {
         <div
           v-for="note in folderNotes"
           :key="`note-${note.id}`"
-          @click="handleNoteClick(note.id)"
-          class="group/note flex items-center gap-2 rounded-lg transition-colors hover:bg-gray-100 dark:hover:bg-gray-700/50 cursor-pointer"
+          class="group/note flex items-center gap-2 rounded-lg transition-colors hover:bg-gray-100 dark:hover:bg-gray-700/50"
           :style="{ paddingLeft: `${(depth + 1) * 12 + 8}px` }"
           :class="notesStore.activeTabId === note.id ? 'bg-primary-50 dark:bg-primary-900/20' : ''"
         >
           <div class="w-6 flex-shrink-0" />
           
-          <!-- Note Icon -->
-          <UIcon 
-            name="i-heroicons-document-text" 
-            class="w-4 h-4 flex-shrink-0"
-            :class="notesStore.activeTabId === note.id ? 'text-primary-600 dark:text-primary-400' : 'text-gray-400'"
-          />
+          <div @click="handleNoteClick(note.id)" class="flex items-center gap-2 flex-1 min-w-0 cursor-pointer py-2">
+            <!-- Note Icon -->
+            <UIcon 
+              name="i-heroicons-document-text" 
+              class="w-4 h-4 flex-shrink-0"
+              :class="notesStore.activeTabId === note.id ? 'text-primary-600 dark:text-primary-400' : 'text-gray-400'"
+            />
+            
+            <!-- Note Title -->
+            <span 
+              class="flex-1 text-sm pr-2 truncate"
+              :class="notesStore.activeTabId === note.id ? 'text-primary-700 dark:text-primary-300 font-medium' : 'text-gray-700 dark:text-gray-300'"
+              :title="note.title"
+            >
+              {{ truncateNoteTitle(note.title) }}
+            </span>
+          </div>
           
-          <!-- Note Title -->
-          <span 
-            class="flex-1 text-sm py-2 pr-2 truncate"
-            :class="notesStore.activeTabId === note.id ? 'text-primary-700 dark:text-primary-300 font-medium' : 'text-gray-700 dark:text-gray-300'"
-            :title="note.title"
+          <!-- Note Delete Button -->
+          <button
+            @click.stop="$emit('delete-note', note.id)"
+            class="flex-shrink-0 p-1.5 mr-2 rounded-md opacity-0 group-hover/note:opacity-100 hover:bg-red-100 dark:hover:bg-red-900/20 transition-all"
+            title="Delete note"
           >
-            {{ truncateNoteTitle(note.title) }}
-          </span>
+            <UIcon name="i-heroicons-trash" class="w-3.5 h-3.5 text-red-600 dark:text-red-400" />
+          </button>
         </div>
 
         <!-- Subfolders (Recursive) -->
@@ -295,6 +306,7 @@ onMounted(() => {
           @move-up="emit('move-up', $event)"
           @move-down="emit('move-down', $event)"
           @open-note="emit('open-note', $event)"
+          @delete-note="emit('delete-note', $event)"
         />
       </div>
     </Transition>
