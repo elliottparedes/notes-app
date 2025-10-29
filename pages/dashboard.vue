@@ -822,21 +822,32 @@ async function confirmDelete() {
   if (!noteToDelete.value) return;
 
   isDeleting.value = true;
+  const deletedNoteId = noteToDelete.value.id;
+  const wasShared = noteToDelete.value.is_shared || noteToDelete.value.share_permission;
 
   try {
+    // Close the tab if it's open
+    if (notesStore.openTabs.includes(deletedNoteId)) {
+      notesStore.closeTab(deletedNoteId);
+    }
+    
     // Delete the note - shared_notes entries will be automatically deleted via CASCADE
-    await notesStore.deleteNote(noteToDelete.value.id);
+    await notesStore.deleteNote(deletedNoteId);
     
     // Refresh shared notes list if this was a shared note
-    if (noteToDelete.value.is_shared || noteToDelete.value.share_permission) {
+    if (wasShared) {
       await sharedNotesStore.fetchSharedNotes();
     }
+    
+    // Force refresh the notes list to ensure UI updates
+    await notesStore.fetchNotes();
     
     toast.add({
       title: 'Success',
       description: 'Note deleted successfully',
       color: 'success'
     });
+    
     showDeleteModal.value = false;
     noteToDelete.value = null;
     noteShareCount.value = 0;
