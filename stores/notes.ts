@@ -13,6 +13,9 @@ interface NotesState {
   lastSyncTime: Date | null;
   pendingChanges: number;
   folderOrder: string[];
+  // Tab management
+  openTabs: number[]; // Array of note IDs that are open in tabs
+  activeTabId: number | null; // Currently active tab
 }
 
 export const useNotesStore = defineStore('notes', {
@@ -25,7 +28,9 @@ export const useNotesStore = defineStore('notes', {
     syncing: false,
     lastSyncTime: null,
     pendingChanges: 0,
-    folderOrder: []
+    folderOrder: [],
+    openTabs: [],
+    activeTabId: null
   }),
 
   getters: {
@@ -95,6 +100,19 @@ export const useNotesStore = defineStore('notes', {
         }
       });
       return Array.from(tagSet).sort();
+    },
+
+    // Get notes for open tabs
+    tabNotes: (state): Note[] => {
+      return state.openTabs
+        .map(id => state.notes.find(note => note.id === id))
+        .filter((note): note is Note => note !== undefined);
+    },
+
+    // Get the active note (from active tab)
+    activeNote: (state): Note | null => {
+      if (!state.activeTabId) return null;
+      return state.notes.find(note => note.id === state.activeTabId) || null;
     }
   },
 
@@ -551,6 +569,90 @@ export const useNotesStore = defineStore('notes', {
           this.saveFolderOrder();
         }
       }
+    },
+
+    // Tab management actions
+    async loadTabsFromStorage(): Promise<void> {
+      if (process.client) {
+        try {
+          const savedTabs = localStorage.getItem('open_tabs');
+          const savedActiveTab = localStorage.getItem('active_tab');
+          
+          if (savedTabs) {
+            this.openTabs = JSON.parse(savedTabs);
+          }
+          if (savedActiveTab) {
+            this.activeTabId = parseInt(savedActiveTab);
+          }
+        } catch (err) {
+          console.error('Failed to load tabs from storage:', err);
+        }
+      }
+    },
+
+    saveTabsToStorage(): void {
+      if (process.client) {
+        localStorage.setItem('open_tabs', JSON.stringify(this.openTabs));
+        if (this.activeTabId !== null) {
+          localStorage.setItem('active_tab', String(this.activeTabId));
+        } else {
+          localStorage.removeItem('active_tab');
+        }
+      }
+    },
+
+    openTab(noteId: number): void {
+      // Add to tabs if not already open
+      if (!this.openTabs.includes(noteId)) {
+        this.openTabs.push(noteId);
+      }
+      // Set as active tab
+      this.activeTabId = noteId;
+      this.saveTabsToStorage();
+    },
+
+    closeTab(noteId: number): void {
+      const index = this.openTabs.indexOf(noteId);
+      if (index === -1) return;
+
+      // Remove from tabs
+      this.openTabs.splice(index, 1);
+
+      // If closing the active tab, switch to another tab
+      if (this.activeTabId === noteId) {
+        if (this.openTabs.length > 0) {
+          // Switch to the tab to the left, or the first tab if we closed the first one
+          this.activeTabId = this.openTabs[Math.max(0, index - 1)] || null;
+        } else {
+          this.activeTabId = null;
+        }
+      }
+
+      this.saveTabsToStorage();
+    },
+
+    setActiveTab(noteId: number): void {
+      if (this.openTabs.includes(noteId)) {
+        this.activeTabId = noteId;
+        this.saveTabsToStorage();
+      }
+    },
+
+    reorderTabs(fromIndex: number, toIndex: number): void {
+      if (fromIndex < 0 || fromIndex >= this.openTabs.length || 
+          toIndex < 0 || toIndex >= this.openTabs.length) {
+        return;
+      }
+
+      const [movedTab] = this.openTabs.splice(fromIndex, 1);
+      this.openTabs.splice(toIndex, 0, movedTab);
+      this.saveTabsToStorage();
+    },
+
+    closeAllTabs(): void {
+      this.openTabs = [];
+      this.activeTabId = null;
+      this.saveTabsToStorage();
     }
   }
 });

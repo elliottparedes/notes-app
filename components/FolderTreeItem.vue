@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { Folder } from '~/models';
+import type { Folder, Note } from '~/models';
 
 interface Props {
   folder: Folder;
@@ -16,6 +16,7 @@ interface Emits {
   (e: 'delete', folderId: number): void;
   (e: 'move-up', folderId: number): void;
   (e: 'move-down', folderId: number): void;
+  (e: 'open-note', noteId: number): void;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -31,8 +32,16 @@ const hasChildren = computed(() => {
   return props.folder.children && props.folder.children.length > 0;
 });
 
+const folderNotes = computed(() => {
+  return notesStore.notes.filter(note => note.folder_id === props.folder.id);
+});
+
 const noteCount = computed(() => {
-  return notesStore.notes.filter(note => note.folder_id === props.folder.id).length;
+  return folderNotes.value.length;
+});
+
+const hasContent = computed(() => {
+  return hasChildren.value || noteCount.value > 0;
 });
 
 const showContextMenu = ref(false);
@@ -45,9 +54,18 @@ function handleSelect() {
 
 function handleToggle(event: Event) {
   event.stopPropagation();
-  if (hasChildren.value) {
+  if (hasContent.value) {
     emit('toggle', props.folder.id);
   }
+}
+
+function handleNoteClick(noteId: number) {
+  emit('open-note', noteId);
+}
+
+function truncateNoteTitle(title: string, maxLength: number = 30): string {
+  if (title.length <= maxLength) return title;
+  return title.substring(0, maxLength) + '...';
 }
 
 function toggleContextMenu(event: MouseEvent) {
@@ -129,7 +147,7 @@ onMounted(() => {
     >
       <!-- Expand/Collapse Button -->
       <button
-        v-if="hasChildren"
+        v-if="hasContent"
         @click="handleToggle"
         class="flex-shrink-0 p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
         :class="{ 'rotate-90': isExpanded }"
@@ -141,15 +159,12 @@ onMounted(() => {
       <!-- Folder Button -->
       <button
         @click="handleSelect"
-        class="flex-1 flex items-center gap-2 py-2.5 pr-2 text-sm font-medium transition-colors rounded-lg min-w-0"
-        :class="selectedId === folder.id 
-          ? 'text-primary-700 dark:text-primary-300' 
-          : 'text-gray-700 dark:text-gray-300'"
+        class="flex-1 flex items-center gap-2 py-2.5 pr-2 text-sm font-medium transition-colors rounded-lg min-w-0 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700/30"
       >
         <UIcon 
           name="i-heroicons-folder" 
           class="w-4 h-4 flex-shrink-0"
-          :class="[folderColor, { 'text-primary-600 dark:text-primary-400': selectedId === folder.id }]"
+          :class="folderColor"
         />
         <span class="truncate flex-1 text-left">{{ folder.name }}</span>
         <span 
@@ -233,9 +248,38 @@ onMounted(() => {
       </Transition>
     </Teleport>
 
-    <!-- Children Folders (Recursive) -->
+    <!-- Children (Notes and Subfolders) -->
     <Transition name="expand">
-      <div v-if="isExpanded && hasChildren" class="overflow-hidden">
+      <div v-if="isExpanded && hasContent" class="overflow-hidden">
+        <!-- Notes in this folder -->
+        <div
+          v-for="note in folderNotes"
+          :key="`note-${note.id}`"
+          @click="handleNoteClick(note.id)"
+          class="group/note flex items-center gap-2 rounded-lg transition-colors hover:bg-gray-100 dark:hover:bg-gray-700/50 cursor-pointer"
+          :style="{ paddingLeft: `${(depth + 1) * 12 + 8}px` }"
+          :class="notesStore.activeTabId === note.id ? 'bg-primary-50 dark:bg-primary-900/20' : ''"
+        >
+          <div class="w-6 flex-shrink-0" />
+          
+          <!-- Note Icon -->
+          <UIcon 
+            name="i-heroicons-document-text" 
+            class="w-4 h-4 flex-shrink-0"
+            :class="notesStore.activeTabId === note.id ? 'text-primary-600 dark:text-primary-400' : 'text-gray-400'"
+          />
+          
+          <!-- Note Title -->
+          <span 
+            class="flex-1 text-sm py-2 pr-2 truncate"
+            :class="notesStore.activeTabId === note.id ? 'text-primary-700 dark:text-primary-300 font-medium' : 'text-gray-700 dark:text-gray-300'"
+            :title="note.title"
+          >
+            {{ truncateNoteTitle(note.title) }}
+          </span>
+        </div>
+
+        <!-- Subfolders (Recursive) -->
         <FolderTreeItem
           v-for="child in folder.children"
           :key="child.id"
@@ -250,6 +294,7 @@ onMounted(() => {
           @delete="emit('delete', $event)"
           @move-up="emit('move-up', $event)"
           @move-down="emit('move-down', $event)"
+          @open-note="emit('open-note', $event)"
         />
       </div>
     </Transition>

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { Note, CreateNoteDto } from '~/models';
+import type { Note, CreateNoteDto, UpdateNoteDto } from '~/models';
 import type { NoteTemplate } from '~/types/noteTemplate';
 import { noteTemplates } from '~/utils/noteTemplates';
 
@@ -22,13 +22,26 @@ const isCreating = ref(false);
 const hasInitialized = ref(false);
 const isMounted = ref(false); // Track if we're on client to prevent hydration mismatch
 
-// View mode state (grid or list)
-const viewMode = ref<'grid' | 'list'>('grid');
-
 // Mobile menu state
 const isMobileSidebarOpen = ref(false);
 const isSearchExpanded = ref(false);
 const searchInputRef = ref<HTMLInputElement | null>(null);
+
+// Active note editing state
+const editForm = reactive<UpdateNoteDto & { content: string }>({
+  title: '',
+  content: '',
+  tags: [],
+  folder: '',
+  folder_id: null as number | null
+});
+const isSaving = ref(false);
+const autoSaveTimeout = ref<NodeJS.Timeout | null>(null);
+const isLocked = ref(false);
+const showFolderDropdown = ref(false);
+const folderDropdownPos = ref({ top: 0, left: 0 });
+const folderButtonRef = ref<HTMLButtonElement | null>(null);
+const isPolishing = ref(false);
 
 // FAB menu state
 const showFabMenu = ref(false);
@@ -40,6 +53,9 @@ const showUserMenu = ref(false);
 const showDeleteModal = ref(false);
 const noteToDelete = ref<Note | null>(null);
 const isDeleting = ref(false);
+
+// Keyboard shortcuts modal
+const showShortcutsModal = ref(false);
 
 // Folder management modals
 const showCreateFolderModal = ref(false);
@@ -58,14 +74,6 @@ const isGeneratingAi = ref(false);
 
 // Template selection modal
 const showTemplateModal = ref(false);
-
-// Save view mode preference
-function setViewMode(mode: 'grid' | 'list') {
-  viewMode.value = mode;
-  if (process.client) {
-    localStorage.setItem('notes_view_mode', mode);
-  }
-}
 
 // Session key to force re-render on new sessions
 const sessionKey = ref('default');
@@ -132,12 +140,6 @@ onMounted(async () => {
     // Load session version
     sessionKey.value = localStorage.getItem('session_version') || 'default';
     
-    // Load view mode preference
-    const savedViewMode = localStorage.getItem('notes_view_mode') as 'grid' | 'list' | null;
-    if (savedViewMode) {
-      viewMode.value = savedViewMode;
-    }
-    
     // Restore selected folder from sessionStorage
     const savedFolderId = sessionStorage.getItem('selected_folder_id');
     if (savedFolderId && savedFolderId !== 'null') {
@@ -146,6 +148,11 @@ onMounted(async () => {
   }
 
   await loadData();
+  
+  // Load open tabs
+  if (process.client) {
+    await notesStore.loadTabsFromStorage();
+  }
 });
 
 // Refresh notes when navigating back (onActivated for KeepAlive)
@@ -214,15 +221,45 @@ watch(isOnline, async (online, wasOnlineValue) => {
   }
 });
 
-// Apply filters
-watch([searchQuery, selectedFolderId], () => {
-  notesStore.setFilters({
-    search: searchQuery.value || undefined,
-    folder_id: selectedFolderId.value !== null ? selectedFolderId.value : undefined
-  });
+// Active note from store
+const activeNote = computed(() => notesStore.activeNote);
+
+// Notes without folders (for "Quick Notes" section)
+const notesWithoutFolder = computed(() => {
+  return notesStore.notes.filter(note => note.folder_id === null);
 });
 
-const displayedNotes = computed(() => notesStore.filteredNotes);
+// Watch for active note changes and load it
+watch(activeNote, (note) => {
+  if (note) {
+    Object.assign(editForm, {
+      title: note.title,
+      content: note.content || '',
+      tags: note.tags || [],
+      folder: note.folder || '',
+      folder_id: note.folder_id || null
+    });
+    
+    // Load lock state
+    if (process.client && note.id) {
+      const savedLockState = localStorage.getItem(`note-${note.id}-locked`);
+      isLocked.value = savedLockState === 'true';
+    }
+  }
+}, { immediate: true });
+
+// Auto-save on content change (only when not locked)
+watch([() => editForm.title, () => editForm.content, () => editForm.folder_id], () => {
+  if (isLocked.value || !activeNote.value) return;
+  
+  if (autoSaveTimeout.value) {
+    clearTimeout(autoSaveTimeout.value);
+  }
+  
+  autoSaveTimeout.value = setTimeout(() => {
+    saveNote(true);
+  }, 1000); // Auto-save after 1 second of inactivity
+});
 
 const userInitial = computed(() => {
   const name = (authStore.currentUser?.name || authStore.currentUser?.email || 'User') as string;
@@ -461,7 +498,9 @@ async function handleCreateNote() {
     };
     
     const note = await notesStore.createNote(noteData);
-    router.push(`/notes/${note.id}`);
+    // Refresh notes and open in a new tab
+    await notesStore.fetchNotes();
+    notesStore.openTab(note.id);
   } catch (error) {
     toast.add({
       title: 'Error',
@@ -497,7 +536,8 @@ async function handleQuickNote() {
     };
     
     const note = await notesStore.createNote(noteData);
-    router.push(`/notes/${note.id}`);
+    await notesStore.fetchNotes();
+    notesStore.openTab(note.id);
   } catch (error) {
     toast.add({
       title: 'Error',
@@ -523,7 +563,8 @@ async function handleListNote() {
     };
     
     const note = await notesStore.createNote(noteData);
-    router.push(`/notes/${note.id}`);
+    await notesStore.fetchNotes();
+    notesStore.openTab(note.id);
   } catch (error) {
     toast.add({
       title: 'Error',
@@ -577,7 +618,8 @@ async function createNoteFromTemplate(template: NoteTemplate) {
       color: 'success'
     });
     
-    router.push(`/notes/${note.id}`);
+    await notesStore.fetchNotes();
+    notesStore.openTab(note.id);
   } catch (error) {
     toast.add({
       title: 'Error',
@@ -621,7 +663,8 @@ async function generateAiNote() {
     });
 
     showAiGenerateModal.value = false;
-    router.push(`/notes/${response.id}`);
+    await notesStore.fetchNotes();
+    notesStore.openTab(response.id);
   } catch (error) {
     console.error('AI generation error:', error);
     toast.add({
@@ -699,6 +742,241 @@ function getRenderedPreview(content: string | null): string {
 function toggleFabMenu() {
   showFabMenu.value = !showFabMenu.value;
 }
+
+// Note opening and tab management
+function handleOpenNote(noteId: number) {
+  notesStore.openTab(noteId);
+  isMobileSidebarOpen.value = false;
+}
+
+function handleFolderNoteClick(noteId: number) {
+  handleOpenNote(noteId);
+}
+
+// Note editing functions
+async function saveNote(silent = false) {
+  if (!activeNote.value) return;
+  if (!editForm.title?.trim()) {
+    if (!silent) {
+      toast.add({
+        title: 'Validation Error',
+        description: 'Title is required',
+        color: 'error'
+      });
+    }
+    return;
+  }
+
+  isSaving.value = true;
+
+  try {
+    const updateData: UpdateNoteDto = {
+      title: editForm.title,
+      content: editForm.content,
+      tags: editForm.tags || [],
+      folder: editForm.folder || null,
+      folder_id: editForm.folder_id || null
+    };
+    
+    await notesStore.updateNote(activeNote.value.id, updateData);
+    if (!silent) {
+      toast.add({
+        title: 'Success',
+        description: 'Note saved',
+        color: 'success'
+      });
+    }
+  } catch (error) {
+    console.error('Save error:', error);
+    if (!silent) {
+      toast.add({
+        title: 'Error',
+        description: 'Failed to save note',
+        color: 'error'
+      });
+    }
+  } finally {
+    isSaving.value = false;
+  }
+}
+
+// Toggle lock state
+function toggleLock() {
+  if (!activeNote.value) return;
+  
+  isLocked.value = !isLocked.value;
+  
+  if (process.client) {
+    localStorage.setItem(`note-${activeNote.value.id}-locked`, isLocked.value.toString());
+  }
+  
+  if (isLocked.value) {
+    toast.add({
+      title: 'Note Locked',
+      description: 'Read-only mode activated',
+      color: 'success'
+    });
+  } else {
+    toast.add({
+      title: 'Note Unlocked',
+      description: 'You can now edit this note',
+      color: 'success'
+    });
+  }
+}
+
+// Tags management
+const tagInput = ref('');
+
+function addTag() {
+  const trimmedTag = tagInput.value.trim();
+  if (!trimmedTag) return;
+  
+  if (!editForm.tags || editForm.tags === null) {
+    editForm.tags = [];
+  }
+  
+  if (editForm.tags.includes(trimmedTag)) {
+    tagInput.value = '';
+    return;
+  }
+  
+  editForm.tags = [...editForm.tags, trimmedTag];
+  tagInput.value = '';
+  saveNote(true);
+}
+
+function removeTag(tag: string) {
+  if (editForm.tags && editForm.tags.length > 0) {
+    editForm.tags = editForm.tags.filter(t => t !== tag);
+    saveNote(true);
+  }
+}
+
+// Folder selection for note
+function selectFolderForNote(folderId: number | null) {
+  editForm.folder_id = folderId;
+  editForm.folder = folderId ? foldersStore.getFolderById(folderId)?.name || null : null;
+}
+
+// Computed for selected folder name
+const selectedFolderName = computed(() => {
+  if (!editForm.folder_id) return null;
+  
+  const folder = foldersStore.getFolderById(editForm.folder_id);
+  if (!folder) return null;
+  
+  // Build full path
+  const path: string[] = [];
+  let current = folder;
+  while (current) {
+    path.unshift(current.name);
+    if (current.parent_id === null) break;
+    const parent = foldersStore.getFolderById(current.parent_id);
+    if (!parent) break;
+    current = parent;
+  }
+  
+  return path.join(' › ');
+});
+
+// Polish note with AI
+async function polishNote() {
+  if (!activeNote.value) return;
+  if (!editForm.title?.trim() && !editForm.content?.trim()) {
+    toast.add({
+      title: 'Nothing to Polish',
+      description: 'Add some content to your note first',
+      color: 'warning'
+    });
+    return;
+  }
+
+  isPolishing.value = true;
+
+  try {
+    const response = await $fetch<{ title: string; content: string }>('/api/notes/polish', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${authStore.token}`
+      },
+      body: {
+        title: editForm.title || 'Untitled Note',
+        content: editForm.content || ''
+      }
+    });
+
+    editForm.title = response.title;
+    editForm.content = response.content;
+
+    toast.add({
+      title: 'Note Polished! ✨',
+      description: 'Your note has been cleaned and organized',
+      color: 'success'
+    });
+
+    await saveNote(true);
+  } catch (error: any) {
+    console.error('Polish error:', error);
+    toast.add({
+      title: 'Polish Failed',
+      description: error.data?.message || 'Failed to polish note with AI',
+      color: 'error'
+    });
+  } finally {
+    isPolishing.value = false;
+  }
+}
+
+// Character and word count
+const wordCount = computed(() => {
+  if (!editForm.content) return 0;
+  return editForm.content.trim().split(/\s+/).filter(word => word.length > 0).length;
+});
+
+const charCount = computed(() => {
+  return editForm.content?.length || 0;
+});
+
+// Position folder dropdown
+watch(showFolderDropdown, (show) => {
+  if (show) {
+    nextTick(() => {
+      const button = folderButtonRef.value;
+      if (button) {
+        const rect = button.getBoundingClientRect();
+        folderDropdownPos.value = {
+          top: rect.bottom + 4,
+          left: rect.left
+        };
+      }
+    });
+  }
+});
+
+// Close dropdown when clicking outside
+onMounted(() => {
+  const handleClickOutside = (event: MouseEvent) => {
+    if (!showFolderDropdown.value) return;
+    
+    const target = event.target as HTMLElement;
+    if (folderButtonRef.value?.contains(target)) return;
+    
+    const dropdown = document.querySelector('[data-folder-dropdown]');
+    if (dropdown?.contains(target)) return;
+    
+    showFolderDropdown.value = false;
+  };
+  
+  document.addEventListener('click', handleClickOutside);
+  
+  onUnmounted(() => {
+    document.removeEventListener('click', handleClickOutside);
+    if (autoSaveTimeout.value) {
+      clearTimeout(autoSaveTimeout.value);
+    }
+  });
+});
 </script>
 
 <template>
@@ -727,20 +1005,43 @@ function toggleFabMenu() {
 
         <!-- Sidebar Content -->
         <div class="flex-1 overflow-y-auto p-3">
-          <!-- All Notes -->
-          <button
-            @click="selectAllNotes"
-            class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors mb-2"
-            :class="selectedFolderId === null
-              ? 'bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300'
-              : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'"
-          >
-            <UIcon name="i-heroicons-document-text" class="w-5 h-5" />
-            <span class="flex-1 text-left">All Notes</span>
-            <span class="text-xs px-2 py-0.5 rounded-full bg-gray-200 dark:bg-gray-600">
-              {{ notesStore.notes.length }}
-            </span>
-          </button>
+          <!-- Quick Notes Section -->
+          <div class="mb-4">
+            <button
+              @click="selectAllNotes"
+              class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+            >
+              <UIcon name="i-heroicons-bolt" class="w-5 h-5" />
+              <span class="flex-1 text-left">Quick Notes</span>
+              <span class="text-xs px-2 py-0.5 rounded-full bg-gray-200 dark:bg-gray-600">
+                {{ notesWithoutFolder.length }}
+              </span>
+            </button>
+            
+            <!-- Notes without folders -->
+            <div v-if="notesWithoutFolder.length > 0" class="mt-1 space-y-0.5">
+              <div
+                v-for="note in notesWithoutFolder"
+                :key="`note-${note.id}`"
+                @click="handleOpenNote(note.id)"
+                class="group/note flex items-center gap-2 rounded-lg transition-colors hover:bg-gray-100 dark:hover:bg-gray-700/50 cursor-pointer px-3 py-2"
+                :class="notesStore.activeTabId === note.id ? 'bg-primary-50 dark:bg-primary-900/20' : ''"
+              >
+                <UIcon 
+                  name="i-heroicons-document-text" 
+                  class="w-4 h-4 flex-shrink-0"
+                  :class="notesStore.activeTabId === note.id ? 'text-primary-600 dark:text-primary-400' : 'text-gray-400'"
+                />
+                <span 
+                  class="flex-1 text-sm truncate"
+                  :class="notesStore.activeTabId === note.id ? 'text-primary-700 dark:text-primary-300 font-medium' : 'text-gray-700 dark:text-gray-300'"
+                  :title="note.title"
+                >
+                  {{ note.title }}
+                </span>
+              </div>
+            </div>
+          </div>
 
           <!-- Folders Section -->
           <div class="mt-4">
@@ -768,7 +1069,7 @@ function toggleFabMenu() {
               </button>
             </div>
 
-            <!-- Folder Tree -->
+            <!-- Folder Tree with Notes -->
             <div v-else class="space-y-0.5">
               <FolderTreeItem
                 v-for="folder in foldersStore.folderTree"
@@ -783,6 +1084,7 @@ function toggleFabMenu() {
                 @delete="handleDeleteFolder"
                 @move-up="handleMoveUp"
                 @move-down="handleMoveDown"
+                @open-note="handleFolderNoteClick"
               />
             </div>
           </div>
@@ -865,20 +1167,43 @@ function toggleFabMenu() {
 
               <!-- Drawer Content (Same as Desktop Sidebar) -->
               <div class="flex-1 overflow-y-auto p-3">
-                <!-- All Notes -->
-                <button
-                  @click="selectAllNotes"
-                  class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors mb-2"
-                  :class="selectedFolderId === null
-                    ? 'bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300'
-                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'"
-                >
-                  <UIcon name="i-heroicons-document-text" class="w-5 h-5" />
-                  <span class="flex-1 text-left">All Notes</span>
-                  <span class="text-xs px-2 py-0.5 rounded-full bg-gray-200 dark:bg-gray-600">
-                    {{ notesStore.notes.length }}
-                  </span>
-                </button>
+                <!-- Quick Notes Section -->
+                <div class="mb-4">
+                  <button
+                    @click="selectAllNotes"
+                    class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  >
+                    <UIcon name="i-heroicons-bolt" class="w-5 h-5" />
+                    <span class="flex-1 text-left">Quick Notes</span>
+                    <span class="text-xs px-2 py-0.5 rounded-full bg-gray-200 dark:bg-gray-600">
+                      {{ notesWithoutFolder.length }}
+                    </span>
+                  </button>
+                  
+                  <!-- Notes without folders -->
+                  <div v-if="notesWithoutFolder.length > 0" class="mt-1 space-y-0.5">
+                    <div
+                      v-for="note in notesWithoutFolder"
+                      :key="`note-${note.id}`"
+                      @click="handleOpenNote(note.id)"
+                      class="group/note flex items-center gap-2 rounded-lg transition-colors hover:bg-gray-100 dark:hover:bg-gray-700/50 cursor-pointer px-3 py-2"
+                      :class="notesStore.activeTabId === note.id ? 'bg-primary-50 dark:bg-primary-900/20' : ''"
+                    >
+                      <UIcon 
+                        name="i-heroicons-document-text" 
+                        class="w-4 h-4 flex-shrink-0"
+                        :class="notesStore.activeTabId === note.id ? 'text-primary-600 dark:text-primary-400' : 'text-gray-400'"
+                      />
+                      <span 
+                        class="flex-1 text-sm truncate"
+                        :class="notesStore.activeTabId === note.id ? 'text-primary-700 dark:text-primary-300 font-medium' : 'text-gray-700 dark:text-gray-300'"
+                        :title="note.title"
+                      >
+                        {{ note.title }}
+                      </span>
+                    </div>
+                  </div>
+                </div>
 
                 <!-- Folders Section -->
                 <div class="mt-4">
@@ -906,22 +1231,23 @@ function toggleFabMenu() {
                     </button>
                   </div>
 
-                  <!-- Folder Tree -->
+                  <!-- Folder Tree with Notes -->
                   <div v-else class="space-y-0.5">
-                  <FolderTreeItem
-                    v-for="folder in foldersStore.folderTree"
-                    :key="folder.id"
-                    :folder="folder"
-                    :selected-id="selectedFolderId"
-                    :is-expanded="foldersStore.expandedFolderIds.has(folder.id)"
-                    @select="selectFolder"
-                    @toggle="handleToggleFolder"
-                    @create-subfolder="handleCreateSubfolder"
-                    @rename="handleRenameFolder"
-                    @delete="handleDeleteFolder"
-                    @move-up="handleMoveUp"
-                    @move-down="handleMoveDown"
-                  />
+                    <FolderTreeItem
+                      v-for="folder in foldersStore.folderTree"
+                      :key="folder.id"
+                      :folder="folder"
+                      :selected-id="selectedFolderId"
+                      :is-expanded="foldersStore.expandedFolderIds.has(folder.id)"
+                      @select="selectFolder"
+                      @toggle="handleToggleFolder"
+                      @create-subfolder="handleCreateSubfolder"
+                      @rename="handleRenameFolder"
+                      @delete="handleDeleteFolder"
+                      @move-up="handleMoveUp"
+                      @move-down="handleMoveDown"
+                      @open-note="handleFolderNoteClick"
+                    />
                   </div>
                 </div>
               </div>
@@ -958,315 +1284,285 @@ function toggleFabMenu() {
 
       <!-- Main Content Area -->
       <div class="flex-1 flex flex-col overflow-hidden">
-        <!-- Top Bar (Simplified) -->
-        <header class="flex-shrink-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm">
-          <div class="flex items-center justify-between h-14 px-4">
-            <!-- Mobile Menu Button -->
-            <button
-              @click="isMobileSidebarOpen = true"
-              class="md:hidden p-2 -ml-2 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-              aria-label="Open menu"
-            >
-              <UIcon name="i-heroicons-bars-3" class="w-6 h-6" />
-            </button>
+        <!-- Mobile Menu Button (Floating on Mobile) -->
+        <button
+          @click="isMobileSidebarOpen = true"
+          class="md:hidden fixed top-4 left-4 z-40 p-2 rounded-lg text-gray-600 dark:text-gray-400 bg-white dark:bg-gray-800 shadow-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+          aria-label="Open menu"
+        >
+          <UIcon name="i-heroicons-bars-3" class="w-6 h-6" />
+        </button>
 
-            <!-- Current Folder/Context (Mobile Only) -->
-            <div class="md:hidden flex items-center gap-2 min-w-0 flex-1">
-              <UIcon 
-                :name="selectedFolderId === null ? 'i-heroicons-document-text' : 'i-heroicons-folder'" 
-                class="w-4 h-4 text-gray-600 dark:text-gray-400 flex-shrink-0"
-              />
-              <span class="text-sm font-medium text-gray-700 dark:text-gray-300 truncate">
-                {{ selectedFolderId === null ? 'All Notes' : foldersStore.getFolderById(selectedFolderId)?.name || 'Unknown' }}
+        <!-- Tab Bar with Actions -->
+        <div class="flex-shrink-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+          <div class="flex items-center justify-between">
+            <!-- Tabs -->
+            <div class="flex-1 overflow-x-auto">
+              <TabBar />
+            </div>
+            
+            <!-- Actions (only show when note is active) -->
+            <div v-if="activeNote" class="flex items-center gap-2 px-4 border-l border-gray-200 dark:border-gray-700">
+              <!-- Save Status -->
+              <ClientOnly>
+                <div v-if="!isOnline" class="flex items-center gap-1.5 text-xs text-yellow-600 dark:text-yellow-400">
+                  <UIcon name="i-heroicons-wifi" class="w-4 h-4" />
+                  <span class="hidden lg:inline">Offline</span>
+                </div>
+                <div v-else-if="isSaving" class="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
+                  <UIcon name="i-heroicons-arrow-path" class="w-4 h-4 animate-spin" />
+                  <span class="hidden lg:inline">Saving</span>
+                </div>
+                <div v-else class="flex items-center gap-1.5 text-xs text-green-600 dark:text-green-400">
+                  <UIcon name="i-heroicons-check-circle" class="w-4 h-4" />
+                  <span class="hidden lg:inline">Saved</span>
+                </div>
+              </ClientOnly>
+              
+              <!-- Lock/Unlock Button -->
+              <button
+                @click="toggleLock"
+                :title="isLocked ? 'Unlock Note' : 'Lock Note'"
+                class="p-2 rounded-lg transition-colors hover:bg-gray-100 dark:hover:bg-gray-700"
+                :class="isLocked ? 'text-amber-600 dark:text-amber-400' : 'text-gray-500 dark:text-gray-400'"
+              >
+                <UIcon :name="isLocked ? 'i-heroicons-lock-closed' : 'i-heroicons-lock-open'" class="w-4 h-4" />
+              </button>
+              
+              <!-- Polish with AI -->
+              <button
+                v-if="!isLocked"
+                @click="polishNote"
+                :disabled="isPolishing"
+                class="p-2 rounded-lg transition-colors hover:bg-purple-50 dark:hover:bg-purple-900/20 disabled:opacity-50"
+                :class="isPolishing ? 'text-purple-600 dark:text-purple-400' : 'text-purple-500 dark:text-purple-400'"
+                title="Polish with AI"
+              >
+                <UIcon 
+                  name="i-heroicons-sparkles" 
+                  :class="isPolishing ? 'animate-spin' : ''" 
+                  class="w-4 h-4" 
+                />
+              </button>
+              
+              <!-- Keyboard Shortcuts Info -->
+              <button
+                @click="showShortcutsModal = true"
+                class="p-2 rounded-lg transition-colors hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400"
+                title="Keyboard Shortcuts"
+              >
+                <UIcon name="i-heroicons-information-circle" class="w-4 h-4" />
+              </button>
+            </div>
+            
+            <!-- Sync Status (always visible) -->
+            <ClientOnly>
+              <div class="px-4 border-l border-gray-200 dark:border-gray-700">
+                <button
+                  @click="() => { if (isOnline && !notesStore.syncing && notesStore.pendingChanges > 0) notesStore.syncWithServer() }"
+                  :disabled="!isOnline || notesStore.syncing"
+                  :title="!isOnline ? 'Offline' : notesStore.syncing ? 'Syncing...' : notesStore.pendingChanges > 0 ? 'Click to sync' : 'All synced'"
+                  class="p-2 rounded-lg transition-colors relative"
+                  :class="{
+                    'text-yellow-600 dark:text-yellow-400': !isOnline,
+                    'text-blue-600 dark:text-blue-400': isOnline && notesStore.syncing,
+                    'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700': isOnline && !notesStore.syncing && notesStore.pendingChanges > 0,
+                    'text-green-600 dark:text-green-400': isOnline && !notesStore.syncing && notesStore.pendingChanges === 0
+                  }"
+                >
+                  <UIcon 
+                    v-if="!isOnline"
+                    name="i-heroicons-wifi"
+                    class="w-4 h-4"
+                  />
+                  <UIcon 
+                    v-else-if="notesStore.syncing"
+                    name="i-heroicons-arrow-path"
+                    class="w-4 h-4 animate-spin"
+                  />
+                  <UIcon 
+                    v-else-if="notesStore.pendingChanges > 0"
+                    name="i-heroicons-cloud-arrow-up"
+                    class="w-4 h-4"
+                  />
+                  <UIcon 
+                    v-else
+                    name="i-heroicons-check-circle"
+                    class="w-4 h-4"
+                  />
+                  <span 
+                    v-if="notesStore.pendingChanges > 0 && !notesStore.syncing"
+                    class="absolute -top-1 -right-1 w-3.5 h-3.5 bg-primary-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center"
+                  >
+                    {{ notesStore.pendingChanges > 9 ? '9+' : notesStore.pendingChanges }}
+                  </span>
+                </button>
+              </div>
+            </ClientOnly>
+          </div>
+        </div>
+
+        <!-- Note Editor Area - Fully Scrollable -->
+        <div class="flex-1 overflow-y-auto" :class="activeNote ? (isLocked ? 'bg-white dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-900') : 'bg-gray-50 dark:bg-gray-900'">
+          <!-- No tabs open state -->
+          <div v-if="!activeNote" class="min-h-full flex items-center justify-center">
+            <div class="text-center">
+              <UIcon name="i-heroicons-document-text" class="w-20 h-20 mx-auto text-gray-300 dark:text-gray-600 mb-4" />
+              <h3 class="text-xl font-semibold text-gray-900 dark:text-white mb-2">No note selected</h3>
+              <p class="text-gray-500 dark:text-gray-400 mb-6">Select a note from the sidebar or create a new one</p>
+              <UButton 
+                @click="handleCreateNote" 
+                icon="i-heroicons-plus"
+                :loading="isCreating"
+                :disabled="isCreating"
+              >
+                Create Note
+              </UButton>
+            </div>
+          </div>
+
+          <!-- Note Editor - Everything Scrolls Together -->
+          <div v-else class="max-w-5xl mx-auto px-4 md:px-6 py-6 pb-16">
+            <!-- Title -->
+            <h1
+              v-if="isLocked"
+              class="w-full bg-transparent border-none outline-none text-3xl md:text-4xl font-bold text-gray-900 dark:text-white mb-3"
+            >
+              {{ editForm.title || 'Untitled Note' }}
+            </h1>
+            <input
+              v-else
+              v-model="editForm.title"
+              type="text"
+              class="w-full bg-transparent border-none outline-none text-3xl md:text-4xl font-bold text-gray-900 dark:text-white placeholder-gray-400 mb-3 focus:outline-none focus:ring-0"
+              placeholder="Untitled Note"
+            />
+            
+            <!-- Stats Row -->
+            <div class="flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400 flex-wrap mb-3">
+              <span v-if="isLocked" class="flex items-center gap-1 text-amber-600 dark:text-amber-400 font-medium">
+                <UIcon name="i-heroicons-lock-closed" class="w-3.5 h-3.5" />
+                Read-Only
+              </span>
+              <ClientOnly>
+                <span v-if="activeNote" class="flex items-center gap-1">
+                  <UIcon name="i-heroicons-clock" class="w-3.5 h-3.5" />
+                  {{ formatDate(activeNote.updated_at) }}
+                </span>
+              </ClientOnly>
+              <span class="flex items-center gap-1">
+                <UIcon name="i-heroicons-document-text" class="w-3.5 h-3.5" />
+                {{ wordCount }} words
+              </span>
+              <span class="flex items-center gap-1">
+                <UIcon name="i-heroicons-chart-bar" class="w-3.5 h-3.5" />
+                {{ charCount }} chars
               </span>
             </div>
 
-            <!-- Desktop: Breadcrumb + Note count -->
-            <div class="hidden md:flex items-center gap-3 min-w-0 flex-1">
-              <!-- Breadcrumb Trail -->
-              <div v-if="folderBreadcrumb.length > 0" class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 min-w-0">
-                <UIcon name="i-heroicons-folder" class="w-4 h-4 flex-shrink-0" />
-                <div class="flex items-center gap-1.5 min-w-0">
-                  <button
-                    v-for="(crumb, index) in folderBreadcrumb"
-                    :key="crumb.id"
-                    @click="selectFolder(crumb.id)"
-                    class="flex items-center gap-1.5 hover:text-gray-900 dark:hover:text-gray-200 transition-colors"
-                  >
-                    <span class="truncate max-w-[150px]" :class="index === folderBreadcrumb.length - 1 ? 'font-medium text-gray-900 dark:text-white' : ''">
-                      {{ crumb.name }}
-                    </span>
-                    <UIcon 
-                      v-if="index < folderBreadcrumb.length - 1" 
-                      name="i-heroicons-chevron-right" 
-                      class="w-3 h-3 flex-shrink-0"
-                    />
-                  </button>
-                </div>
-              </div>
-              <div v-else class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                <UIcon name="i-heroicons-document-text" class="w-4 h-4" />
-                <span class="font-medium text-gray-900 dark:text-white">All Notes</span>
-              </div>
-              
-              <!-- Separator -->
-              <div class="h-4 w-px bg-gray-300 dark:bg-gray-600 flex-shrink-0"></div>
-              
-              <!-- Note Count -->
-              <div class="text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap">
-                {{ displayedNotes.length }} {{ displayedNotes.length === 1 ? 'note' : 'notes' }}
-              </div>
-            </div>
-
-            <!-- Right: Actions -->
-            <div class="flex items-center gap-2">
-              <!-- Sync Status (Client-only to prevent hydration mismatch) -->
-              <ClientOnly>
-                <div class="relative">
-                  <button
-                    @click="() => { if (isOnline && !notesStore.syncing && notesStore.pendingChanges > 0) notesStore.syncWithServer() }"
-                    :disabled="!isOnline || notesStore.syncing"
-                    :title="!isOnline ? 'Offline - Changes saved locally' : notesStore.syncing ? 'Syncing...' : notesStore.pendingChanges > 0 ? 'Click to sync pending changes' : 'All synced'"
-                    class="p-2 rounded-lg transition-colors relative"
-                    :class="{
-                      'text-yellow-600 dark:text-yellow-400 hover:bg-yellow-50 dark:hover:bg-yellow-900/20': !isOnline,
-                      'text-blue-600 dark:text-blue-400 cursor-wait': isOnline && notesStore.syncing,
-                      'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer': isOnline && !notesStore.syncing && notesStore.pendingChanges > 0,
-                      'text-green-600 dark:text-green-400': isOnline && !notesStore.syncing && notesStore.pendingChanges === 0
-                    }"
-                  >
-                    <UIcon 
-                      v-if="!isOnline"
-                      name="i-heroicons-wifi"
-                      class="w-5 h-5"
-                    />
-                    <UIcon 
-                      v-else-if="notesStore.syncing"
-                      name="i-heroicons-arrow-path"
-                      class="w-5 h-5 animate-spin"
-                    />
-                    <UIcon 
-                      v-else-if="notesStore.pendingChanges > 0"
-                      name="i-heroicons-cloud-arrow-up"
-                      class="w-5 h-5"
-                    />
-                    <UIcon 
-                      v-else
-                      name="i-heroicons-check-circle"
-                      class="w-5 h-5"
-                    />
-                    
-                    <!-- Pending changes badge -->
-                    <span 
-                      v-if="notesStore.pendingChanges > 0 && !notesStore.syncing"
-                      class="absolute -top-1 -right-1 w-4 h-4 bg-primary-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center"
-                    >
-                      {{ notesStore.pendingChanges > 9 ? '9+' : notesStore.pendingChanges }}
-                    </span>
-                  </button>
-                </div>
-              </ClientOnly>
-
-              <!-- View Mode Toggle (Desktop Only) - Client-only since it loads from localStorage -->
-              <ClientOnly>
-                <div v-if="displayedNotes.length > 0 || loading" class="hidden md:flex items-center gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1 border border-gray-200 dark:border-gray-700">
-                  <button
-                    @click="setViewMode('grid')"
-                    :class="[
-                      'p-2 rounded-md transition-all',
-                      viewMode === 'grid' 
-                        ? 'bg-white dark:bg-gray-700 text-primary-600 dark:text-primary-400 shadow-sm' 
-                        : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
-                    ]"
-                    title="Grid view"
-                  >
-                    <UIcon name="i-heroicons-squares-2x2" class="w-5 h-5" />
-                  </button>
-                  <button
-                    @click="setViewMode('list')"
-                    :class="[
-                      'p-2 rounded-md transition-all',
-                      viewMode === 'list' 
-                        ? 'bg-white dark:bg-gray-700 text-primary-600 dark:text-primary-400 shadow-sm' 
-                        : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
-                    ]"
-                    title="List view"
-                  >
-                    <UIcon name="i-heroicons-bars-3" class="w-5 h-5" />
-                  </button>
-                </div>
-              </ClientOnly>
-
-              <!-- Search -->
-              <div class="flex items-center gap-2">
-                <transition name="search-expand">
-                  <input
-                    v-if="isSearchExpanded"
-                    ref="searchInputRef"
-                    v-model="searchQuery"
-                    type="text"
-                    placeholder="Search notes..."
-                    class="w-32 sm:w-48 md:w-64 px-3 py-2 text-sm bg-gray-100 dark:bg-gray-700 border-none rounded-lg text-gray-900 dark:text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                    @blur="() => { if (!searchQuery) isSearchExpanded = false }"
-                  />
-                </transition>
+            <!-- Metadata: Folder + Tags -->
+            <div v-if="!isLocked" class="flex items-center gap-4 text-sm flex-wrap mb-6">
+              <!-- Folder -->
+              <div class="flex items-center gap-2 relative">
+                <UIcon name="i-heroicons-folder" class="w-3.5 h-3.5 text-gray-400" />
                 <button
-                  @mousedown.prevent="() => { 
-                    if (isSearchExpanded) {
-                      searchQuery = '';
-                      isSearchExpanded = false;
-                    } else {
-                      isSearchExpanded = true;
-                    }
-                  }"
-                  class="p-2 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                  :class="{ 'bg-primary-100 dark:bg-primary-900/30 text-primary-600': isSearchExpanded }"
+                  ref="folderButtonRef"
+                  type="button"
+                  @click="showFolderDropdown = !showFolderDropdown"
+                  class="bg-transparent text-left text-gray-600 dark:text-gray-400 text-xs w-40 hover:text-gray-900 dark:hover:text-gray-200 transition-colors flex items-center gap-1.5"
                 >
-                  <UIcon :name="isSearchExpanded ? 'i-heroicons-x-mark' : 'i-heroicons-magnifying-glass'" class="w-5 h-5" />
+                  <span class="truncate">{{ selectedFolderName || 'No folder' }}</span>
+                  <UIcon name="i-heroicons-chevron-down" class="w-2.5 h-2.5 flex-shrink-0" />
                 </button>
+                
+                <!-- Folder Dropdown -->
+                <Teleport to="body">
+                  <div
+                    v-if="showFolderDropdown"
+                    data-folder-dropdown
+                    @click.stop
+                    class="fixed z-[9999] w-64 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-xl py-2 max-h-96 overflow-y-auto"
+                    :style="{ top: `${folderDropdownPos.top}px`, left: `${folderDropdownPos.left}px` }"
+                  >
+                    <button
+                      type="button"
+                      @click="selectFolderForNote(null); showFolderDropdown = false"
+                      class="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                      :class="(editForm.folder_id ?? null) === null ? 'bg-gray-100 dark:bg-gray-700 font-medium' : ''"
+                    >
+                      <UIcon name="i-heroicons-document-text" class="w-4 h-4 inline mr-2 text-gray-500" />
+                      No folder
+                    </button>
+                    <div class="border-t border-gray-200 dark:border-gray-700 my-1"></div>
+                    <FolderSelectorItem
+                      v-for="folder in foldersStore.folderTree"
+                      :key="folder.id"
+                      :folder="folder"
+                      :selected-id="editForm.folder_id ?? null"
+                      :depth="0"
+                      @select="(id) => { selectFolderForNote(id); showFolderDropdown = false; }"
+                    />
+                  </div>
+                </Teleport>
               </div>
-            </div>
-          </div>
-        </header>
 
-        <!-- Notes Content Area -->
-        <div class="flex-1 overflow-y-auto p-6">
-          <div v-if="loading" class="text-center py-12">
-            <UIcon name="i-heroicons-arrow-path" class="w-8 h-8 animate-spin mx-auto text-gray-400" />
-          </div>
-
-          <div v-else-if="displayedNotes.length === 0" class="text-center py-12">
-            <UIcon name="i-heroicons-document-text" class="w-16 h-16 mx-auto text-gray-300 dark:text-gray-600 mb-4" />
-            <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">No notes found</h3>
-            <p class="text-gray-500 dark:text-gray-400 mb-4">Create your first note to get started</p>
-            <UButton 
-              @click="handleCreateNote" 
-              icon="i-heroicons-plus"
-              :loading="isCreating"
-              :disabled="isCreating"
-            >
-              Create Note
-            </UButton>
-          </div>
-
-          <!-- Notes Display -->
-          <div v-else>
-            <!-- Grid View (Desktop Only, when grid mode) -->
-            <div v-if="viewMode === 'grid'" class="hidden md:grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-              <div
-                v-for="note in displayedNotes"
-                :key="note.id"
-                class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 hover:shadow-md transition-all cursor-pointer group"
-                @click="router.push(`/notes/${note.id}`)"
-              >
-                <div class="p-5">
-                  <div class="flex items-start justify-between mb-2">
-                    <div class="flex-1 min-w-0">
-                      <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-1 truncate group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors">
-                        {{ note.title }}
-                      </h3>
-                      <div 
-                        class="text-sm text-gray-600 dark:text-gray-400 line-clamp-2 prose prose-sm dark:prose-invert max-w-none"
-                        v-html="getRenderedPreview(note.content)"
-                      />
-                    </div>
-                    <div class="flex items-center gap-1 ml-4">
-                      <UButton
-                        icon="i-heroicons-trash"
-                        color="error"
-                        variant="ghost"
-                        size="xs"
-                        @click.stop="handleDeleteNote(note)"
-                      />
-                    </div>
-                  </div>
-
-                  <div class="flex items-center gap-3 mt-3">
-                    <ClientOnly>
-                      <span class="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
-                        <UIcon name="i-heroicons-calendar" class="w-3 h-3" />
-                        {{ formatDate(note.updated_at) }}
-                      </span>
-                    </ClientOnly>
-
-                    <div v-if="note.tags && note.tags.length > 0" class="flex gap-1">
-                      <UBadge
-                        v-for="tag in note.tags.slice(0, 3)"
-                        :key="tag"
-                        color="primary"
-                        variant="soft"
-                        size="xs"
-                      >
-                        {{ tag }}
-                      </UBadge>
-                      <span v-if="note.tags.length > 3" class="text-xs text-gray-400">
-                        +{{ note.tags.length - 3 }}
-                      </span>
-                    </div>
-                  </div>
+              <!-- Tags -->
+              <div class="flex items-center gap-2 flex-1 min-w-0">
+                <UIcon name="i-heroicons-tag" class="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                <div class="flex items-center gap-1 flex-wrap">
+                  <UBadge
+                    v-for="tag in editForm.tags"
+                    :key="tag"
+                    color="primary"
+                    variant="soft"
+                    size="xs"
+                    class="cursor-pointer hover:bg-primary-200 dark:hover:bg-primary-800"
+                    @click="removeTag(tag)"
+                  >
+                    {{ tag }}
+                    <UIcon name="i-heroicons-x-mark" class="w-2.5 h-2.5 ml-1" />
+                  </UBadge>
+                  <input
+                    v-model="tagInput"
+                    type="text"
+                    class="bg-transparent border-none outline-none text-gray-600 dark:text-gray-400 placeholder-gray-400 text-xs w-20 focus:outline-none focus:ring-0"
+                    placeholder="Add tag..."
+                    @keyup.enter="addTag"
+                    @blur="addTag"
+                  />
                 </div>
               </div>
             </div>
-
-            <!-- List View (Always on mobile, or desktop when list mode selected) -->
-            <div :class="viewMode === 'grid' ? 'md:hidden space-y-2' : 'space-y-2'">
-              <div
-                v-for="note in displayedNotes"
-                :key="note.id"
-                class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 hover:shadow-md transition-all cursor-pointer group"
-                @click="router.push(`/notes/${note.id}`)"
-              >
-                <div class="p-4">
-                  <div class="flex items-center justify-between">
-                    <div class="flex-1 min-w-0 flex items-center gap-4">
-                      <div class="flex-1 min-w-0">
-                        <h3 class="text-base font-semibold text-gray-900 dark:text-white truncate group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors mb-1">
-                          {{ note.title }}
-                        </h3>
-                        <div 
-                          class="text-sm text-gray-600 dark:text-gray-400 line-clamp-1 prose prose-sm dark:prose-invert max-w-none"
-                          v-html="getRenderedPreview(note.content)"
-                        />
-                      </div>
-
-                      <div class="hidden md:flex items-center gap-3">
-                        <ClientOnly>
-                          <span class="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1 whitespace-nowrap">
-                            <UIcon name="i-heroicons-calendar" class="w-3 h-3" />
-                            {{ formatDate(note.updated_at) }}
-                          </span>
-                        </ClientOnly>
-
-                        <div v-if="note.tags && note.tags.length > 0" class="flex gap-1">
-                          <UBadge
-                            v-for="tag in note.tags.slice(0, 2)"
-                            :key="tag"
-                            color="primary"
-                            variant="soft"
-                            size="xs"
-                          >
-                            {{ tag }}
-                          </UBadge>
-                          <span v-if="note.tags.length > 2" class="text-xs text-gray-400">
-                            +{{ note.tags.length - 2 }}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div class="flex items-center gap-1 ml-4">
-                      <UButton
-                        icon="i-heroicons-trash"
-                        color="error"
-                        variant="ghost"
-                        size="xs"
-                        @click.stop="handleDeleteNote(note)"
-                      />
-                    </div>
-                  </div>
-                </div>
+            
+            <!-- Read-only metadata -->
+            <div v-else-if="(selectedFolderName || editForm.tags?.length)" class="flex items-center gap-3 text-xs flex-wrap mb-6">
+              <div v-if="selectedFolderName || !editForm.folder_id" class="flex items-center gap-2">
+                <UIcon name="i-heroicons-folder" class="w-3.5 h-3.5 text-gray-400" />
+                <span class="text-gray-600 dark:text-gray-400">{{ selectedFolderName || 'No folder' }}</span>
+              </div>
+              <div v-if="editForm.tags && editForm.tags.length > 0" class="flex items-center gap-2 flex-wrap">
+                <UIcon name="i-heroicons-tag" class="w-3.5 h-3.5 text-gray-400" />
+                <UBadge
+                  v-for="tag in editForm.tags"
+                  :key="tag"
+                  color="primary"
+                  variant="soft"
+                  size="xs"
+                >
+                  {{ tag }}
+                </UBadge>
               </div>
             </div>
+
+            <!-- Editor - No Toolbar, Keyboard Only -->
+            <ClientOnly>
+              <TiptapEditor
+                v-model="editForm.content"
+                placeholder="Start writing... Right-click for options or press ? for keyboard shortcuts"
+                :editable="!isLocked"
+                :showToolbar="false"
+              />
+            </ClientOnly>
           </div>
         </div>
 
@@ -1469,7 +1765,7 @@ function toggleFabMenu() {
             </div>
             <h3 class="text-lg font-semibold text-gray-900 dark:text-white text-center mb-2">Delete Folder?</h3>
             <p class="text-sm text-gray-600 dark:text-gray-400 text-center mb-6">
-              Are you sure you want to delete <span class="font-semibold text-gray-900 dark:text-white">"{{ folderToManage !== null ? foldersStore.getFolderById(folderToManage)?.name : '' }}"</span>? Notes in this folder will be moved to "All Notes". This action cannot be undone.
+              Are you sure you want to delete <span class="font-semibold text-gray-900 dark:text-white">"{{ folderToManage !== null ? foldersStore.getFolderById(folderToManage)?.name : '' }}"</span>? Notes in this folder will be moved to "Quick Notes". This action cannot be undone.
             </p>
             <div class="flex gap-3">
               <UButton color="neutral" variant="soft" block @click="showDeleteFolderModal = false" :disabled="isFolderActionLoading">Cancel</UButton>
@@ -1562,10 +1858,172 @@ function toggleFabMenu() {
         </div>
       </Transition>
     </Teleport>
+
+    <!-- Keyboard Shortcuts Modal -->
+    <Teleport to="body">
+      <Transition name="modal">
+        <div v-if="showShortcutsModal" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" @click="showShortcutsModal = false" />
+          <div class="relative bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-2xl w-full max-h-[85vh] border border-gray-200 dark:border-gray-700 flex flex-col">
+            <!-- Header -->
+            <div class="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+              <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-gradient-to-br from-primary-500 to-primary-600 rounded-lg flex items-center justify-center">
+                  <UIcon name="i-heroicons-command-line" class="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <h3 class="text-xl font-semibold text-gray-900 dark:text-white">Keyboard Shortcuts</h3>
+                  <p class="text-sm text-gray-600 dark:text-gray-400">Master your workflow</p>
+                </div>
+              </div>
+              <button @click="showShortcutsModal = false" class="p-2 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                <UIcon name="i-heroicons-x-mark" class="w-6 h-6" />
+              </button>
+            </div>
+
+            <!-- Content -->
+            <div class="flex-1 overflow-y-auto p-6">
+              <div class="space-y-6">
+                <!-- Text Formatting -->
+                <div>
+                  <h4 class="text-sm font-semibold text-primary-600 dark:text-primary-400 mb-3 uppercase tracking-wide">Text Formatting</h4>
+                  <div class="space-y-2">
+                    <div class="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                      <span class="text-sm text-gray-700 dark:text-gray-300">Bold</span>
+                      <kbd class="px-2.5 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs font-mono border border-gray-300 dark:border-gray-600">⌘ B</kbd>
+                    </div>
+                    <div class="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                      <span class="text-sm text-gray-700 dark:text-gray-300">Italic</span>
+                      <kbd class="px-2.5 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs font-mono border border-gray-300 dark:border-gray-600">⌘ I</kbd>
+                    </div>
+                    <div class="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                      <span class="text-sm text-gray-700 dark:text-gray-300">Underline</span>
+                      <kbd class="px-2.5 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs font-mono border border-gray-300 dark:border-gray-600">⌘ U</kbd>
+                    </div>
+                    <div class="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                      <span class="text-sm text-gray-700 dark:text-gray-300">Strike through</span>
+                      <kbd class="px-2.5 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs font-mono border border-gray-300 dark:border-gray-600">⌘ ⇧ X</kbd>
+                    </div>
+                    <div class="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                      <span class="text-sm text-gray-700 dark:text-gray-300">Inline code</span>
+                      <kbd class="px-2.5 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs font-mono border border-gray-300 dark:border-gray-600">⌘ E</kbd>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Headings -->
+                <div>
+                  <h4 class="text-sm font-semibold text-primary-600 dark:text-primary-400 mb-3 uppercase tracking-wide">Headings</h4>
+                  <div class="space-y-2">
+                    <div class="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                      <span class="text-sm text-gray-700 dark:text-gray-300">Heading 1 - 6</span>
+                      <kbd class="px-2.5 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs font-mono border border-gray-300 dark:border-gray-600">⌘ ⌥ 1-6</kbd>
+                    </div>
+                    <div class="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                      <span class="text-sm text-gray-700 dark:text-gray-300">Paragraph</span>
+                      <kbd class="px-2.5 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs font-mono border border-gray-300 dark:border-gray-600">⌘ ⌥ 0</kbd>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Links & Media -->
+                <div>
+                  <h4 class="text-sm font-semibold text-primary-600 dark:text-primary-400 mb-3 uppercase tracking-wide">Links & Media</h4>
+                  <div class="space-y-2">
+                    <div class="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                      <span class="text-sm text-gray-700 dark:text-gray-300">Add link</span>
+                      <kbd class="px-2.5 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs font-mono border border-gray-300 dark:border-gray-600">⌘ K</kbd>
+                    </div>
+                    <div class="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                      <span class="text-sm text-gray-700 dark:text-gray-300">Code block</span>
+                      <kbd class="px-2.5 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs font-mono border border-gray-300 dark:border-gray-600">⌘ ⌥ C</kbd>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Lists -->
+                <div>
+                  <h4 class="text-sm font-semibold text-primary-600 dark:text-primary-400 mb-3 uppercase tracking-wide">Lists</h4>
+                  <div class="space-y-2">
+                    <div class="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                      <span class="text-sm text-gray-700 dark:text-gray-300">Bullet list</span>
+                      <kbd class="px-2.5 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs font-mono border border-gray-300 dark:border-gray-600">⌘ ⇧ 8</kbd>
+                    </div>
+                    <div class="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                      <span class="text-sm text-gray-700 dark:text-gray-300">Numbered list</span>
+                      <kbd class="px-2.5 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs font-mono border border-gray-300 dark:border-gray-600">⌘ ⇧ 7</kbd>
+                    </div>
+                    <div class="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                      <span class="text-sm text-gray-700 dark:text-gray-300">Task list</span>
+                      <kbd class="px-2.5 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs font-mono border border-gray-300 dark:border-gray-600">⌘ ⇧ 9</kbd>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Editing -->
+                <div>
+                  <h4 class="text-sm font-semibold text-primary-600 dark:text-primary-400 mb-3 uppercase tracking-wide">Editing</h4>
+                  <div class="space-y-2">
+                    <div class="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                      <span class="text-sm text-gray-700 dark:text-gray-300">Undo</span>
+                      <kbd class="px-2.5 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs font-mono border border-gray-300 dark:border-gray-600">⌘ Z</kbd>
+                    </div>
+                    <div class="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                      <span class="text-sm text-gray-700 dark:text-gray-300">Redo</span>
+                      <kbd class="px-2.5 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs font-mono border border-gray-300 dark:border-gray-600">⌘ ⇧ Z</kbd>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Footer -->
+            <div class="p-6 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50">
+              <div class="flex items-center justify-between">
+                <p class="text-xs text-gray-500 dark:text-gray-400">
+                  💡 <strong>Tip:</strong> Right-click in the editor for quick actions
+                </p>
+                <UButton color="primary" variant="soft" @click="showShortcutsModal = false">Got it</UButton>
+              </div>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
   </div>
 </template>
 
 <style scoped>
+/* Polish AI Button */
+.polish-ai-button-small {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+  background-size: 200% 200%;
+  animation: gradient-shift 3s ease infinite;
+  box-shadow: 0 2px 8px 0 rgba(102, 126, 234, 0.3);
+}
+
+.polish-ai-button-small:hover:not(:disabled) {
+  background: linear-gradient(135deg, #5568d3 0%, #6a3f92 50%, #e082ea 100%);
+  background-size: 200% 200%;
+  box-shadow: 0 3px 12px 0 rgba(102, 126, 234, 0.5);
+}
+
+.polish-ai-button-small:active:not(:disabled) {
+  transform: scale(0.95);
+}
+
+@keyframes gradient-shift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
 /* Modal animation */
 .modal-enter-active,
 .modal-leave-active {

@@ -120,52 +120,15 @@ watch(showFolderDropdown, (show) => {
   }
 });
 
-// Fetch note on mount
+// Redirect to dashboard and open tab
 onMounted(async () => {
-  if (process.client) {
-    const savedToolbar = localStorage.getItem('tiptap-toolbar-visible');
-    if (savedToolbar !== null) {
-      showEditorToolbar.value = savedToolbar === 'true';
-    }
-  }
-  
-  isLoading.value = true;
+  // Redirect to dashboard and open this note in a tab
   try {
-    // Fetch folders and note in parallel
-    await Promise.all([
-      foldersStore.fetchFolders(),
-      notesStore.fetchNote(noteId.value)
-    ]);
-    
-    if (currentNote.value) {
-      Object.assign(editForm, {
-        title: currentNote.value.title,
-        content: currentNote.value.content || '',
-        tags: currentNote.value.tags || [],
-        folder: currentNote.value.folder || '',
-        folder_id: currentNote.value.folder_id || null
-      });
-    }
-    
-    // Load lock state from localStorage
-    if (process.client) {
-      const savedLockState = localStorage.getItem(`note-${noteId.value}-locked`);
-      if (savedLockState === 'true') {
-        isLocked.value = true;
-      }
-    }
-    
-    // Small delay to prevent flash
-    await new Promise(resolve => setTimeout(resolve, 300));
-  } catch (error) {
-    toast.add({
-      title: 'Error',
-      description: 'Failed to load note',
-      color: 'error'
-    });
+    notesStore.openTab(noteId.value);
     router.push('/dashboard');
-  } finally {
-    isLoading.value = false;
+  } catch (error) {
+    console.error('Error opening note:', error);
+    router.push('/dashboard');
   }
 });
 

@@ -33,6 +33,12 @@ const showImageModal = ref(false)
 const linkUrl = ref('')
 const imageUrl = ref('')
 
+// Context menu state
+const showContextMenu = ref(false)
+const contextMenuPos = ref({ x: 0, y: 0 })
+const contextMenuSubmenu = ref<string | null>(null)
+const submenuButtonRefs = ref<{ [key: string]: HTMLElement | null }>({})
+
 // Toolbar visibility - controlled by parent now
 const showToolbar = computed(() => props.showToolbar ?? true)
 
@@ -239,7 +245,97 @@ function redo() {
   editor.value?.chain().focus().redo().run()
 }
 
+// Context menu handlers
+function handleContextMenu(event: MouseEvent) {
+  if (!props.editable) return
+  
+  event.preventDefault()
+  
+  // Calculate smart position for main menu
+  const viewportHeight = window.innerHeight
+  const viewportWidth = window.innerWidth
+  
+  // Estimated main menu height (with all items visible + table options)
+  const estimatedMenuHeight = 350 // Approximate height
+  const menuWidth = 224 // w-56 in Tailwind = 14 * 16 = 224px
+  
+  let x = event.clientX
+  let y = event.clientY
+  
+  // Check if menu would overflow bottom
+  if (y + estimatedMenuHeight > viewportHeight) {
+    // Position from bottom up
+    y = Math.max(8, viewportHeight - estimatedMenuHeight - 8)
+  }
+  
+  // Check if menu would overflow right side
+  if (x + menuWidth > viewportWidth) {
+    // Position from right edge
+    x = Math.max(8, viewportWidth - menuWidth - 8)
+  }
+  
+  // Position the context menu at cursor (with adjustments)
+  contextMenuPos.value = { x, y }
+  
+  showContextMenu.value = true
+}
+
+function closeContextMenu() {
+  showContextMenu.value = false
+  contextMenuSubmenu.value = null
+}
+
+function toggleSubmenu(submenu: string) {
+  if (contextMenuSubmenu.value === submenu) {
+    contextMenuSubmenu.value = null
+  } else {
+    contextMenuSubmenu.value = submenu
+  }
+}
+
+// Calculate smart position for submenu
+function getSubmenuPosition(buttonKey: string) {
+  const button = submenuButtonRefs.value[buttonKey]
+  if (!button) return { top: 0, left: 0 }
+
+  const buttonRect = button.getBoundingClientRect()
+  const viewportHeight = window.innerHeight
+  const viewportWidth = window.innerWidth
+  
+  // Estimated submenu height (approximate based on content)
+  const estimatedMenuHeight = buttonKey === 'table' ? 280 : 180
+  const menuWidth = 208 // 52 * 4 (w-52 in Tailwind)
+  const gap = 4
+  
+  let top = buttonRect.top
+  let left = buttonRect.right + gap
+  
+  // Check if submenu would overflow bottom
+  if (top + estimatedMenuHeight > viewportHeight) {
+    // Position from bottom up
+    top = Math.max(8, viewportHeight - estimatedMenuHeight - 8)
+  }
+  
+  // Check if submenu would overflow right side
+  if (left + menuWidth > viewportWidth) {
+    // Position to the left of parent menu instead
+    left = buttonRect.left - menuWidth - gap
+  }
+  
+  return { top, left }
+}
+
+// Close context menu on click outside
+onMounted(() => {
+  if (process.client) {
+    document.addEventListener('click', closeContextMenu)
+  }
+})
+
 onBeforeUnmount(() => {
+  if (process.client) {
+    document.removeEventListener('click', closeContextMenu)
+  }
   editor.value?.destroy()
 })
 </script>
@@ -482,10 +578,12 @@ onBeforeUnmount(() => {
     </Transition>
 
     <!-- Editor Content -->
-    <EditorContent 
-      :editor="editor" 
-      class="prose prose-sm sm:prose lg:prose-lg dark:prose-invert max-w-none min-h-[400px] p-4 focus:outline-none"
-    />
+    <div @contextmenu="handleContextMenu">
+      <EditorContent 
+        :editor="editor" 
+        class="prose prose-sm sm:prose lg:prose-lg dark:prose-invert max-w-none min-h-[400px] p-4 focus:outline-none"
+      />
+    </div>
 
     <!-- Link Modal -->
     <Teleport to="body">
@@ -624,6 +722,311 @@ onBeforeUnmount(() => {
               </UButton>
             </div>
           </div>
+        </div>
+      </Transition>
+    </Teleport>
+
+    <!-- Context Menu -->
+    <Teleport to="body">
+      <Transition name="context-menu">
+        <div
+          v-if="showContextMenu"
+          class="fixed z-[9999] w-56 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-xl py-1 max-h-[80vh] overflow-y-auto"
+          :style="{ top: `${contextMenuPos.y}px`, left: `${contextMenuPos.x}px` }"
+          @click.stop
+          @mouseenter="() => {}"
+        >
+          <!-- Text Formatting -->
+          <button
+            @click="toggleBold(); closeContextMenu()"
+            class="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+            :class="editor?.isActive('bold') ? 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20' : 'text-gray-700 dark:text-gray-300'"
+          >
+            <UIcon name="i-heroicons-bold" class="w-4 h-4" />
+            <span class="flex-1 text-left">Bold</span>
+            <span class="text-xs text-gray-400">⌘B</span>
+          </button>
+          <button
+            @click="toggleItalic(); closeContextMenu()"
+            class="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+            :class="editor?.isActive('italic') ? 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20' : 'text-gray-700 dark:text-gray-300'"
+          >
+            <UIcon name="i-heroicons-italic" class="w-4 h-4" />
+            <span class="flex-1 text-left">Italic</span>
+            <span class="text-xs text-gray-400">⌘I</span>
+          </button>
+          <button
+            @click="toggleStrike(); closeContextMenu()"
+            class="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+            :class="editor?.isActive('strike') ? 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20' : 'text-gray-700 dark:text-gray-300'"
+          >
+            <UIcon name="i-heroicons-strikethrough" class="w-4 h-4" />
+            <span class="flex-1 text-left">Strikethrough</span>
+            <span class="text-xs text-gray-400">⌘⇧X</span>
+          </button>
+          <button
+            @click="toggleCode(); closeContextMenu()"
+            class="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+            :class="editor?.isActive('code') ? 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20' : 'text-gray-700 dark:text-gray-300'"
+          >
+            <UIcon name="i-heroicons-code-bracket" class="w-4 h-4" />
+            <span class="flex-1 text-left">Code</span>
+            <span class="text-xs text-gray-400">⌘E</span>
+          </button>
+
+          <div class="border-t border-gray-200 dark:border-gray-700 my-1" />
+
+          <!-- Headings Submenu -->
+          <div class="relative">
+            <button
+              :ref="el => submenuButtonRefs['headings'] = el as HTMLElement"
+              @mouseenter="toggleSubmenu('headings')"
+              @click.stop="toggleSubmenu('headings')"
+              class="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300"
+              :class="contextMenuSubmenu === 'headings' ? 'bg-gray-100 dark:bg-gray-700' : ''"
+            >
+              <UIcon name="i-heroicons-bars-3-bottom-left" class="w-4 h-4" />
+              <span class="flex-1 text-left">Headings</span>
+              <UIcon name="i-heroicons-chevron-right" class="w-3 h-3" />
+            </button>
+          </div>
+
+          <!-- Lists Submenu -->
+          <div class="relative">
+            <button
+              :ref="el => submenuButtonRefs['lists'] = el as HTMLElement"
+              @mouseenter="toggleSubmenu('lists')"
+              @click.stop="toggleSubmenu('lists')"
+              class="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300"
+              :class="contextMenuSubmenu === 'lists' ? 'bg-gray-100 dark:bg-gray-700' : ''"
+            >
+              <UIcon name="i-heroicons-list-bullet" class="w-4 h-4" />
+              <span class="flex-1 text-left">Lists</span>
+              <UIcon name="i-heroicons-chevron-right" class="w-3 h-3" />
+            </button>
+          </div>
+
+          <div class="border-t border-gray-200 dark:border-gray-700 my-1" />
+
+          <!-- Insert Submenu -->
+          <div class="relative">
+            <button
+              :ref="el => submenuButtonRefs['insert'] = el as HTMLElement"
+              @mouseenter="toggleSubmenu('insert')"
+              @click.stop="toggleSubmenu('insert')"
+              class="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300"
+              :class="contextMenuSubmenu === 'insert' ? 'bg-gray-100 dark:bg-gray-700' : ''"
+            >
+              <UIcon name="i-heroicons-plus-circle" class="w-4 h-4" />
+              <span class="flex-1 text-left">Insert</span>
+              <UIcon name="i-heroicons-chevron-right" class="w-3 h-3" />
+            </button>
+          </div>
+
+          <!-- Table Controls (only show when in a table) -->
+          <template v-if="editor?.isActive('table')">
+            <div class="border-t border-gray-200 dark:border-gray-700 my-1" />
+            <div class="relative">
+              <button
+                :ref="el => submenuButtonRefs['table'] = el as HTMLElement"
+                @mouseenter="toggleSubmenu('table')"
+                @click.stop="toggleSubmenu('table')"
+                class="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20 font-medium"
+                :class="contextMenuSubmenu === 'table' ? 'bg-primary-100 dark:bg-primary-900/30' : ''"
+              >
+                <UIcon name="i-heroicons-table-cells" class="w-4 h-4" />
+                <span class="flex-1 text-left">Table Options</span>
+                <UIcon name="i-heroicons-chevron-right" class="w-3 h-3" />
+              </button>
+            </div>
+          </template>
+        </div>
+      </Transition>
+
+      <!-- Flyout Submenus -->
+      <Transition name="context-menu">
+        <div
+          v-if="contextMenuSubmenu === 'headings' && submenuButtonRefs['headings']"
+          class="fixed z-[10000] w-52 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-xl py-1"
+          :style="{
+            top: `${getSubmenuPosition('headings').top}px`,
+            left: `${getSubmenuPosition('headings').left}px`
+          }"
+          @click.stop
+        >
+          <button
+            @click="toggleHeading(1); closeContextMenu()"
+            class="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+            :class="editor?.isActive('heading', { level: 1 }) ? 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20 font-semibold' : 'text-gray-700 dark:text-gray-300'"
+          >
+            <span class="font-bold text-xs w-6">H1</span>
+            <span class="flex-1 text-left">Heading 1</span>
+            <span class="text-xs text-gray-400">⌘⌥1</span>
+          </button>
+          <button
+            @click="toggleHeading(2); closeContextMenu()"
+            class="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+            :class="editor?.isActive('heading', { level: 2 }) ? 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20 font-semibold' : 'text-gray-700 dark:text-gray-300'"
+          >
+            <span class="font-bold text-xs w-6">H2</span>
+            <span class="flex-1 text-left">Heading 2</span>
+            <span class="text-xs text-gray-400">⌘⌥2</span>
+          </button>
+          <button
+            @click="toggleHeading(3); closeContextMenu()"
+            class="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+            :class="editor?.isActive('heading', { level: 3 }) ? 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20 font-semibold' : 'text-gray-700 dark:text-gray-300'"
+          >
+            <span class="font-bold text-xs w-6">H3</span>
+            <span class="flex-1 text-left">Heading 3</span>
+            <span class="text-xs text-gray-400">⌘⌥3</span>
+          </button>
+        </div>
+      </Transition>
+
+      <Transition name="context-menu">
+        <div
+          v-if="contextMenuSubmenu === 'lists' && submenuButtonRefs['lists']"
+          class="fixed z-[10000] w-52 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-xl py-1"
+          :style="{
+            top: `${getSubmenuPosition('lists').top}px`,
+            left: `${getSubmenuPosition('lists').left}px`
+          }"
+          @click.stop
+        >
+          <button
+            @click="toggleBulletList(); closeContextMenu()"
+            class="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+            :class="editor?.isActive('bulletList') ? 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20 font-semibold' : 'text-gray-700 dark:text-gray-300'"
+          >
+            <UIcon name="i-heroicons-list-bullet" class="w-4 h-4" />
+            <span class="flex-1 text-left">Bullet List</span>
+            <span class="text-xs text-gray-400">⌘⇧8</span>
+          </button>
+          <button
+            @click="toggleOrderedList(); closeContextMenu()"
+            class="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+            :class="editor?.isActive('orderedList') ? 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20 font-semibold' : 'text-gray-700 dark:text-gray-300'"
+          >
+            <UIcon name="i-heroicons-numbered-list" class="w-4 h-4" />
+            <span class="flex-1 text-left">Numbered List</span>
+            <span class="text-xs text-gray-400">⌘⇧7</span>
+          </button>
+          <button
+            @click="toggleTaskList(); closeContextMenu()"
+            class="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+            :class="editor?.isActive('taskList') ? 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20 font-semibold' : 'text-gray-700 dark:text-gray-300'"
+          >
+            <UIcon name="i-heroicons-check-circle" class="w-4 h-4" />
+            <span class="flex-1 text-left">Task List</span>
+            <span class="text-xs text-gray-400">⌘⇧9</span>
+          </button>
+        </div>
+      </Transition>
+
+      <Transition name="context-menu">
+        <div
+          v-if="contextMenuSubmenu === 'insert' && submenuButtonRefs['insert']"
+          class="fixed z-[10000] w-52 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-xl py-1"
+          :style="{
+            top: `${getSubmenuPosition('insert').top}px`,
+            left: `${getSubmenuPosition('insert').left}px`
+          }"
+          @click.stop
+        >
+          <button
+            @click="setLink(); closeContextMenu()"
+            class="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300"
+          >
+            <UIcon name="i-heroicons-link" class="w-4 h-4" />
+            <span class="flex-1 text-left">Link</span>
+            <span class="text-xs text-gray-400">⌘K</span>
+          </button>
+          <button
+            @click="addImage(); closeContextMenu()"
+            class="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300"
+          >
+            <UIcon name="i-heroicons-photo" class="w-4 h-4" />
+            <span class="flex-1 text-left">Image</span>
+          </button>
+          <button
+            @click="insertTable(); closeContextMenu()"
+            class="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300"
+          >
+            <UIcon name="i-heroicons-table-cells" class="w-4 h-4" />
+            <span class="flex-1 text-left">Table</span>
+          </button>
+          <button
+            @click="toggleCodeBlock(); closeContextMenu()"
+            class="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300"
+          >
+            <UIcon name="i-heroicons-code-bracket-square" class="w-4 h-4" />
+            <span class="flex-1 text-left">Code Block</span>
+            <span class="text-xs text-gray-400">⌘⌥C</span>
+          </button>
+        </div>
+      </Transition>
+
+      <Transition name="context-menu">
+        <div
+          v-if="contextMenuSubmenu === 'table' && submenuButtonRefs['table']"
+          class="fixed z-[10000] w-52 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-xl py-1"
+          :style="{
+            top: `${getSubmenuPosition('table').top}px`,
+            left: `${getSubmenuPosition('table').left}px`
+          }"
+          @click.stop
+        >
+          <button
+            @click="addRowBefore(); closeContextMenu()"
+            class="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300"
+          >
+            <UIcon name="i-heroicons-arrow-up" class="w-4 h-4" />
+            <span class="flex-1 text-left">Add Row Above</span>
+          </button>
+          <button
+            @click="addRowAfter(); closeContextMenu()"
+            class="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300"
+          >
+            <UIcon name="i-heroicons-arrow-down" class="w-4 h-4" />
+            <span class="flex-1 text-left">Add Row Below</span>
+          </button>
+          <button
+            @click="addColumnBefore(); closeContextMenu()"
+            class="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300"
+          >
+            <UIcon name="i-heroicons-arrow-left" class="w-4 h-4" />
+            <span class="flex-1 text-left">Add Column Left</span>
+          </button>
+          <button
+            @click="addColumnAfter(); closeContextMenu()"
+            class="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300"
+          >
+            <UIcon name="i-heroicons-arrow-right" class="w-4 h-4" />
+            <span class="flex-1 text-left">Add Column Right</span>
+          </button>
+          <div class="border-t border-gray-200 dark:border-gray-700 my-1" />
+          <button
+            @click="deleteRow(); closeContextMenu()"
+            class="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors text-red-600 dark:text-red-400"
+          >
+            <UIcon name="i-heroicons-trash" class="w-4 h-4" />
+            <span class="flex-1 text-left">Delete Row</span>
+          </button>
+          <button
+            @click="deleteColumn(); closeContextMenu()"
+            class="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors text-red-600 dark:text-red-400"
+          >
+            <UIcon name="i-heroicons-trash" class="w-4 h-4" />
+            <span class="flex-1 text-left">Delete Column</span>
+          </button>
+          <button
+            @click="deleteTable(); closeContextMenu()"
+            class="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors text-red-600 dark:text-red-400"
+          >
+            <UIcon name="i-heroicons-trash" class="w-4 h-4" />
+            <span class="flex-1 text-left">Delete Table</span>
+          </button>
         </div>
       </Transition>
     </Teleport>
@@ -930,5 +1333,23 @@ onBeforeUnmount(() => {
 .modal-leave-to > div:last-child {
   opacity: 0;
   transform: scale(0.95) translateY(-20px);
+}
+
+/* Context menu animation */
+.context-menu-enter-active,
+.context-menu-leave-active {
+  transition: all 0.15s ease;
+}
+
+.context-menu-enter-from,
+.context-menu-leave-to {
+  opacity: 0;
+  transform: scale(0.95) translateY(-10px);
+}
+
+.context-menu-enter-to,
+.context-menu-leave-from {
+  opacity: 1;
+  transform: scale(1) translateY(0);
 }
 </style>
