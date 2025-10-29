@@ -79,7 +79,9 @@ export default defineEventHandler(async (event): Promise<Note> => {
       folder: row.folder,
       folder_id: row.folder_id || null,
       created_at: row.created_at,
-      updated_at: row.updated_at
+      updated_at: row.updated_at,
+      is_shared: false, // New notes are not shared by default
+      share_permission: undefined // Creator has full ownership, not a shared permission
     };
 
     return note;

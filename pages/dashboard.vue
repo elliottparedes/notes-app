@@ -360,6 +360,39 @@ function handleCreateSubfolder(parentId: number) {
   openCreateFolderModal();
 }
 
+async function handleCreateNoteInFolder(folderId: number) {
+  if (isCreating.value) return;
+  
+  isCreating.value = true;
+  
+  try {
+    const noteData: CreateNoteDto = {
+      title: 'Untitled Note',
+      content: '',
+      folder_id: folderId
+    };
+    
+    const note = await notesStore.createNote(noteData);
+    // Refresh notes and open in a new tab
+    await notesStore.fetchNotes();
+    notesStore.openTab(note.id);
+    
+    toast.add({
+      title: 'Success',
+      description: 'Note created in folder',
+      color: 'success'
+    });
+  } catch (error) {
+    toast.add({
+      title: 'Error',
+      description: 'Failed to create note',
+      color: 'error'
+    });
+  } finally {
+    isCreating.value = false;
+  }
+}
+
 function handleRenameFolder(folderId: number) {
   const folder = foldersStore.getFolderById(folderId);
   if (folder) {
@@ -565,6 +598,9 @@ async function shareNote() {
       sharePermission.value
     );
 
+    // Refresh notes to update the is_shared field
+    await notesStore.fetchNotes();
+
     toast.add({
       title: 'Success',
       description: `Note shared with ${selectedUserToShare.value.name || selectedUserToShare.value.email}`,
@@ -586,6 +622,10 @@ async function shareNote() {
 async function removeShare(shareId: number) {
   try {
     await sharedNotesStore.removeShare(shareId);
+    
+    // Refresh notes to update the is_shared field
+    await notesStore.fetchNotes();
+    
     toast.add({
       title: 'Success',
       description: 'Share removed',
@@ -1258,6 +1298,7 @@ onMounted(() => {
                 @select="selectFolder"
                 @toggle="handleToggleFolder"
                 @create-subfolder="handleCreateSubfolder"
+                @create-note="handleCreateNoteInFolder"
                 @rename="handleRenameFolder"
                 @delete="handleDeleteFolder"
                 @move-up="handleMoveUp"
@@ -1479,6 +1520,7 @@ onMounted(() => {
                       @select="selectFolder"
                       @toggle="handleToggleFolder"
                       @create-subfolder="handleCreateSubfolder"
+                      @create-note="handleCreateNoteInFolder"
                       @rename="handleRenameFolder"
                       @delete="handleDeleteFolder"
                       @move-up="handleMoveUp"

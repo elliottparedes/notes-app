@@ -12,6 +12,7 @@ interface Emits {
   (e: 'select', folderId: number): void;
   (e: 'toggle', folderId: number): void;
   (e: 'create-subfolder', parentId: number): void;
+  (e: 'create-note', folderId: number): void;
   (e: 'rename', folderId: number): void;
   (e: 'delete', folderId: number): void;
   (e: 'move-up', folderId: number): void;
@@ -231,6 +232,14 @@ onMounted(() => {
             <UIcon name="i-heroicons-folder-plus" class="w-5 h-5 text-blue-500" />
             <span>New Subfolder</span>
           </button>
+          <button
+            type="button"
+            @click="emit('create-note', folder.id); showContextMenu = false"
+            class="w-full text-left px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-3"
+          >
+            <UIcon name="i-heroicons-document-plus" class="w-5 h-5 text-green-500" />
+            <span>New Note</span>
+          </button>
           <div class="my-1 border-t border-gray-200 dark:border-gray-700"></div>
           <button
             type="button"
@@ -304,6 +313,7 @@ onMounted(() => {
           @select="emit('select', $event)"
           @toggle="emit('toggle', $event)"
           @create-subfolder="emit('create-subfolder', $event)"
+          @create-note="emit('create-note', $event)"
           @rename="emit('rename', $event)"
           @delete="emit('delete', $event)"
           @move-up="emit('move-up', $event)"
