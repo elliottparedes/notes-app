@@ -343,7 +343,7 @@ function getSubmenuPosition(buttonKey: string) {
   // Different heights for different submenus
   const submenuHeights: Record<string, number> = {
     'format': 200,
-    'headings': 280,
+    'headings': 160, // Reduced from 280 after removing H4, H5, H6
     'lists': 140,
     'insert': 280,
     'table': 240
@@ -359,9 +359,9 @@ function getSubmenuPosition(buttonKey: string) {
     left = rect.left - submenuWidth - 4
   }
   
-  // ALWAYS open upwards from the button
-  // Calculate from bottom of button, opening upwards
-  const bottom = viewportHeight - rect.top // Distance from bottom of viewport to top of button
+  // Position submenu to align with the button
+  // Use bottom of button as reference point
+  const bottom = viewportHeight - rect.bottom // Distance from bottom of viewport to bottom of button
   
   return {
     bottom,

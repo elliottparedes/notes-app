@@ -1592,22 +1592,6 @@ onMounted(() => {
             
             <!-- Actions (only show when note is active) -->
             <div v-if="activeNote" class="flex items-center gap-2 px-4 border-l border-gray-200 dark:border-gray-700">
-              <!-- Save Status -->
-              <ClientOnly>
-                <div v-if="!isOnline" class="flex items-center gap-1.5 text-xs text-yellow-600 dark:text-yellow-400">
-                  <UIcon name="i-heroicons-wifi" class="w-4 h-4" />
-                  <span class="hidden lg:inline">Offline</span>
-                </div>
-                <div v-else-if="isSaving" class="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
-                  <UIcon name="i-heroicons-arrow-path" class="w-4 h-4 animate-spin" />
-                  <span class="hidden lg:inline">Saving</span>
-                </div>
-                <div v-else class="flex items-center gap-1.5 text-xs text-green-600 dark:text-green-400">
-                  <UIcon name="i-heroicons-check-circle" class="w-4 h-4" />
-                  <span class="hidden lg:inline">Saved</span>
-                </div>
-              </ClientOnly>
-              
               <!-- Lock/Unlock Button -->
               <!-- Lock/Unlock Toggle (disabled for shared notes to allow collaboration) -->
               <button
@@ -1658,17 +1642,15 @@ onMounted(() => {
             
             <!-- Sync Status (always visible) -->
             <ClientOnly>
-              <div class="px-4 border-l border-gray-200 dark:border-gray-700">
-                <button
-                  @click="() => { if (isOnline && !notesStore.syncing && notesStore.pendingChanges > 0) notesStore.syncWithServer() }"
-                  :disabled="!isOnline || notesStore.syncing"
-                  :title="!isOnline ? 'Offline' : notesStore.syncing ? 'Syncing...' : notesStore.pendingChanges > 0 ? 'Click to sync' : 'All synced'"
-                  class="p-2 rounded-lg transition-colors relative"
+              <div class="flex items-center gap-2 px-4 border-l border-gray-200 dark:border-gray-700">
+                <!-- Combined Save & Sync Status -->
+                <div 
+                  class="flex items-center gap-1.5 text-xs"
                   :class="{
                     'text-yellow-600 dark:text-yellow-400': !isOnline,
-                    'text-blue-600 dark:text-blue-400': isOnline && notesStore.syncing,
-                    'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700': isOnline && !notesStore.syncing && notesStore.pendingChanges > 0,
-                    'text-green-600 dark:text-green-400': isOnline && !notesStore.syncing && notesStore.pendingChanges === 0
+                    'text-gray-500 dark:text-gray-400': isOnline && (isSaving || notesStore.syncing),
+                    'text-green-600 dark:text-green-400': isOnline && !isSaving && !notesStore.syncing && notesStore.pendingChanges === 0,
+                    'text-blue-600 dark:text-blue-400': isOnline && !isSaving && !notesStore.syncing && notesStore.pendingChanges > 0
                   }"
                 >
                   <UIcon 
@@ -1677,7 +1659,7 @@ onMounted(() => {
                     class="w-4 h-4"
                   />
                   <UIcon 
-                    v-else-if="notesStore.syncing"
+                    v-else-if="isSaving || notesStore.syncing"
                     name="i-heroicons-arrow-path"
                     class="w-4 h-4 animate-spin"
                   />
@@ -1691,12 +1673,23 @@ onMounted(() => {
                     name="i-heroicons-check-circle"
                     class="w-4 h-4"
                   />
-                  <span 
-                    v-if="notesStore.pendingChanges > 0 && !notesStore.syncing"
-                    class="absolute -top-1 -right-1 w-3.5 h-3.5 bg-primary-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center"
-                  >
-                    {{ notesStore.pendingChanges > 9 ? '9+' : notesStore.pendingChanges }}
+                  <span class="hidden lg:inline">
+                    {{ !isOnline ? 'Offline' : 
+                       isSaving ? 'Saving...' : 
+                       notesStore.syncing ? 'Syncing...' : 
+                       notesStore.pendingChanges > 0 ? `${notesStore.pendingChanges} pending` : 
+                       'All saved' }}
                   </span>
+                </div>
+                
+                <!-- Manual Sync Button (when pending) -->
+                <button
+                  v-if="isOnline && !notesStore.syncing && notesStore.pendingChanges > 0"
+                  @click="notesStore.syncWithServer()"
+                  class="p-1 rounded hover:bg-blue-50 dark:hover:bg-blue-900/20 text-blue-600 dark:text-blue-400 transition-colors"
+                  title="Sync now"
+                >
+                  <UIcon name="i-heroicons-arrow-path" class="w-3.5 h-3.5" />
                 </button>
               </div>
             </ClientOnly>
