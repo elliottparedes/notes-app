@@ -1721,7 +1721,7 @@ onMounted(() => {
           <div v-else>
             <!-- Header Section - Full Width -->
             <div class="border-b border-gray-200 dark:border-gray-700 shadow-sm bg-gradient-to-b from-transparent to-gray-50/50 dark:to-gray-800/50">
-              <div class="max-w-5xl mx-auto px-4 md:px-6 pt-6 pb-4">
+              <div class="max-w-5xl xl:max-w-7xl 2xl:max-w-[1600px] mx-auto px-4 md:px-6 pt-6 pb-4">
                 <!-- Title -->
                 <h1
                   v-if="isLocked"
@@ -1862,7 +1862,7 @@ onMounted(() => {
             </div>
 
             <!-- Editor Section - Editable Content -->
-            <div class="max-w-5xl mx-auto px-4 md:px-6 py-6 pb-16">
+            <div class="max-w-5xl xl:max-w-7xl 2xl:max-w-[1600px] mx-auto px-4 md:px-6 py-6 pb-16">
               <!-- Use CollaborativeEditor for shared notes -->
               <CollaborativeEditor
                 v-if="activeNote.is_shared || activeNote.share_permission"

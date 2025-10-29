@@ -1223,9 +1223,11 @@ defineExpose({
   }
 }
 
-/* Add visible clickable space after tables */
+/* Add visible clickable space after tables and to the right */
 .collaborative-editor :deep(.ProseMirror table) {
   margin-bottom: 2rem !important;
+  margin-right: 1rem !important;
+  width: calc(100% - 1rem) !important; /* Leave space on the right */
 }
 
 .collaborative-editor :deep(.ProseMirror table + *) {

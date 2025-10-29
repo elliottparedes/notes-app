@@ -1168,9 +1168,11 @@ onBeforeUnmount(() => {
   }
 }
 
-/* Add visible clickable space after tables */
+/* Add visible clickable space after tables and to the right */
 .tiptap-editor .ProseMirror table {
   margin-bottom: 2rem !important;
+  margin-right: 1rem !important;
+  width: calc(100% - 1rem) !important; /* Leave space on the right */
 }
 
 .tiptap-editor .ProseMirror table + * {
@@ -1374,7 +1376,7 @@ onBeforeUnmount(() => {
 .tiptap-editor .ProseMirror table {
   border-collapse: collapse;
   table-layout: auto;
-  width: 100%;
+  /* width is set above with right margin for clickability */
   margin: 1rem 0;
   overflow: hidden;
   display: block;
