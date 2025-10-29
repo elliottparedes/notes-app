@@ -14,8 +14,8 @@ interface NotesState {
   pendingChanges: number;
   folderOrder: string[];
   // Tab management
-  openTabs: number[]; // Array of note IDs that are open in tabs
-  activeTabId: number | null; // Currently active tab
+  openTabs: string[]; // Array of note IDs (UUIDs) that are open in tabs
+  activeTabId: string | null; // Currently active tab
 }
 
 export const useNotesStore = defineStore('notes', {
@@ -153,7 +153,7 @@ export const useNotesStore = defineStore('notes', {
       }
     },
 
-    async fetchNote(id: number): Promise<void> {
+    async fetchNote(id: string): Promise<void> {
       this.loading = true;
       this.error = null;
 
@@ -207,11 +207,11 @@ export const useNotesStore = defineStore('notes', {
         if (process.client) {
           const { saveNote, addToSyncQueue } = await import('~/utils/db.client');
 
-          // Create a temporary note with a negative ID (will be replaced by server)
+          // Create a temporary note with a temp UUID (will be replaced by server)
           // Use toRaw to convert any reactive data to plain objects
           const plainData = toRaw(data);
           const tempNote: Note = {
-            id: -Date.now(), // Negative ID to distinguish from server IDs
+            id: `temp-${Date.now()}`, // Temporary ID to distinguish from server IDs
             user_id: 0, // Will be set by server
             ...plainData,
             content: plainData.content || null,
@@ -280,7 +280,7 @@ export const useNotesStore = defineStore('notes', {
       }
     },
 
-    async updateNote(id: number, data: UpdateNoteDto): Promise<void> {
+    async updateNote(id: string, data: UpdateNoteDto): Promise<void> {
       this.loading = true;
       this.error = null;
 
@@ -365,7 +365,7 @@ export const useNotesStore = defineStore('notes', {
       }
     },
 
-    async deleteNote(id: number): Promise<void> {
+    async deleteNote(id: string): Promise<void> {
       this.loading = true;
       this.error = null;
 
@@ -582,7 +582,7 @@ export const useNotesStore = defineStore('notes', {
             this.openTabs = JSON.parse(savedTabs);
           }
           if (savedActiveTab) {
-            this.activeTabId = parseInt(savedActiveTab);
+            this.activeTabId = savedActiveTab;
           }
         } catch (err) {
           console.error('Failed to load tabs from storage:', err);
@@ -594,14 +594,14 @@ export const useNotesStore = defineStore('notes', {
       if (process.client) {
         localStorage.setItem('open_tabs', JSON.stringify(this.openTabs));
         if (this.activeTabId !== null) {
-          localStorage.setItem('active_tab', String(this.activeTabId));
+          localStorage.setItem('active_tab', this.activeTabId);
         } else {
           localStorage.removeItem('active_tab');
         }
       }
     },
 
-    openTab(noteId: number): void {
+    openTab(noteId: string): void {
       // Add to tabs if not already open
       if (!this.openTabs.includes(noteId)) {
         this.openTabs.push(noteId);
@@ -611,7 +611,7 @@ export const useNotesStore = defineStore('notes', {
       this.saveTabsToStorage();
     },
 
-    closeTab(noteId: number): void {
+    closeTab(noteId: string): void {
       const index = this.openTabs.indexOf(noteId);
       if (index === -1) return;
 
@@ -631,7 +631,7 @@ export const useNotesStore = defineStore('notes', {
       this.saveTabsToStorage();
     },
 
-    setActiveTab(noteId: number): void {
+    setActiveTab(noteId: string): void {
       if (this.openTabs.includes(noteId)) {
         this.activeTabId = noteId;
         this.saveTabsToStorage();

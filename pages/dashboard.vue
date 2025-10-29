@@ -738,12 +738,12 @@ function toggleFabMenu() {
 }
 
 // Note opening and tab management
-function handleOpenNote(noteId: number) {
+function handleOpenNote(noteId: string) {
   notesStore.openTab(noteId);
   isMobileSidebarOpen.value = false;
 }
 
-function handleFolderNoteClick(noteId: number) {
+function handleFolderNoteClick(noteId: string) {
   handleOpenNote(noteId);
 }
 

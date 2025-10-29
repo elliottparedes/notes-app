@@ -2,7 +2,7 @@ import { executeQuery } from '../../utils/db';
 import { requireAuth } from '../../utils/auth';
 
 interface NoteRow {
-  id: number;
+  id: string;
 }
 
 export default defineEventHandler(async (event): Promise<{ success: boolean }> => {

@@ -2,9 +2,10 @@ import type { CreateNoteDto, Note } from '../../../models';
 import type { ResultSetHeader } from 'mysql2';
 import { executeQuery, parseJsonField } from '../../utils/db';
 import { requireAuth } from '../../utils/auth';
+import { randomUUID } from 'crypto';
 
 interface NoteRow {
-  id: number;
+  id: string;
   user_id: number;
   title: string;
   content: string | null;
@@ -146,10 +147,14 @@ Generate the content as clean, semantic HTML that can be rendered directly in a 
     const title = aiNote.title;
     const content = aiNote.content;
 
-    // Insert note
-    const result = await executeQuery<ResultSetHeader>(
-      'INSERT INTO notes (user_id, title, content, tags, is_favorite, folder, folder_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    // Generate UUID for the new note
+    const noteId = randomUUID();
+
+    // Insert note with UUID
+    await executeQuery<ResultSetHeader>(
+      'INSERT INTO notes (id, user_id, title, content, tags, is_favorite, folder, folder_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
       [
+        noteId,
         userId,
         title,
         content,
@@ -163,7 +168,7 @@ Generate the content as clean, semantic HTML that can be rendered directly in a 
     // Fetch created note
     const rows = await executeQuery<NoteRow[]>(
       'SELECT * FROM notes WHERE id = ?',
-      [result.insertId]
+      [noteId]
     );
 
     const row = rows[0];

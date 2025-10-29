@@ -3,7 +3,7 @@ import { executeQuery, parseJsonField } from '../../utils/db';
 import { requireAuth } from '../../utils/auth';
 
 interface NoteRow {
-  id: number;
+  id: string;
   user_id: number;
   title: string;
   content: string | null;

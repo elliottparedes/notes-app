@@ -16,8 +16,8 @@ interface Emits {
   (e: 'delete', folderId: number): void;
   (e: 'move-up', folderId: number): void;
   (e: 'move-down', folderId: number): void;
-  (e: 'open-note', noteId: number): void;
-  (e: 'delete-note', noteId: number): void;
+  (e: 'open-note', noteId: string): void;
+  (e: 'delete-note', noteId: string): void;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -60,7 +60,7 @@ function handleToggle(event: Event) {
   }
 }
 
-function handleNoteClick(noteId: number) {
+function handleNoteClick(noteId: string) {
   emit('open-note', noteId);
 }
 

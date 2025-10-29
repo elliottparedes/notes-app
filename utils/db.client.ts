@@ -8,7 +8,7 @@ const SYNC_QUEUE_STORE = 'syncQueue';
 export interface SyncQueueItem {
   id: string;
   type: 'create' | 'update' | 'delete';
-  noteId?: number;
+  noteId?: string; // UUID
   data?: CreateNoteDto | UpdateNoteDto;
   timestamp: number;
   retries: number;
@@ -61,7 +61,7 @@ export async function getAllNotes(): Promise<Note[]> {
   });
 }
 
-export async function getNote(id: number): Promise<Note | undefined> {
+export async function getNote(id: string): Promise<Note | undefined> {
   const db = await initDB();
   return new Promise((resolve, reject) => {
     const transaction = db.transaction(NOTES_STORE, 'readonly');
@@ -112,7 +112,7 @@ export async function saveNotes(notes: Note[]): Promise<void> {
   });
 }
 
-export async function deleteNote(id: number): Promise<void> {
+export async function deleteNote(id: string): Promise<void> {
   const db = await initDB();
   return new Promise((resolve, reject) => {
     const transaction = db.transaction(NOTES_STORE, 'readwrite');

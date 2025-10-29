@@ -10,11 +10,11 @@ const tabNotes = computed(() => notesStore.tabNotes);
 const draggedTabIndex = ref<number | null>(null);
 const dragOverIndex = ref<number | null>(null);
 
-function handleTabClick(noteId: number) {
+function handleTabClick(noteId: string) {
   notesStore.setActiveTab(noteId);
 }
 
-function handleCloseTab(event: Event, noteId: number) {
+function handleCloseTab(event: Event, noteId: string) {
   event.stopPropagation();
   notesStore.closeTab(noteId);
 }

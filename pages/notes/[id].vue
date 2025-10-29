@@ -10,7 +10,7 @@ const toast = useToast();
 // Network status
 const { isOnline } = useNetworkStatus();
 
-const noteId = computed(() => parseInt(route.params.id as string));
+const noteId = computed(() => route.params.id as string);
 const isSaving = ref(false);
 const isLoading = ref(true);
 const autoSaveTimeout = ref<NodeJS.Timeout | null>(null);

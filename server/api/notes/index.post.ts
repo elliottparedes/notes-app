@@ -2,9 +2,10 @@ import type { CreateNoteDto, Note } from '../../../models';
 import type { ResultSetHeader } from 'mysql2';
 import { executeQuery, parseJsonField } from '../../utils/db';
 import { requireAuth } from '../../utils/auth';
+import { randomUUID } from 'crypto';
 
 interface NoteRow {
-  id: number;
+  id: string;
   user_id: number;
   title: string;
   content: string | null;
@@ -30,15 +31,19 @@ export default defineEventHandler(async (event): Promise<Note> => {
   }
 
   try {
+    // Generate UUID for the new note
+    const noteId = randomUUID();
+
     // Prepare tags as JSON
     const tagsJson = body.tags && body.tags.length > 0 
       ? JSON.stringify(body.tags) 
       : null;
 
-    // Insert note
-    const result = await executeQuery<ResultSetHeader>(
-      'INSERT INTO notes (user_id, title, content, tags, is_favorite, folder, folder_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    // Insert note with UUID
+    await executeQuery<ResultSetHeader>(
+      'INSERT INTO notes (id, user_id, title, content, tags, is_favorite, folder, folder_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
       [
+        noteId,
         userId,
         body.title,
         body.content || null,
@@ -52,7 +57,7 @@ export default defineEventHandler(async (event): Promise<Note> => {
     // Fetch created note
     const rows = await executeQuery<NoteRow[]>(
       'SELECT * FROM notes WHERE id = ?',
-      [result.insertId]
+      [noteId]
     );
 
     const row = rows[0];
