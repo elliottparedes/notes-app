@@ -243,7 +243,7 @@ const notesWithoutFolder = computed(() => {
 });
 
 // Watch for active note changes and load it
-watch(activeNote, (note) => {
+watch(activeNote, (note, oldNote) => {
   if (note) {
     console.log('[Dashboard] Active note changed:', {
       id: note.id.substring(0, 20),
@@ -262,14 +262,19 @@ watch(activeNote, (note) => {
       editForm.folder_id = note.folder_id || null;
       // Don't update editForm.content - CollaborativeEditor manages it via Y.Doc
     } else {
-      // For regular notes, sync everything to editForm
-      Object.assign(editForm, {
-        title: note.title,
-        content: note.content || '',
-        tags: note.tags || [],
-        folder: note.folder || '',
-        folder_id: note.folder_id || null
-      });
+      // For regular notes, only sync if content actually changed or it's a different note
+      const isDifferentNote = !oldNote || oldNote.id !== note.id;
+      const contentChanged = note.content !== editForm.content;
+      
+      if (isDifferentNote || contentChanged) {
+        Object.assign(editForm, {
+          title: note.title,
+          content: note.content || '',
+          tags: note.tags || [],
+          folder: note.folder || '',
+          folder_id: note.folder_id || null
+        });
+      }
     }
     
     // Load lock state

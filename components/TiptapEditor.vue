@@ -181,8 +181,15 @@ const editor = useEditor({
 })
 
 // Watch for external changes to content
+// Only update if the editor is not focused (user is not actively typing)
 watch(() => props.modelValue, (newValue) => {
-  if (editor.value && newValue !== editor.value.getHTML()) {
+  if (!editor.value) return;
+  
+  const currentContent = editor.value.getHTML();
+  const isFocused = editor.value.isFocused;
+  
+  // Only update if content actually changed and editor is not focused
+  if (newValue !== currentContent && !isFocused) {
     editor.value.commands.setContent(newValue || '', { emitUpdate: false })
   }
 })
