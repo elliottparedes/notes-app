@@ -57,9 +57,21 @@ function toggleContextMenu(event: MouseEvent) {
   // Calculate position for the menu
   if (contextMenuButtonRef.value) {
     const rect = contextMenuButtonRef.value.getBoundingClientRect();
+    const menuWidth = 192; // 192px = w-48
+    const viewportWidth = window.innerWidth;
+    
+    // Calculate left position, ensuring menu doesn't overflow viewport
+    let left = rect.right - menuWidth;
+    if (left < 8) {
+      left = 8; // 8px minimum padding from left edge
+    }
+    if (left + menuWidth > viewportWidth - 8) {
+      left = viewportWidth - menuWidth - 8; // 8px minimum padding from right edge
+    }
+    
     menuPosition.value = {
       top: rect.bottom + 4,
-      left: rect.right - 192 // 192px = w-48
+      left: left
     };
   }
   
@@ -153,8 +165,8 @@ onMounted(() => {
         ref="contextMenuButtonRef"
         type="button"
         @click="toggleContextMenu"
-        class="flex-shrink-0 p-1.5 rounded-md opacity-0 group-hover/folder:opacity-100 hover:bg-gray-200 dark:hover:bg-gray-600 transition-all"
-        :class="showContextMenu ? 'opacity-100 bg-gray-200 dark:bg-gray-600' : ''"
+        class="flex-shrink-0 p-1.5 rounded-md opacity-100 md:opacity-0 md:group-hover/folder:opacity-100 hover:bg-gray-200 dark:hover:bg-gray-600 transition-all"
+        :class="showContextMenu ? 'bg-gray-200 dark:bg-gray-600' : ''"
       >
         <svg class="w-3.5 h-3.5 text-gray-600 dark:text-gray-400" fill="currentColor" viewBox="0 0 16 16">
           <circle cx="8" cy="2" r="1.5"/>
