@@ -841,16 +841,32 @@ onBeforeUnmount(() => {
   width: 100%;
   margin: 1rem 0;
   overflow: hidden;
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+/* Reset table to standard display for tbody, thead, etc */
+.tiptap-editor .ProseMirror table tbody,
+.tiptap-editor .ProseMirror table thead {
+  display: table-row-group;
+}
+
+.tiptap-editor .ProseMirror table tr {
+  display: table-row;
 }
 
 .tiptap-editor .ProseMirror table td,
 .tiptap-editor .ProseMirror table th {
+  display: table-cell;
   min-width: 1em;
   border: 1px solid #d1d5db;
   padding: 0.5rem 1rem;
   vertical-align: top;
   box-sizing: border-box;
   position: relative;
+  white-space: normal;
 }
 
 .dark .tiptap-editor .ProseMirror table td,
