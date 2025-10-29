@@ -171,7 +171,7 @@ const editor = useEditor({
     Code,
     // Block formatting
     Heading.configure({
-      levels: [1, 2, 3, 4, 5, 6]
+      levels: [1, 2, 3]
     }),
     CodeBlock,
     Blockquote,
@@ -864,18 +864,6 @@ defineExpose({
           <button @click="editor?.chain().focus().toggleHeading({ level: 3 }).run(); closeContextMenu()" class="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors" :class="editor?.isActive('heading', { level: 3 }) ? 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20 font-semibold' : 'text-gray-700 dark:text-gray-300'">
             <span class="font-bold text-xs w-6">H3</span>
             <span class="flex-1 text-left">Heading 3</span>
-          </button>
-          <button @click="editor?.chain().focus().toggleHeading({ level: 4 }).run(); closeContextMenu()" class="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors" :class="editor?.isActive('heading', { level: 4 }) ? 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20 font-semibold' : 'text-gray-700 dark:text-gray-300'">
-            <span class="font-bold text-xs w-6">H4</span>
-            <span class="flex-1 text-left">Heading 4</span>
-          </button>
-          <button @click="editor?.chain().focus().toggleHeading({ level: 5 }).run(); closeContextMenu()" class="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors" :class="editor?.isActive('heading', { level: 5 }) ? 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20 font-semibold' : 'text-gray-700 dark:text-gray-300'">
-            <span class="font-bold text-xs w-6">H5</span>
-            <span class="flex-1 text-left">Heading 5</span>
-          </button>
-          <button @click="editor?.chain().focus().toggleHeading({ level: 6 }).run(); closeContextMenu()" class="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors" :class="editor?.isActive('heading', { level: 6 }) ? 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20 font-semibold' : 'text-gray-700 dark:text-gray-300'">
-            <span class="font-bold text-xs w-6">H6</span>
-            <span class="flex-1 text-left">Heading 6</span>
           </button>
         </div>
       </Transition>

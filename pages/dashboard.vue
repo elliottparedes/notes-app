@@ -1271,15 +1271,15 @@ onMounted(() => {
                 Shared
               </h3>
               <span class="text-xs px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300">
-                {{ sharedNotesStore.sharedNotes.length }}
+                {{ sharedNotesStore.groupedSharedNotes.length }}
               </span>
             </div>
 
             <!-- Shared notes list -->
-            <div v-if="sharedNotesStore.sharedNotes.length > 0" class="space-y-0.5">
+            <div v-if="sharedNotesStore.groupedSharedNotes.length > 0" class="space-y-0.5">
               <div
-                v-for="share in sharedNotesStore.sharedNotes"
-                :key="`share-${share.id}`"
+                v-for="share in sharedNotesStore.groupedSharedNotes"
+                :key="`share-${share.note_id}`"
                 @click="handleOpenSharedNote(share)"
                 class="group flex items-start gap-2 px-3 py-2 rounded-lg cursor-pointer transition-colors hover:bg-purple-50 dark:hover:bg-purple-900/20"
                 :class="notesStore.activeTabId === share.note_id ? 'bg-purple-100 dark:bg-purple-900/30' : ''"
@@ -1294,7 +1294,7 @@ onMounted(() => {
                   </p>
                   <p class="text-xs text-gray-500 dark:text-gray-400 truncate">
                     {{ share.is_owned_by_me ? 
-                       `Shared with ${share.shared_with_name || share.shared_with_email}` : 
+                       (share.shareCount > 1 ? `Shared with ${share.shareCount} people` : `Shared with ${share.shared_with_name || share.shared_with_email}`) : 
                        `From ${share.owner_name || share.owner_email}` }}
                   </p>
                 </div>
@@ -1492,15 +1492,15 @@ onMounted(() => {
                       Shared
                     </h3>
                     <span class="text-xs px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300">
-                      {{ sharedNotesStore.sharedNotes.length }}
+                      {{ sharedNotesStore.groupedSharedNotes.length }}
                     </span>
                   </div>
 
                   <!-- Shared notes list -->
-                  <div v-if="sharedNotesStore.sharedNotes.length > 0" class="space-y-0.5">
+                  <div v-if="sharedNotesStore.groupedSharedNotes.length > 0" class="space-y-0.5">
                     <div
-                      v-for="share in sharedNotesStore.sharedNotes"
-                      :key="`share-mobile-${share.id}`"
+                      v-for="share in sharedNotesStore.groupedSharedNotes"
+                      :key="`share-mobile-${share.note_id}`"
                       @click="handleOpenSharedNote(share)"
                       class="group flex items-start gap-2 px-3 py-2 rounded-lg cursor-pointer transition-colors hover:bg-purple-50 dark:hover:bg-purple-900/20"
                       :class="notesStore.activeTabId === share.note_id ? 'bg-purple-100 dark:bg-purple-900/30' : ''"
@@ -1515,7 +1515,7 @@ onMounted(() => {
                         </p>
                         <p class="text-xs text-gray-500 dark:text-gray-400 truncate">
                           {{ share.is_owned_by_me ? 
-                             `Shared with ${share.shared_with_name || share.shared_with_email}` : 
+                             (share.shareCount > 1 ? `Shared with ${share.shareCount} people` : `Shared with ${share.shared_with_name || share.shared_with_email}`) : 
                              `From ${share.owner_name || share.owner_email}` }}
                         </p>
                       </div>

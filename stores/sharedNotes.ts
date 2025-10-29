@@ -34,6 +34,30 @@ export const useSharedNotesStore = defineStore('sharedNotes', {
     // Check if a note is shared
     isNoteShared: (state) => (noteId: string): boolean => {
       return state.sharedNotes.some(share => share.note_id === noteId);
+    },
+
+    // Grouped shared notes - one entry per unique note
+    groupedSharedNotes: (state) => {
+      const grouped = new Map<string, SharedNoteWithDetails & { shareCount: number }>();
+      
+      state.sharedNotes.forEach(share => {
+        if (!grouped.has(share.note_id)) {
+          // First share for this note - add it with count
+          grouped.set(share.note_id, {
+            ...share,
+            shareCount: 1
+          });
+        } else {
+          // Note already exists - increment count
+          const existing = grouped.get(share.note_id)!;
+          existing.shareCount++;
+        }
+      });
+      
+      // Convert map to array and sort by updated_at
+      return Array.from(grouped.values()).sort((a, b) => 
+        new Date(b.note_updated_at).getTime() - new Date(a.note_updated_at).getTime()
+      );
     }
   },
 
