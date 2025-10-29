@@ -1205,12 +1205,10 @@ onMounted(() => {
       <!-- Left Sidebar (Desktop Only) -->
       <aside class="hidden md:flex md:flex-col w-64 lg:w-72 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700">
         <!-- Sidebar Header -->
-        <div class="flex items-center justify-between h-14 px-4">
-          <div class="flex items-center gap-3">
-            <div class="w-8 h-8 bg-gradient-to-br from-primary-500 to-primary-600 rounded-lg flex items-center justify-center shadow-lg">
-              <UIcon name="i-heroicons-document-text" class="w-5 h-5 text-white" />
-            </div>
-            <h1 class="text-lg font-bold text-gray-900 dark:text-white">Notes</h1>
+        <div class="flex items-center justify-between h-14 px-3">
+          <div class="flex items-center gap-1">
+            <img src="/folder.png" alt="Unfold" class="w-16 h-16" />
+            <h1 class="text-lg font-extrabold text-gray-900 dark:text-white tracking-wide">Unfold</h1>
           </div>
         </div>
 
@@ -1421,12 +1419,10 @@ onMounted(() => {
             <!-- Drawer -->
             <div class="absolute left-0 top-0 bottom-0 w-64 bg-white dark:bg-gray-800 shadow-xl flex flex-col">
               <!-- Drawer Header -->
-              <div class="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
-                <div class="flex items-center gap-3">
-                  <div class="w-8 h-8 bg-gradient-to-br from-primary-500 to-primary-600 rounded-lg flex items-center justify-center shadow-lg">
-                    <UIcon name="i-heroicons-document-text" class="w-5 h-5 text-white" />
-                  </div>
-                  <h1 class="text-lg font-bold text-gray-900 dark:text-white">Notes</h1>
+              <div class="flex items-center justify-between px-3 py-4 border-b border-gray-200 dark:border-gray-700">
+                <div class="flex items-center gap-1">
+                  <img src="/folder.png" alt="Unfold" class="w-16 h-16" />
+                  <h1 class="text-lg font-extrabold text-gray-900 dark:text-white tracking-wide">Unfold</h1>
                 </div>
                 <button
                   @click="isMobileSidebarOpen = false"
