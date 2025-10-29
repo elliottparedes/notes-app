@@ -9,6 +9,8 @@ export interface Note {
   folder_id: number | null; // New - references folders table
   created_at: Date;
   updated_at: Date;
+  is_shared?: boolean; // Whether this note is shared with others
+  share_permission?: 'viewer' | 'editor'; // User's permission if shared with them
 }
 
 export interface CreateNoteDto {

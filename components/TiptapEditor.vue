@@ -11,7 +11,70 @@ import TableRow from '@tiptap/extension-table-row'
 import TableCell from '@tiptap/extension-table-cell'
 import TableHeader from '@tiptap/extension-table-header'
 import Image from '@tiptap/extension-image'
+import Gapcursor from '@tiptap/extension-gapcursor'
+import { Extension } from '@tiptap/core'
 import type { Level } from '@tiptap/extension-heading'
+
+// Custom extension to handle table exit
+const TableExit = Extension.create({
+  name: 'tableExit',
+
+  addKeyboardShortcuts() {
+    return {
+      // Exit table when pressing Mod-Enter (Cmd/Ctrl+Enter) in a table cell
+      'Mod-Enter': ({ editor }) => {
+        const { state } = editor
+        const { $from } = state.selection
+        
+        // Check if we're in a table
+        for (let d = $from.depth; d > 0; d--) {
+          if ($from.node(d).type.name === 'table') {
+            // We're in a table, insert a paragraph after it
+            const tablePos = $from.before(d)
+            const table = $from.node(d)
+            const afterTablePos = tablePos + table.nodeSize
+            
+            editor.chain()
+              .insertContentAt(afterTablePos, { type: 'paragraph' })
+              .setTextSelection(afterTablePos + 1)
+              .run()
+            
+            return true
+          }
+        }
+        return false
+      },
+      // Also handle Tab in last cell
+      'Tab': ({ editor }) => {
+        const { state } = editor
+        const { $from } = state.selection
+        
+        // Check if we're in a table
+        for (let d = $from.depth; d > 0; d--) {
+          if ($from.node(d).type.name === 'table') {
+            // Try to go to next cell first (default Tab behavior)
+            const went = editor.commands.goToNextCell()
+            if (!went) {
+              // If no next cell, we're in the last cell - create paragraph after table
+              const tablePos = $from.before(d)
+              const table = $from.node(d)
+              const afterTablePos = tablePos + table.nodeSize
+              
+              editor.chain()
+                .insertContentAt(afterTablePos, { type: 'paragraph' })
+                .setTextSelection(afterTablePos + 1)
+                .run()
+              
+              return true
+            }
+            return true
+          }
+        }
+        return false
+      }
+    }
+  }
+})
 
 const props = withDefaults(defineProps<{
   modelValue: string
@@ -87,6 +150,7 @@ const editor = useEditor({
     }),
     Table.configure({
       resizable: true,
+      allowTableNodeSelection: true, // Allow selecting the entire table node
       HTMLAttributes: {
         class: 'border-collapse table-auto w-full my-4'
       }
@@ -106,7 +170,9 @@ const editor = useEditor({
       HTMLAttributes: {
         class: 'max-w-full h-auto rounded-lg my-4'
       }
-    })
+    }),
+    Gapcursor,
+    TableExit // Custom extension for table navigation
   ],
   onUpdate: ({ editor }) => {
     // Simply emit the HTML content
@@ -1077,6 +1143,38 @@ onBeforeUnmount(() => {
   color: #9ca3af;
   pointer-events: none;
   height: 0;
+}
+
+/* Gapcursor Styles - Make it visible and clickable after tables */
+.tiptap-editor .ProseMirror-gapcursor {
+  display: block;
+  pointer-events: none;
+  position: relative;
+}
+
+.tiptap-editor .ProseMirror-gapcursor:after {
+  content: "";
+  display: block;
+  position: absolute;
+  top: -2px;
+  width: 20px;
+  border-top: 2px solid #3b82f6;
+  animation: ProseMirror-cursor-blink 1.1s steps(2, start) infinite;
+}
+
+@keyframes ProseMirror-cursor-blink {
+  to {
+    visibility: hidden;
+  }
+}
+
+/* Add visible clickable space after tables */
+.tiptap-editor .ProseMirror table {
+  margin-bottom: 2rem !important;
+}
+
+.tiptap-editor .ProseMirror table + * {
+  margin-top: 1rem;
 }
 
 /* Heading Styles */

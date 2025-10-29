@@ -13,6 +13,8 @@ interface NoteRow {
   folder_id: number | null;
   created_at: Date;
   updated_at: Date;
+  share_permission: 'viewer' | 'editor' | null;
+  is_shared: number;
 }
 
 export default defineEventHandler(async (event): Promise<Note> => {
@@ -28,10 +30,16 @@ export default defineEventHandler(async (event): Promise<Note> => {
   }
 
   try {
-    // Fetch note
+    // Fetch note - include shared notes the user has access to
     const rows = await executeQuery<NoteRow[]>(
-      'SELECT * FROM notes WHERE id = ? AND user_id = ?',
-      [noteId, userId]
+      `SELECT n.*, 
+        sn.permission as share_permission,
+        (SELECT COUNT(*) FROM shared_notes WHERE note_id = n.id) > 0 as is_shared
+       FROM notes n
+       LEFT JOIN shared_notes sn ON n.id = sn.note_id AND sn.shared_with_user_id = ?
+       WHERE n.id = ? AND (n.user_id = ? OR sn.shared_with_user_id IS NOT NULL)
+       LIMIT 1`,
+      [userId, noteId, userId]
     );
 
     const row = rows[0];
@@ -39,7 +47,7 @@ export default defineEventHandler(async (event): Promise<Note> => {
     if (!row) {
       throw createError({
         statusCode: 404,
-        message: 'Note not found'
+        message: 'Note not found or access denied'
       });
     }
 
@@ -54,7 +62,9 @@ export default defineEventHandler(async (event): Promise<Note> => {
       folder: row.folder,
       folder_id: row.folder_id || null,
       created_at: row.created_at,
-      updated_at: row.updated_at
+      updated_at: row.updated_at,
+      is_shared: Boolean(row.is_shared),
+      share_permission: row.share_permission || undefined
     };
 
     return note;

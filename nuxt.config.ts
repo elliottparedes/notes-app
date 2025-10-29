@@ -164,7 +164,8 @@ export default defineNuxtConfig({
     
     // Public keys exposed to client (non-sensitive only)
     public: {
-      apiBase: '/api'
+      apiBase: '/api',
+      yjsWebsocketUrl: process.env.NUXT_PUBLIC_YJS_URL || ''
     }
   }
 })

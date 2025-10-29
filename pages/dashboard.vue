@@ -7,6 +7,7 @@ import { noteTemplates } from '~/utils/noteTemplates';
 const authStore = useAuthStore();
 const notesStore = useNotesStore();
 const foldersStore = useFoldersStore();
+const sharedNotesStore = useSharedNotesStore();
 const toast = useToast();
 const router = useRouter();
 const route = useRoute();
@@ -53,6 +54,7 @@ const showUserMenu = ref(false);
 const showDeleteModal = ref(false);
 const noteToDelete = ref<Note | null>(null);
 const isDeleting = ref(false);
+const noteShareCount = ref(0); // Track how many users this note is shared with
 
 // Keyboard shortcuts modal
 const showShortcutsModal = ref(false);
@@ -74,6 +76,13 @@ const isGeneratingAi = ref(false);
 
 // Template selection modal
 const showTemplateModal = ref(false);
+
+// Share note modal
+const showShareModal = ref(false);
+const shareUserSearch = ref('');
+const userSearchResults = ref<Array<{ id: number; email: string; name: string | null }>>([]);
+const sharePermission = ref<'viewer' | 'editor'>('editor');
+const selectedUserToShare = ref<{ id: number; email: string; name: string | null } | null>(null);
 
 // Session key to force re-render on new sessions
 const sessionKey = ref('default');
@@ -118,7 +127,8 @@ async function loadData() {
     await Promise.all([
       foldersStore.fetchFolders(),
       notesStore.fetchNotes(),
-      notesStore.updatePendingChangesCount()
+      notesStore.updatePendingChangesCount(),
+      sharedNotesStore.fetchSharedNotes()
     ]);
     hasInitialized.value = true;
   } catch (error) {
@@ -225,20 +235,42 @@ watch(isOnline, async (online, wasOnlineValue) => {
 const activeNote = computed(() => notesStore.activeNote);
 
 // Notes without folders (for "Quick Notes" section)
+// Exclude notes shared WITH the user (they appear in "Shared" section instead)
 const notesWithoutFolder = computed(() => {
-  return notesStore.notes.filter(note => note.folder_id === null);
+  return notesStore.notes.filter(note => 
+    note.folder_id === null && !note.share_permission // Only show notes owned by user
+  );
 });
 
 // Watch for active note changes and load it
 watch(activeNote, (note) => {
   if (note) {
-    Object.assign(editForm, {
-      title: note.title,
-      content: note.content || '',
-      tags: note.tags || [],
-      folder: note.folder || '',
-      folder_id: note.folder_id || null
+    console.log('[Dashboard] Active note changed:', {
+      id: note.id.substring(0, 20),
+      is_shared: note.is_shared,
+      share_permission: note.share_permission,
+      willUseCollabEditor: !!(note.is_shared || note.share_permission)
     });
+    
+    // For collaborative notes, don't update editForm.content (CollaborativeEditor handles it)
+    // Only update title and metadata for the UI
+    if (note.is_shared || note.share_permission) {
+      console.log('[Dashboard] Loading collaborative note, skipping content sync to editForm');
+      editForm.title = note.title;
+      editForm.tags = note.tags || [];
+      editForm.folder = note.folder || '';
+      editForm.folder_id = note.folder_id || null;
+      // Don't update editForm.content - CollaborativeEditor manages it via Y.Doc
+    } else {
+      // For regular notes, sync everything to editForm
+      Object.assign(editForm, {
+        title: note.title,
+        content: note.content || '',
+        tags: note.tags || [],
+        folder: note.folder || '',
+        folder_id: note.folder_id || null
+      });
+    }
     
     // Load lock state
     if (process.client && note.id) {
@@ -249,8 +281,15 @@ watch(activeNote, (note) => {
 }, { immediate: true });
 
 // Auto-save on content change (only when not locked)
+// IMPORTANT: Skip auto-save for collaborative notes (Y.Doc handles syncing)
 watch([() => editForm.title, () => editForm.content, () => editForm.folder_id], () => {
   if (isLocked.value || !activeNote.value) return;
+  
+  // Skip auto-save for collaborative notes - Y.Doc handles syncing
+  if (activeNote.value.is_shared || activeNote.value.share_permission) {
+    console.log('[Dashboard] Skipping auto-save for collaborative note');
+    return;
+  }
   
   if (autoSaveTimeout.value) {
     clearTimeout(autoSaveTimeout.value);
@@ -483,6 +522,97 @@ async function deleteFolder() {
   }
 }
 
+// Share note functions
+function openShareModal() {
+  if (!activeNote.value) return;
+  showShareModal.value = true;
+  shareUserSearch.value = '';
+  userSearchResults.value = [];
+  selectedUserToShare.value = null;
+}
+
+async function searchUsers() {
+  if (shareUserSearch.value.length < 2) {
+    userSearchResults.value = [];
+    return;
+  }
+
+  try {
+    userSearchResults.value = await sharedNotesStore.searchUsers(shareUserSearch.value);
+  } catch (error) {
+    console.error('User search error:', error);
+  }
+}
+
+function selectUserToShare(user: { id: number; email: string; name: string | null }) {
+  selectedUserToShare.value = user;
+  shareUserSearch.value = user.name || user.email;
+  userSearchResults.value = [];
+}
+
+async function shareNote() {
+  if (!activeNote.value || !selectedUserToShare.value) return;
+
+  try {
+    await sharedNotesStore.shareNote(
+      activeNote.value.id,
+      selectedUserToShare.value.email,
+      sharePermission.value
+    );
+
+    toast.add({
+      title: 'Success',
+      description: `Note shared with ${selectedUserToShare.value.name || selectedUserToShare.value.email}`,
+      color: 'success'
+    });
+
+    showShareModal.value = false;
+    shareUserSearch.value = '';
+    selectedUserToShare.value = null;
+  } catch (error: any) {
+    toast.add({
+      title: 'Error',
+      description: error.data?.message || 'Failed to share note',
+      color: 'error'
+    });
+  }
+}
+
+async function removeShare(shareId: number) {
+  try {
+    await sharedNotesStore.removeShare(shareId);
+    toast.add({
+      title: 'Success',
+      description: 'Share removed',
+      color: 'success'
+    });
+  } catch (error) {
+    toast.add({
+      title: 'Error',
+      description: 'Failed to remove share',
+      color: 'error'
+    });
+  }
+}
+
+function handleOpenSharedNote(share: any) {
+  notesStore.openTab(share.note_id);
+  isMobileSidebarOpen.value = false;
+}
+
+// Computed for current note shares
+const currentNoteShares = computed(() => {
+  if (!activeNote.value) return [];
+  return sharedNotesStore.getSharesForNote(activeNote.value.id);
+});
+
+// Helper function to generate user color for collaboration
+function generateUserColor(userId?: number): string {
+  if (!userId) return '#3b82f6';
+  const colors = ['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#06b6d4'];
+  return colors[userId % colors.length] || '#3b82f6';
+}
+
 // Note CRUD operations
 async function handleCreateNote() {
   if (isCreating.value) return;
@@ -671,8 +801,20 @@ async function generateAiNote() {
   }
 }
 
-function handleDeleteNote(note: Note) {
+async function handleDeleteNote(note: Note) {
   noteToDelete.value = note;
+  noteShareCount.value = 0;
+  
+  // Check if note is shared and get count
+  if (note.is_shared) {
+    try {
+      const shares = sharedNotesStore.getSharesForNote(note.id);
+      noteShareCount.value = shares.length;
+    } catch (error) {
+      console.error('Error fetching share count:', error);
+    }
+  }
+  
   showDeleteModal.value = true;
 }
 
@@ -682,7 +824,14 @@ async function confirmDelete() {
   isDeleting.value = true;
 
   try {
+    // Delete the note - shared_notes entries will be automatically deleted via CASCADE
     await notesStore.deleteNote(noteToDelete.value.id);
+    
+    // Refresh shared notes list if this was a shared note
+    if (noteToDelete.value.is_shared || noteToDelete.value.share_permission) {
+      await sharedNotesStore.fetchSharedNotes();
+    }
+    
     toast.add({
       title: 'Success',
       description: 'Note deleted successfully',
@@ -690,6 +839,7 @@ async function confirmDelete() {
     });
     showDeleteModal.value = false;
     noteToDelete.value = null;
+    noteShareCount.value = 0;
   } catch (error) {
     toast.add({
       title: 'Error',
@@ -704,6 +854,7 @@ async function confirmDelete() {
 function cancelDelete() {
   showDeleteModal.value = false;
   noteToDelete.value = null;
+  noteShareCount.value = 0;
 }
 
 function formatDate(date: Date): string {
@@ -922,14 +1073,24 @@ async function polishNote() {
   }
 }
 
-// Character and word count
+// Character and word count (use activeNote.content for collaborative notes)
 const wordCount = computed(() => {
-  if (!editForm.content) return 0;
-  return editForm.content.trim().split(/\s+/).filter(word => word.length > 0).length;
+  // For collaborative notes, read from activeNote.content (Y.Doc synced)
+  const content = (activeNote.value?.is_shared || activeNote.value?.share_permission) 
+    ? activeNote.value?.content 
+    : editForm.content;
+  
+  if (!content) return 0;
+  return content.trim().split(/\s+/).filter(word => word.length > 0).length;
 });
 
 const charCount = computed(() => {
-  return editForm.content?.length || 0;
+  // For collaborative notes, read from activeNote.content (Y.Doc synced)
+  const content = (activeNote.value?.is_shared || activeNote.value?.share_permission) 
+    ? activeNote.value?.content 
+    : editForm.content;
+  
+  return content?.length || 0;
 });
 
 // Position folder dropdown
@@ -1088,6 +1249,57 @@ onMounted(() => {
                 @open-note="handleFolderNoteClick"
                 @delete-note="(noteId) => handleDeleteNote(notesStore.notes.find(n => n.id === noteId)!)"
               />
+            </div>
+          </div>
+
+          <!-- Shared Notes Section -->
+          <div class="mt-6">
+            <div class="flex items-center justify-between px-3 mb-2">
+              <h3 class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider flex items-center gap-2">
+                <UIcon name="i-heroicons-user-group" class="w-3.5 h-3.5" />
+                Shared
+              </h3>
+              <span class="text-xs px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300">
+                {{ sharedNotesStore.sharedNotes.length }}
+              </span>
+            </div>
+
+            <!-- Shared notes list -->
+            <div v-if="sharedNotesStore.sharedNotes.length > 0" class="space-y-0.5">
+              <div
+                v-for="share in sharedNotesStore.sharedNotes"
+                :key="`share-${share.id}`"
+                @click="handleOpenSharedNote(share)"
+                class="group flex items-start gap-2 px-3 py-2 rounded-lg cursor-pointer transition-colors hover:bg-purple-50 dark:hover:bg-purple-900/20"
+                :class="notesStore.activeTabId === share.note_id ? 'bg-purple-100 dark:bg-purple-900/30' : ''"
+              >
+                <UIcon 
+                  :name="share.is_owned_by_me ? 'i-heroicons-arrow-up-tray' : 'i-heroicons-arrow-down-tray'" 
+                  class="w-4 h-4 flex-shrink-0 text-purple-600 dark:text-purple-400 mt-0.5" 
+                />
+                <div class="flex-1 min-w-0">
+                  <p class="text-sm font-medium text-gray-900 dark:text-white truncate">
+                    {{ share.note_title }}
+                  </p>
+                  <p class="text-xs text-gray-500 dark:text-gray-400 truncate">
+                    {{ share.is_owned_by_me ? 
+                       `Shared with ${share.shared_with_name || share.shared_with_email}` : 
+                       `From ${share.owner_name || share.owner_email}` }}
+                  </p>
+                </div>
+                <UBadge 
+                  :color="share.permission === 'editor' ? 'primary' : 'neutral'" 
+                  size="xs"
+                  class="flex-shrink-0"
+                >
+                  {{ share.permission }}
+                </UBadge>
+              </div>
+            </div>
+
+            <div v-else class="px-3 py-6 text-center">
+              <UIcon name="i-heroicons-user-group" class="w-10 h-10 mx-auto text-gray-300 dark:text-gray-600 mb-2" />
+              <p class="text-xs text-gray-500 dark:text-gray-400">No shared notes yet</p>
             </div>
           </div>
         </div>
@@ -1260,6 +1472,57 @@ onMounted(() => {
                     />
                   </div>
                 </div>
+
+                <!-- Shared Notes Section (Mobile) -->
+                <div class="mt-6">
+                  <div class="flex items-center justify-between px-3 mb-2">
+                    <h3 class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider flex items-center gap-2">
+                      <UIcon name="i-heroicons-user-group" class="w-3.5 h-3.5" />
+                      Shared
+                    </h3>
+                    <span class="text-xs px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300">
+                      {{ sharedNotesStore.sharedNotes.length }}
+                    </span>
+                  </div>
+
+                  <!-- Shared notes list -->
+                  <div v-if="sharedNotesStore.sharedNotes.length > 0" class="space-y-0.5">
+                    <div
+                      v-for="share in sharedNotesStore.sharedNotes"
+                      :key="`share-mobile-${share.id}`"
+                      @click="handleOpenSharedNote(share)"
+                      class="group flex items-start gap-2 px-3 py-2 rounded-lg cursor-pointer transition-colors hover:bg-purple-50 dark:hover:bg-purple-900/20"
+                      :class="notesStore.activeTabId === share.note_id ? 'bg-purple-100 dark:bg-purple-900/30' : ''"
+                    >
+                      <UIcon 
+                        :name="share.is_owned_by_me ? 'i-heroicons-arrow-up-tray' : 'i-heroicons-arrow-down-tray'" 
+                        class="w-4 h-4 flex-shrink-0 text-purple-600 dark:text-purple-400 mt-0.5" 
+                      />
+                      <div class="flex-1 min-w-0">
+                        <p class="text-sm font-medium text-gray-900 dark:text-white truncate">
+                          {{ share.note_title }}
+                        </p>
+                        <p class="text-xs text-gray-500 dark:text-gray-400 truncate">
+                          {{ share.is_owned_by_me ? 
+                             `Shared with ${share.shared_with_name || share.shared_with_email}` : 
+                             `From ${share.owner_name || share.owner_email}` }}
+                        </p>
+                      </div>
+                      <UBadge 
+                        :color="share.permission === 'editor' ? 'primary' : 'neutral'" 
+                        size="xs"
+                        class="flex-shrink-0"
+                      >
+                        {{ share.permission }}
+                      </UBadge>
+                    </div>
+                  </div>
+
+                  <div v-else class="px-3 py-6 text-center">
+                    <UIcon name="i-heroicons-user-group" class="w-10 h-10 mx-auto text-gray-300 dark:text-gray-600 mb-2" />
+                    <p class="text-xs text-gray-500 dark:text-gray-400">No shared notes yet</p>
+                  </div>
+                </div>
               </div>
 
               <!-- Drawer Footer -->
@@ -1330,7 +1593,9 @@ onMounted(() => {
               </ClientOnly>
               
               <!-- Lock/Unlock Button -->
+              <!-- Lock/Unlock Toggle (disabled for shared notes to allow collaboration) -->
               <button
+                v-if="!activeNote.is_shared && !activeNote.share_permission"
                 @click="toggleLock"
                 :title="isLocked ? 'Unlock Note' : 'Lock Note'"
                 class="p-2 rounded-lg transition-colors hover:bg-gray-100 dark:hover:bg-gray-700"
@@ -1339,9 +1604,9 @@ onMounted(() => {
                 <UIcon :name="isLocked ? 'i-heroicons-lock-closed' : 'i-heroicons-lock-open'" class="w-4 h-4" />
               </button>
               
-              <!-- Polish with AI -->
+              <!-- Polish with AI (disabled for shared notes to prevent conflicts) -->
               <button
-                v-if="!isLocked"
+                v-if="!isLocked && !activeNote.is_shared && !activeNote.share_permission"
                 @click="polishNote"
                 :disabled="isPolishing"
                 class="p-2 rounded-lg transition-colors hover:bg-purple-50 dark:hover:bg-purple-900/20 disabled:opacity-50"
@@ -1353,6 +1618,16 @@ onMounted(() => {
                   :class="isPolishing ? 'animate-spin' : ''" 
                   class="w-4 h-4" 
                 />
+              </button>
+              
+              <!-- Share Note Button -->
+              <button
+                v-if="activeNote.user_id === authStore.currentUser?.id"
+                @click="openShareModal"
+                class="p-2 rounded-lg transition-colors hover:bg-blue-50 dark:hover:bg-blue-900/20 text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400"
+                title="Share Note"
+              >
+                <UIcon name="i-heroicons-user-plus" class="w-4 h-4" />
               </button>
               
               <!-- Keyboard Shortcuts Info -->
@@ -1443,13 +1718,19 @@ onMounted(() => {
                 >
                   {{ editForm.title || 'Untitled Note' }}
                 </h1>
-                <input
-                  v-else
-                  v-model="editForm.title"
-                  type="text"
-                  class="w-full bg-transparent border-none outline-none text-3xl md:text-4xl font-bold text-gray-900 dark:text-white placeholder-gray-400 mb-3 focus:outline-none focus:ring-0"
-                  placeholder="Untitled Note"
-                />
+                <div v-else class="w-full mb-3">
+                  <input
+                    v-model="editForm.title"
+                    type="text"
+                    :disabled="activeNote.is_shared || !!activeNote.share_permission"
+                    class="w-full bg-transparent border-none outline-none text-3xl md:text-4xl font-bold text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-0 disabled:cursor-not-allowed disabled:opacity-70"
+                    placeholder="Untitled Note"
+                  />
+                  <p v-if="activeNote.is_shared || activeNote.share_permission" class="text-xs text-gray-500 dark:text-gray-400 mt-1 flex items-center gap-1">
+                    <UIcon name="i-heroicons-lock-closed" class="w-3 h-3" />
+                    Title is locked for shared notes to avoid confusion while collaborating
+                  </p>
+                </div>
             
             <!-- Stats Row -->
             <div class="flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400 flex-wrap mb-3">
@@ -1474,7 +1755,7 @@ onMounted(() => {
             </div>
 
             <!-- Metadata: Folder + Tags -->
-            <div v-if="!isLocked" class="flex items-center gap-4 text-sm flex-wrap">
+            <div v-if="!isLocked && !activeNote.share_permission" class="flex items-center gap-4 text-sm flex-wrap">
               <!-- Folder -->
               <div class="flex items-center gap-2 relative">
                 <UIcon name="i-heroicons-folder" class="w-3.5 h-3.5 text-gray-400" />
@@ -1547,8 +1828,8 @@ onMounted(() => {
               </div>
             </div>
             
-            <!-- Read-only metadata -->
-            <div v-else-if="(selectedFolderName || editForm.tags?.length)" class="flex items-center gap-3 text-xs flex-wrap">
+            <!-- Read-only metadata (when locked OR when user is not owner) -->
+            <div v-else-if="(isLocked || activeNote.share_permission) && (selectedFolderName || editForm.tags?.length)" class="flex items-center gap-3 text-xs flex-wrap">
               <div v-if="selectedFolderName || !editForm.folder_id" class="flex items-center gap-2">
                 <UIcon name="i-heroicons-folder" class="w-3.5 h-3.5 text-gray-400" />
                 <span class="text-gray-600 dark:text-gray-400">{{ selectedFolderName || 'No folder' }}</span>
@@ -1571,7 +1852,21 @@ onMounted(() => {
 
             <!-- Editor Section - Editable Content -->
             <div class="max-w-5xl mx-auto px-4 md:px-6 py-6 pb-16">
-              <ClientOnly>
+              <!-- Use CollaborativeEditor for shared notes -->
+              <CollaborativeEditor
+                v-if="activeNote.is_shared || activeNote.share_permission"
+                :key="`collab-${activeNote.id}`"
+                :note-id="activeNote.id"
+                :editable="!isLocked && (activeNote.share_permission === 'editor' || activeNote.user_id === authStore.currentUser?.id)"
+                :user-name="authStore.currentUser?.name || authStore.currentUser?.email || 'Anonymous'"
+                :user-color="generateUserColor(authStore.currentUser?.id)"
+                :initial-content="activeNote.content || ''"
+                placeholder="Start writing... Right-click for options or press ? for keyboard shortcuts"
+                @update:content="(content) => { if (activeNote) activeNote.content = content }"
+              />
+              
+              <!-- Use regular TiptapEditor for non-shared notes -->
+              <ClientOnly v-else>
                 <TiptapEditor
                   v-model="editForm.content"
                   placeholder="Start writing... Right-click for options or press ? for keyboard shortcuts"
@@ -1700,9 +1995,23 @@ onMounted(() => {
               <UIcon name="i-heroicons-exclamation-triangle" class="w-6 h-6 text-error-600 dark:text-error-400" />
             </div>
             <h3 class="text-lg font-semibold text-gray-900 dark:text-white text-center mb-2">Delete Note?</h3>
-            <p class="text-sm text-gray-600 dark:text-gray-400 text-center mb-6">
+            <p class="text-sm text-gray-600 dark:text-gray-400 text-center mb-4">
               Are you sure you want to delete <span class="font-semibold text-gray-900 dark:text-white">"{{ noteToDelete?.title }}"</span>? This action cannot be undone.
             </p>
+            <!-- Shared Note Warning -->
+            <div v-if="noteShareCount > 0" class="mb-6 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+              <div class="flex items-start gap-2">
+                <UIcon name="i-heroicons-exclamation-triangle" class="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+                <div class="flex-1">
+                  <p class="text-sm font-semibold text-amber-900 dark:text-amber-100 mb-1">
+                    Shared Note Warning
+                  </p>
+                  <p class="text-xs text-amber-800 dark:text-amber-200">
+                    This note is shared with <span class="font-semibold">{{ noteShareCount }} {{ noteShareCount === 1 ? 'user' : 'users' }}</span>. Deleting it will remove access for all shared users.
+                  </p>
+                </div>
+              </div>
+            </div>
             <div class="flex gap-3">
               <UButton color="neutral" variant="soft" block @click="cancelDelete" :disabled="isDeleting">Cancel</UButton>
               <UButton color="error" block @click="confirmDelete" :loading="isDeleting" :disabled="isDeleting">Delete</UButton>
@@ -1985,6 +2294,123 @@ onMounted(() => {
                 </p>
                 <UButton color="primary" variant="soft" @click="showShortcutsModal = false">Got it</UButton>
               </div>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+
+    <!-- Share Note Modal -->
+    <Teleport to="body">
+      <Transition name="modal">
+        <div v-if="showShareModal" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" @click="showShareModal = false" />
+          <div class="relative bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-lg w-full p-6 border border-gray-200 dark:border-gray-700">
+            <!-- Icon -->
+            <div class="flex items-center justify-center w-12 h-12 mx-auto mb-4 bg-blue-100 dark:bg-blue-900/30 rounded-full">
+              <UIcon name="i-heroicons-user-plus" class="w-6 h-6 text-blue-600 dark:text-blue-400" />
+            </div>
+
+            <!-- Title -->
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white text-center mb-2">
+              Share Note
+            </h3>
+
+            <!-- Description -->
+            <p class="text-sm text-gray-600 dark:text-gray-400 text-center mb-6">
+              Collaborate in real-time with other users
+            </p>
+
+            <!-- User search -->
+            <div class="mb-4">
+              <label class="text-sm font-medium mb-2 block text-gray-700 dark:text-gray-300">Share with user</label>
+              <input
+                v-model="shareUserSearch"
+                @input="searchUsers"
+                type="text"
+                placeholder="Search by email or name..."
+                class="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+              
+              <!-- Search results -->
+              <div v-if="userSearchResults.length > 0" class="mt-2 border border-gray-200 dark:border-gray-700 rounded-lg max-h-40 overflow-y-auto">
+                <button
+                  v-for="user in userSearchResults"
+                  :key="user.id"
+                  @click="selectUserToShare(user)"
+                  type="button"
+                  class="w-full px-4 py-2.5 text-left hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex items-center gap-3"
+                >
+                  <div class="w-8 h-8 bg-gradient-to-br from-blue-400 to-blue-600 rounded-full flex items-center justify-center text-white text-xs font-semibold">
+                    {{ (user.name || user.email).charAt(0).toUpperCase() }}
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <p class="font-medium text-gray-900 dark:text-white truncate">{{ user.name || user.email }}</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 truncate">{{ user.email }}</p>
+                  </div>
+                </button>
+              </div>
+            </div>
+
+            <!-- Permission selector -->
+            <div class="mb-6">
+              <label class="text-sm font-medium mb-2 block text-gray-700 dark:text-gray-300">Permission</label>
+              <select 
+                v-model="sharePermission" 
+                class="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="editor">Can Edit</option>
+                <option value="viewer">Can View Only</option>
+              </select>
+            </div>
+
+            <!-- Current shares list -->
+            <div v-if="currentNoteShares.length > 0" class="mb-6">
+              <h4 class="text-sm font-medium mb-3 text-gray-700 dark:text-gray-300">Currently shared with:</h4>
+              <div class="space-y-2">
+                <div
+                  v-for="share in currentNoteShares"
+                  :key="share.id"
+                  class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg"
+                >
+                  <div class="flex items-center gap-3 flex-1 min-w-0">
+                    <div class="w-8 h-8 bg-gradient-to-br from-purple-400 to-purple-600 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0">
+                      {{ (share.shared_with_name || share.shared_with_email).charAt(0).toUpperCase() }}
+                    </div>
+                    <div class="flex-1 min-w-0">
+                      <p class="text-sm font-medium text-gray-900 dark:text-white truncate">{{ share.shared_with_name || share.shared_with_email }}</p>
+                      <p class="text-xs text-gray-500 dark:text-gray-400">{{ share.permission }}</p>
+                    </div>
+                  </div>
+                  <button
+                    @click="removeShare(share.id)"
+                    type="button"
+                    class="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                    title="Remove share"
+                  >
+                    <UIcon name="i-heroicons-x-mark" class="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div class="flex gap-3">
+              <UButton 
+                color="neutral" 
+                variant="soft" 
+                block 
+                @click="showShareModal = false"
+              >
+                Close
+              </UButton>
+              <UButton 
+                color="primary" 
+                block 
+                @click="shareNote"
+                :disabled="!selectedUserToShare"
+              >
+                Share
+              </UButton>
             </div>
           </div>
         </div>

@@ -29,18 +29,23 @@ export default defineEventHandler(async (event): Promise<Note> => {
   }
 
   try {
-    // Check if note exists and belongs to user
-    const existingRows = await executeQuery<NoteRow[]>(
-      'SELECT id FROM notes WHERE id = ? AND user_id = ?',
-      [noteId, userId]
+    // Check if note exists and user has permission (owner or shared with editor permission)
+    const existingRows = await executeQuery<any[]>(
+      `SELECT n.id, n.user_id, sn.permission 
+       FROM notes n
+       LEFT JOIN shared_notes sn ON n.id = sn.note_id AND sn.shared_with_user_id = ?
+       WHERE n.id = ? AND (n.user_id = ? OR sn.permission = 'editor')`,
+      [userId, noteId, userId]
     );
 
     if (existingRows.length === 0) {
       throw createError({
         statusCode: 404,
-        message: 'Note not found'
+        message: 'Note not found or you do not have permission to edit'
       });
     }
+
+    const noteOwnerId = existingRows[0].user_id;
 
     // Build update query dynamically
     const updates: string[] = [];
@@ -89,12 +94,12 @@ export default defineEventHandler(async (event): Promise<Note> => {
       });
     }
 
-    // Add WHERE clause parameters
-    values.push(noteId, userId);
+    // Add WHERE clause parameters - use noteId only (allow shared editors to update)
+    values.push(noteId);
 
     // Execute update
     await executeQuery(
-      `UPDATE notes SET ${updates.join(', ')} WHERE id = ? AND user_id = ?`,
+      `UPDATE notes SET ${updates.join(', ')} WHERE id = ?`,
       values
     );
 

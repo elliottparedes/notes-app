@@ -13,6 +13,8 @@ interface NoteRow {
   folder_id: number | null;
   created_at: Date;
   updated_at: Date;
+  share_permission: 'viewer' | 'editor' | null;
+  is_shared: number;
 }
 
 export default defineEventHandler(async (event): Promise<Note[]> => {
@@ -20,10 +22,16 @@ export default defineEventHandler(async (event): Promise<Note[]> => {
   const userId = await requireAuth(event);
 
   try {
-    // Fetch all notes for the user
+    // Fetch all notes for the user (owned + shared with them)
     const rows = await executeQuery<NoteRow[]>(
-      'SELECT * FROM notes WHERE user_id = ? ORDER BY updated_at DESC',
-      [userId]
+      `SELECT DISTINCT n.*, 
+        sn.permission as share_permission,
+        (SELECT COUNT(*) FROM shared_notes WHERE note_id = n.id) > 0 as is_shared
+       FROM notes n
+       LEFT JOIN shared_notes sn ON n.id = sn.note_id AND sn.shared_with_user_id = ?
+       WHERE n.user_id = ? OR sn.shared_with_user_id IS NOT NULL
+       ORDER BY n.updated_at DESC`,
+      [userId, userId]
     );
 
     // Transform database rows to Note objects
@@ -37,7 +45,9 @@ export default defineEventHandler(async (event): Promise<Note[]> => {
       folder: row.folder,
       folder_id: row.folder_id || null,
       created_at: row.created_at,
-      updated_at: row.updated_at
+      updated_at: row.updated_at,
+      is_shared: Boolean(row.is_shared),
+      share_permission: row.share_permission || undefined
     }));
 
     return notes;

@@ -34,7 +34,10 @@ const hasChildren = computed(() => {
 });
 
 const folderNotes = computed(() => {
-  return notesStore.notes.filter(note => note.folder_id === props.folder.id);
+  // Exclude notes shared WITH the user (they appear in "Shared" section instead)
+  return notesStore.notes.filter(note => 
+    note.folder_id === props.folder.id && !note.share_permission
+  );
 });
 
 const noteCount = computed(() => {
