@@ -161,6 +161,7 @@ export default defineNuxtConfig({
     dbName: process.env.DB_NAME || '',
     jwtSecret: process.env.JWT_SECRET || '',
     openRouterApiKey: process.env.OPENROUTER_API_KEY || '',
+    brevoApiKey: process.env.BREVO_API_KEY || '',
     
     // Public keys exposed to client (non-sensitive only)
     public: {

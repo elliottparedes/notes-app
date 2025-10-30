@@ -8,6 +8,7 @@ interface AuthState {
   error: string | null;
   initialized: boolean;
   initPromise: Promise<void> | null;
+  needsPasswordReset: boolean;
 }
 
 export const useAuthStore = defineStore('auth', {
@@ -17,7 +18,8 @@ export const useAuthStore = defineStore('auth', {
     loading: false,
     error: null,
     initialized: false,
-    initPromise: null
+    initPromise: null,
+    needsPasswordReset: false
   }),
 
   getters: {
@@ -88,15 +90,24 @@ export const useAuthStore = defineStore('auth', {
         this.user = response.user;
         this.token = response.token;
         this.initialized = true;
+        this.needsPasswordReset = response.usedTemporaryPassword || false;
         
-        // Store token in localStorage with session version
+        // Store token and password reset flag in localStorage with session version
         if (process.client) {
           localStorage.setItem('auth_token', response.token);
           localStorage.setItem('session_version', Date.now().toString());
+          if (response.usedTemporaryPassword) {
+            localStorage.setItem('needs_password_reset', 'true');
+          }
         }
         
-        // Navigate to dashboard
-        await navigateTo('/dashboard');
+        // If logged in with temporary password, redirect to settings
+        if (response.usedTemporaryPassword) {
+          await navigateTo('/settings');
+        } else {
+          // Navigate to dashboard
+          await navigateTo('/dashboard');
+        }
       } catch (err: unknown) {
         // Extract error message from $fetch error response
         let errorMessage = 'Login failed';
@@ -126,6 +137,7 @@ export const useAuthStore = defineStore('auth', {
       this.user = null;
       this.token = null;
       this.initialized = false;
+      this.needsPasswordReset = false;
       
       if (process.client) {
         localStorage.clear();
@@ -191,8 +203,11 @@ export const useAuthStore = defineStore('auth', {
       this.initPromise = (async () => {
         if (process.client) {
           const token = localStorage.getItem('auth_token');
+          const needsReset = localStorage.getItem('needs_password_reset');
+          
           if (token) {
             this.token = token;
+            this.needsPasswordReset = needsReset === 'true';
             await this.fetchCurrentUser();
           } else {
             this.initialized = true;
@@ -202,6 +217,13 @@ export const useAuthStore = defineStore('auth', {
 
       await this.initPromise;
       this.initPromise = null;
+    },
+
+    clearPasswordResetFlag(): void {
+      this.needsPasswordReset = false;
+      if (process.client) {
+        localStorage.removeItem('needs_password_reset');
+      }
     }
   }
 });

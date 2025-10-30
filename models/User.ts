@@ -25,5 +25,6 @@ export interface UserLoginDto {
 export interface AuthResponse {
   user: User;
   token: string;
+  usedTemporaryPassword?: boolean;
 }
 

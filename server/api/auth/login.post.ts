@@ -15,9 +15,13 @@ export default defineEventHandler(async (event): Promise<AuthResponse> => {
   }
 
   try {
-    // Fetch user with password
-    const users = await executeQuery<Array<UserWithPassword & { folder_order: string | null }>>(
-      'SELECT id, email, name, password_hash, folder_order, created_at, updated_at FROM users WHERE email = ?',
+    // Fetch user with password and temporary password info
+    const users = await executeQuery<Array<UserWithPassword & { 
+      folder_order: string | null;
+      temporary_password: string | null;
+      temporary_password_expires_at: Date | null;
+    }>>(
+      'SELECT id, email, name, password_hash, temporary_password, temporary_password_expires_at, folder_order, created_at, updated_at FROM users WHERE email = ?',
       [body.email]
     );
 
@@ -30,11 +34,41 @@ export default defineEventHandler(async (event): Promise<AuthResponse> => {
       });
     }
 
-    // Verify password
-    const isValidPassword = await comparePassword(
-      body.password,
-      userWithPassword.password_hash
-    );
+    let isValidPassword = false;
+    let isTemporaryPassword = false;
+
+    // First, check if user is trying to login with temporary password
+    if (userWithPassword.temporary_password && userWithPassword.temporary_password_expires_at) {
+      const now = new Date();
+      const expiresAt = new Date(userWithPassword.temporary_password_expires_at);
+      
+      // Check if temporary password is still valid
+      if (now < expiresAt) {
+        isValidPassword = await comparePassword(
+          body.password,
+          userWithPassword.temporary_password
+        );
+        
+        if (isValidPassword) {
+          isTemporaryPassword = true;
+          
+          // Update main password to temporary password and clear temp fields
+          // This makes the temporary password the user's actual password until they change it
+          await executeQuery(
+            'UPDATE users SET password_hash = ?, temporary_password = NULL, temporary_password_expires_at = NULL WHERE id = ?',
+            [userWithPassword.temporary_password, userWithPassword.id]
+          );
+        }
+      }
+    }
+
+    // If not temporary password, check regular password
+    if (!isValidPassword) {
+      isValidPassword = await comparePassword(
+        body.password,
+        userWithPassword.password_hash
+      );
+    }
 
     if (!isValidPassword) {
       throw createError({
@@ -53,12 +87,13 @@ export default defineEventHandler(async (event): Promise<AuthResponse> => {
       updated_at: userWithPassword.updated_at
     };
 
-    // Generate JWT token
+    // Generate JWT token with flag if they logged in with temp password
     const token = generateToken(user);
 
     return {
       user,
-      token
+      token,
+      usedTemporaryPassword: isTemporaryPassword
     };
   } catch (error: unknown) {
     // If it's already a createError, rethrow it

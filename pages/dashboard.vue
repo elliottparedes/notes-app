@@ -55,6 +55,24 @@ const showFabMenu = ref(false);
 // User menu state
 const showUserMenu = ref(false);
 
+// Shared notes section state - persist to localStorage
+const isSharedNotesExpanded = ref(true);
+
+// Load saved state from localStorage on mount
+if (process.client) {
+  const savedState = localStorage.getItem('sharedNotesExpanded');
+  if (savedState !== null) {
+    isSharedNotesExpanded.value = savedState === 'true';
+  }
+}
+
+// Save state to localStorage when it changes
+watch(isSharedNotesExpanded, (newValue) => {
+  if (process.client) {
+    localStorage.setItem('sharedNotesExpanded', String(newValue));
+  }
+});
+
 // Delete confirmation modal
 const showDeleteModal = ref(false);
 const noteToDelete = ref<Note | null>(null);
@@ -1412,18 +1430,34 @@ onMounted(() => {
 
           <!-- Shared Notes Section -->
           <div class="mt-6">
-            <div class="flex items-center justify-between px-3 mb-2">
+            <button 
+              @click="isSharedNotesExpanded = !isSharedNotesExpanded"
+              class="w-full flex items-center justify-between px-3 py-1.5 mb-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors group"
+            >
               <h3 class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider flex items-center gap-2">
+                <UIcon 
+                  name="i-heroicons-chevron-right" 
+                  class="w-3.5 h-3.5 transition-transform duration-200"
+                  :class="isSharedNotesExpanded ? 'rotate-90' : ''"
+                />
                 <UIcon name="i-heroicons-user-group" class="w-3.5 h-3.5" />
                 Shared
               </h3>
-              <span class="text-xs px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300">
+              <span class="text-xs px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 group-hover:bg-purple-200 dark:group-hover:bg-purple-900/50 transition-colors">
                 {{ sharedNotesStore.groupedSharedNotes.length }}
               </span>
-            </div>
+            </button>
 
             <!-- Shared notes list -->
-            <div v-if="sharedNotesStore.groupedSharedNotes.length > 0" class="space-y-0.5">
+            <Transition
+              enter-active-class="transition-all duration-200 ease-out"
+              enter-from-class="opacity-0 max-h-0"
+              enter-to-class="opacity-100 max-h-[2000px]"
+              leave-active-class="transition-all duration-200 ease-in"
+              leave-from-class="opacity-100 max-h-[2000px]"
+              leave-to-class="opacity-0 max-h-0"
+            >
+              <div v-if="isSharedNotesExpanded && sharedNotesStore.groupedSharedNotes.length > 0" class="space-y-0.5 overflow-hidden">
               <div
                 v-for="share in sharedNotesStore.groupedSharedNotes"
                 :key="`share-${share.note_id}`"
@@ -1453,12 +1487,22 @@ onMounted(() => {
                   {{ share.permission }}
                 </UBadge>
               </div>
-            </div>
+              </div>
+            </Transition>
 
-            <div v-else class="px-3 py-6 text-center">
-              <UIcon name="i-heroicons-user-group" class="w-10 h-10 mx-auto text-gray-300 dark:text-gray-600 mb-2" />
-              <p class="text-xs text-gray-500 dark:text-gray-400">No shared notes yet</p>
-            </div>
+            <Transition
+              enter-active-class="transition-all duration-200 ease-out"
+              enter-from-class="opacity-0 max-h-0"
+              enter-to-class="opacity-100 max-h-[200px]"
+              leave-active-class="transition-all duration-200 ease-in"
+              leave-from-class="opacity-100 max-h-[200px]"
+              leave-to-class="opacity-0 max-h-0"
+            >
+              <div v-if="isSharedNotesExpanded && sharedNotesStore.groupedSharedNotes.length === 0" class="px-3 py-6 text-center overflow-hidden">
+                <UIcon name="i-heroicons-user-group" class="w-10 h-10 mx-auto text-gray-300 dark:text-gray-600 mb-2" />
+                <p class="text-xs text-gray-500 dark:text-gray-400">No shared notes yet</p>
+              </div>
+            </Transition>
           </div>
         </div>
 
@@ -1492,6 +1536,14 @@ onMounted(() => {
                 data-user-menu-dropdown
                 class="absolute bottom-full left-0 right-0 mb-2 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 py-2"
               >
+                <NuxtLink
+                  to="/settings"
+                  @click="showUserMenu = false"
+                  class="w-full text-left px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-3 block"
+                >
+                  <UIcon name="i-heroicons-cog-6-tooth" class="w-5 h-5" />
+                  <span>Settings</span>
+                </NuxtLink>
                 <button
                   type="button"
                   @click="authStore.logout()"
@@ -1632,18 +1684,34 @@ onMounted(() => {
 
                 <!-- Shared Notes Section (Mobile) -->
                 <div class="mt-6">
-                  <div class="flex items-center justify-between px-3 mb-2">
+                  <button 
+                    @click="isSharedNotesExpanded = !isSharedNotesExpanded"
+                    class="w-full flex items-center justify-between px-3 py-1.5 mb-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors group"
+                  >
                     <h3 class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider flex items-center gap-2">
+                      <UIcon 
+                        name="i-heroicons-chevron-right" 
+                        class="w-3.5 h-3.5 transition-transform duration-200"
+                        :class="isSharedNotesExpanded ? 'rotate-90' : ''"
+                      />
                       <UIcon name="i-heroicons-user-group" class="w-3.5 h-3.5" />
                       Shared
                     </h3>
-                    <span class="text-xs px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300">
+                    <span class="text-xs px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 group-hover:bg-purple-200 dark:group-hover:bg-purple-900/50 transition-colors">
                       {{ sharedNotesStore.groupedSharedNotes.length }}
                     </span>
-                  </div>
+                  </button>
 
                   <!-- Shared notes list -->
-                  <div v-if="sharedNotesStore.groupedSharedNotes.length > 0" class="space-y-0.5">
+                  <Transition
+                    enter-active-class="transition-all duration-200 ease-out"
+                    enter-from-class="opacity-0 max-h-0"
+                    enter-to-class="opacity-100 max-h-[2000px]"
+                    leave-active-class="transition-all duration-200 ease-in"
+                    leave-from-class="opacity-100 max-h-[2000px]"
+                    leave-to-class="opacity-0 max-h-0"
+                  >
+                    <div v-if="isSharedNotesExpanded && sharedNotesStore.groupedSharedNotes.length > 0" class="space-y-0.5 overflow-hidden">
                     <div
                       v-for="share in sharedNotesStore.groupedSharedNotes"
                       :key="`share-mobile-${share.note_id}`"
@@ -1673,12 +1741,22 @@ onMounted(() => {
                         {{ share.permission }}
                       </UBadge>
                     </div>
-                  </div>
+                    </div>
+                  </Transition>
 
-                  <div v-else class="px-3 py-6 text-center">
-                    <UIcon name="i-heroicons-user-group" class="w-10 h-10 mx-auto text-gray-300 dark:text-gray-600 mb-2" />
-                    <p class="text-xs text-gray-500 dark:text-gray-400">No shared notes yet</p>
-                  </div>
+                  <Transition
+                    enter-active-class="transition-all duration-200 ease-out"
+                    enter-from-class="opacity-0 max-h-0"
+                    enter-to-class="opacity-100 max-h-[200px]"
+                    leave-active-class="transition-all duration-200 ease-in"
+                    leave-from-class="opacity-100 max-h-[200px]"
+                    leave-to-class="opacity-0 max-h-0"
+                  >
+                    <div v-if="isSharedNotesExpanded && sharedNotesStore.groupedSharedNotes.length === 0" class="px-3 py-6 text-center overflow-hidden">
+                      <UIcon name="i-heroicons-user-group" class="w-10 h-10 mx-auto text-gray-300 dark:text-gray-600 mb-2" />
+                      <p class="text-xs text-gray-500 dark:text-gray-400">No shared notes yet</p>
+                    </div>
+                  </Transition>
                 </div>
               </div>
 
@@ -1697,15 +1775,26 @@ onMounted(() => {
                     </p>
                   </div>
                 </div>
-                <UButton
-                  icon="i-heroicons-arrow-right-on-rectangle"
-                  color="error"
-                  variant="soft"
-                  block
-                  @click="authStore.logout()"
-                >
-                  Logout
-                </UButton>
+                <div class="space-y-2">
+                  <UButton
+                    icon="i-heroicons-cog-6-tooth"
+                    color="neutral"
+                    variant="soft"
+                    block
+                    @click="navigateTo('/settings'); isMobileSidebarOpen = false"
+                  >
+                    Settings
+                  </UButton>
+                  <UButton
+                    icon="i-heroicons-arrow-right-on-rectangle"
+                    color="error"
+                    variant="soft"
+                    block
+                    @click="authStore.logout()"
+                  >
+                    Logout
+                  </UButton>
+                </div>
               </div>
             </div>
           </div>
