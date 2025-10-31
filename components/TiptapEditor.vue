@@ -1394,20 +1394,34 @@ onBeforeUnmount(() => {
   flex: 1 1 auto;
 }
 
-/* Code block styles */
-.tiptap-editor pre {
-  background: #1e293b;
-  color: #e2e8f0;
-  padding: 1rem;
-  border-radius: 0.5rem;
+/* Code block styles - Notion-inspired */
+.tiptap-editor .ProseMirror pre {
+  background: #f7f6f3;
+  color: #37352f;
+  font-family: 'JetBrainsMono', 'Courier New', Courier, monospace;
+  padding: 1rem 1.25rem;
+  border-radius: 0.375rem;
+  margin: 1rem 0;
   overflow-x: auto;
+  border: 1px solid #e9e9e7;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.04);
 }
 
-.tiptap-editor pre code {
+.dark .tiptap-editor .ProseMirror pre {
+  background: #2e2e2e;
+  color: #e8e8e8;
+  border-color: #3e3e3e;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.2);
+}
+
+.tiptap-editor .ProseMirror pre code {
   background: none;
+  color: inherit;
   padding: 0;
+  border: none;
   font-size: 0.875rem;
-  line-height: 1.5;
+  line-height: 1.6;
+  font-family: inherit;
 }
 
 /* Blockquote styles */

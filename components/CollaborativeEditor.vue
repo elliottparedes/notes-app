@@ -1222,29 +1222,45 @@ defineExpose({
   margin: 0.25rem 0;
 }
 
-/* Code Block Styles */
+/* Code Block Styles - Notion-inspired */
 .collaborative-editor :deep(.ProseMirror pre) {
-  background: #1e293b;
-  color: #e2e8f0;
+  background: #f7f6f3;
+  color: #37352f;
   font-family: 'JetBrainsMono', 'Courier New', Courier, monospace;
-  padding: 1rem;
-  border-radius: 0.5rem;
+  padding: 1rem 1.25rem;
+  border-radius: 0.375rem;
   margin: 1rem 0;
   overflow-x: auto;
+  border: 1px solid #e9e9e7;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.04);
+}
+
+.dark .collaborative-editor :deep(.ProseMirror pre) {
+  background: #2e2e2e;
+  color: #e8e8e8;
+  border-color: #3e3e3e;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.2);
 }
 
 .collaborative-editor :deep(.ProseMirror code) {
   background: #f1f5f9;
   color: #1e293b;
-  padding: 0.125rem 0.25rem;
+  padding: 0.125rem 0.375rem;
   border-radius: 0.25rem;
   font-size: 0.875em;
+  font-family: 'JetBrainsMono', 'Courier New', Courier, monospace;
+}
+
+.dark .collaborative-editor :deep(.ProseMirror code) {
+  background: #374151;
+  color: #e5e7eb;
 }
 
 .collaborative-editor :deep(.ProseMirror pre code) {
   background: none;
   color: inherit;
   padding: 0;
+  border: none;
 }
 
 /* Blockquote Styles */
