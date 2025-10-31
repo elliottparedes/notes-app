@@ -4,15 +4,17 @@ import type { Folder } from '~/models';
 
 export default defineEventHandler(async (event) => {
   const userId = await requireAuth(event);
+  const query = getQuery(event);
+  const spaceId = query.space_id ? parseInt(query.space_id as string) : null;
   
   try {
-    // Get all folders for the user
+    // Get all folders for the user, optionally filtered by space_id
     const folders = await executeQuery<Folder[]>(`
-      SELECT id, user_id, name, parent_id, created_at, updated_at
+      SELECT id, user_id, name, parent_id, space_id, created_at, updated_at
       FROM folders
-      WHERE user_id = ?
+      WHERE user_id = ?${spaceId ? ' AND space_id = ?' : ''}
       ORDER BY created_at ASC
-    `, [userId]);
+    `, spaceId ? [userId, spaceId] : [userId]);
 
     // Get user's folder order preference
     const userResults = await executeQuery<Array<{ folder_order: string | null }>>(

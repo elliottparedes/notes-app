@@ -8,6 +8,7 @@ const authStore = useAuthStore();
 const notesStore = useNotesStore();
 const foldersStore = useFoldersStore();
 const sharedNotesStore = useSharedNotesStore();
+const spacesStore = useSpacesStore();
 const toast = useToast();
 const router = useRouter();
 const route = useRoute();
@@ -152,6 +153,9 @@ if (process.client) {
 async function loadData() {
   loading.value = true;
   try {
+    // Fetch spaces first, then folders (which depends on current space)
+    await spacesStore.fetchSpaces();
+    
     await Promise.all([
       foldersStore.fetchFolders(),
       notesStore.fetchNotes(),
@@ -170,6 +174,17 @@ async function loadData() {
     loading.value = false;
   }
 }
+
+// Watch for space changes and refetch folders
+watch(() => spacesStore.currentSpaceId, async (newSpaceId, oldSpaceId) => {
+  if (hasInitialized.value && newSpaceId !== oldSpaceId && newSpaceId !== null) {
+    try {
+      await foldersStore.fetchFolders();
+    } catch (error) {
+      console.error('Failed to fetch folders for new space:', error);
+    }
+  }
+});
 
 onMounted(async () => {
   isMounted.value = true; // Mark as mounted to prevent hydration mismatch
@@ -1335,6 +1350,9 @@ onMounted(() => {
 
         <!-- Sidebar Content -->
         <div class="flex-1 overflow-y-auto p-3">
+          <!-- Space Selector -->
+          <SpaceSelector />
+          
           <!-- Quick Notes Section -->
           <div class="mb-4">
             <div class="w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -1589,6 +1607,9 @@ onMounted(() => {
 
               <!-- Drawer Content (Same as Desktop Sidebar) -->
               <div class="flex-1 overflow-y-auto p-3">
+                <!-- Space Selector -->
+                <SpaceSelector />
+                
                 <!-- Quick Notes Section -->
                 <div class="mb-4">
                   <div class="w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300">

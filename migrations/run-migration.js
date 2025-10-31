@@ -38,17 +38,28 @@ async function runMigration() {
 
   try {
     console.log('Connected to database');
-    console.log('Running migration: 001_add_folder_order.sql');
+    
+    // Get migration file from command line argument or use default
+    const migrationFile = process.argv[2] || '004_add_spaces.sql';
+    const migrationName = migrationFile.replace('.sql', '');
+    
+    console.log(`Running migration: ${migrationFile}`);
 
     // Read the SQL file
-    const sqlPath = join(__dirname, '001_add_folder_order.sql');
+    const sqlPath = join(__dirname, migrationFile);
     const sql = readFileSync(sqlPath, 'utf8');
 
     // Execute the migration
     await connection.query(sql);
 
     console.log('✅ Migration completed successfully!');
-    console.log('The folder_order column has been added to the users table.');
+    
+    if (migrationFile === '004_add_spaces.sql') {
+      console.log('The spaces table has been created and space_id added to folders table.');
+      console.log('All existing folders have been assigned to default "Personal" spaces.');
+    } else if (migrationFile === '001_add_folder_order.sql') {
+      console.log('The folder_order column has been added to the users table.');
+    }
   } catch (error) {
     console.error('❌ Migration failed:', error);
     

@@ -18,7 +18,7 @@ export default defineEventHandler(async (event) => {
   try {
     // Verify folder exists and belongs to user
     const folders = await executeQuery<Folder[]>(`
-      SELECT id, user_id, name, parent_id
+      SELECT id, user_id, space_id, name, parent_id
       FROM folders
       WHERE id = ? AND user_id = ?
     `, [folderId, userId]);
@@ -59,9 +59,9 @@ export default defineEventHandler(async (event) => {
         });
       }
 
-      // Verify parent folder exists and belongs to user
+      // Verify parent folder exists, belongs to user, and is in the same space
       const parentFolders = await executeQuery<any[]>(`
-        SELECT id FROM folders WHERE id = ? AND user_id = ?
+        SELECT id, space_id FROM folders WHERE id = ? AND user_id = ?
       `, [body.parent_id, userId]);
 
       if (parentFolders.length === 0) {
@@ -70,19 +70,28 @@ export default defineEventHandler(async (event) => {
           statusMessage: 'Parent folder not found'
         });
       }
+      
+      // Ensure parent is in the same space as the folder being moved
+      if (parentFolders[0].space_id !== folder.space_id) {
+        throw createError({
+          statusCode: 400,
+          statusMessage: 'Parent folder must be in the same space'
+        });
+      }
     }
 
-    // Check for duplicate name in same location
+    // Check for duplicate name in same location and space
     if (body.name && body.name.trim() !== folder.name) {
       const parentId = body.parent_id !== undefined ? body.parent_id : folder.parent_id;
+      const spaceId = folder.space_id;
       
       const checkQuery = parentId === null
-        ? 'SELECT id FROM folders WHERE user_id = ? AND name = ? AND parent_id IS NULL AND id != ?'
-        : 'SELECT id FROM folders WHERE user_id = ? AND name = ? AND parent_id = ? AND id != ?';
+        ? 'SELECT id FROM folders WHERE user_id = ? AND name = ? AND parent_id IS NULL AND space_id = ? AND id != ?'
+        : 'SELECT id FROM folders WHERE user_id = ? AND name = ? AND parent_id = ? AND space_id = ? AND id != ?';
       
       const checkParams = parentId === null
-        ? [userId, body.name.trim(), folderId]
-        : [userId, body.name.trim(), parentId, folderId];
+        ? [userId, body.name.trim(), spaceId, folderId]
+        : [userId, body.name.trim(), parentId, spaceId, folderId];
       
       const existing = await executeQuery<any[]>(checkQuery, checkParams);
 
@@ -124,7 +133,7 @@ export default defineEventHandler(async (event) => {
 
     // Fetch and return updated folder
     const updatedFolders = await executeQuery<Folder[]>(`
-      SELECT id, user_id, name, parent_id, created_at, updated_at
+      SELECT id, user_id, space_id, name, parent_id, created_at, updated_at
       FROM folders
       WHERE id = ?
     `, [folderId]);

@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import type { Folder, CreateFolderDto, UpdateFolderDto } from '~/models';
 import { useAuthStore } from './auth';
+import { useSpacesStore } from './spaces';
 
 interface FoldersState {
   folders: Folder[]; // Flat array of all folders
@@ -95,21 +96,32 @@ export const useFoldersStore = defineStore('folders', {
   },
 
   actions: {
-    async fetchFolders(): Promise<void> {
+    async fetchFolders(spaceId?: number | null): Promise<void> {
       this.loading = true;
       this.error = null;
 
       try {
         const authStore = useAuthStore();
+        const spacesStore = useSpacesStore();
         
         if (!authStore.token) {
           throw new Error('Not authenticated');
         }
 
+        // Use provided spaceId or current space from spaces store
+        const targetSpaceId = spaceId !== undefined ? spaceId : spacesStore.currentSpaceId;
+
+        // Build query params
+        const queryParams: Record<string, string> = {};
+        if (targetSpaceId) {
+          queryParams.space_id = targetSpaceId.toString();
+        }
+
         const folderTree = await $fetch<Folder[]>('/api/folders', {
           headers: {
             Authorization: `Bearer ${authStore.token}`
-          }
+          },
+          query: queryParams
         });
 
         // Store tree structure - create new array to ensure reactivity
@@ -156,9 +168,15 @@ export const useFoldersStore = defineStore('folders', {
 
       try {
         const authStore = useAuthStore();
+        const spacesStore = useSpacesStore();
         
         if (!authStore.token) {
           throw new Error('Not authenticated');
+        }
+
+        // Automatically assign to current space if not provided
+        if (!data.space_id && spacesStore.currentSpaceId) {
+          data.space_id = spacesStore.currentSpaceId;
         }
 
         const folder = await $fetch<Folder>('/api/folders', {

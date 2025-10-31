@@ -15,14 +15,59 @@ export default defineEventHandler(async (event) => {
   }
   
   try {
-    // Check if folder with same name already exists for this user under the same parent
+    // Determine space_id: from body, from parent folder, or from user's first space
+    let spaceId: number;
+    
+    if (body.space_id) {
+      // Verify space belongs to user
+      const space = await executeQuery<any[]>(`
+        SELECT id FROM spaces WHERE id = ? AND user_id = ?
+      `, [body.space_id, userId]);
+      
+      if (space.length === 0) {
+        throw createError({
+          statusCode: 400,
+          statusMessage: 'Space not found or does not belong to user'
+        });
+      }
+      spaceId = body.space_id;
+    } else if (body.parent_id) {
+      // Get space_id from parent folder
+      const parent = await executeQuery<any[]>(`
+        SELECT id, space_id FROM folders 
+        WHERE id = ? AND user_id = ?
+      `, [body.parent_id, userId]);
+
+      if (parent.length === 0) {
+        throw createError({
+          statusCode: 400,
+          statusMessage: 'Parent folder not found'
+        });
+      }
+      spaceId = parent[0].space_id;
+    } else {
+      // Get user's first space as default
+      const spaces = await executeQuery<any[]>(`
+        SELECT id FROM spaces WHERE user_id = ? ORDER BY created_at ASC LIMIT 1
+      `, [userId]);
+      
+      if (spaces.length === 0) {
+        throw createError({
+          statusCode: 400,
+          statusMessage: 'No spaces found. Please create a space first.'
+        });
+      }
+      spaceId = spaces[0].id;
+    }
+
+    // Check if folder with same name already exists for this user under the same parent and space
     const checkQuery = body.parent_id
-      ? 'SELECT id FROM folders WHERE user_id = ? AND name = ? AND parent_id = ?'
-      : 'SELECT id FROM folders WHERE user_id = ? AND name = ? AND parent_id IS NULL';
+      ? 'SELECT id FROM folders WHERE user_id = ? AND name = ? AND parent_id = ? AND space_id = ?'
+      : 'SELECT id FROM folders WHERE user_id = ? AND name = ? AND parent_id IS NULL AND space_id = ?';
     
     const checkParams = body.parent_id
-      ? [userId, body.name.trim(), body.parent_id]
-      : [userId, body.name.trim()];
+      ? [userId, body.name.trim(), body.parent_id, spaceId]
+      : [userId, body.name.trim(), spaceId];
     
     const existing = await executeQuery<any[]>(checkQuery, checkParams);
 
@@ -33,10 +78,10 @@ export default defineEventHandler(async (event) => {
       });
     }
 
-    // If parent_id is provided, verify it exists and belongs to the user
+    // Verify parent belongs to same space if provided
     if (body.parent_id) {
       const parent = await executeQuery<any[]>(`
-        SELECT id FROM folders 
+        SELECT id, space_id FROM folders 
         WHERE id = ? AND user_id = ?
       `, [body.parent_id, userId]);
 
@@ -46,17 +91,24 @@ export default defineEventHandler(async (event) => {
           statusMessage: 'Parent folder not found'
         });
       }
+      
+      if (parent[0].space_id !== spaceId) {
+        throw createError({
+          statusCode: 400,
+          statusMessage: 'Parent folder must be in the same space'
+        });
+      }
     }
 
     // Create the folder
     const result: any = await executeQuery(`
-      INSERT INTO folders (user_id, name, parent_id, created_at, updated_at)
-      VALUES (?, ?, ?, NOW(), NOW())
-    `, [userId, body.name.trim(), body.parent_id || null]);
+      INSERT INTO folders (user_id, space_id, name, parent_id, created_at, updated_at)
+      VALUES (?, ?, ?, ?, NOW(), NOW())
+    `, [userId, spaceId, body.name.trim(), body.parent_id || null]);
 
     // Fetch the created folder
     const folders = await executeQuery<Folder[]>(`
-      SELECT id, user_id, name, parent_id, created_at, updated_at
+      SELECT id, user_id, space_id, name, parent_id, created_at, updated_at
       FROM folders
       WHERE id = ?
     `, [result.insertId]);

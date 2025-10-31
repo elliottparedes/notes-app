@@ -15,7 +15,7 @@ export default defineEventHandler(async (event) => {
   
   try {
     const folders = await executeQuery<Folder[]>(`
-      SELECT id, user_id, name, parent_id, created_at, updated_at
+      SELECT id, user_id, space_id, name, parent_id, created_at, updated_at
       FROM folders
       WHERE id = ? AND user_id = ?
     `, [folderId, userId]);
