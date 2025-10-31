@@ -293,7 +293,7 @@ export const useFoldersStore = defineStore('folders', {
       }
     },
 
-    async reorderFolder(folderId: number, direction: 'up' | 'down'): Promise<void> {
+    async reorderFolder(folderId: number, newIndex: number): Promise<void> {
       this.loading = true;
       this.error = null;
 
@@ -310,7 +310,7 @@ export const useFoldersStore = defineStore('folders', {
             Authorization: `Bearer ${authStore.token}`
           },
           body: {
-            direction
+            newIndex
           }
         });
 

@@ -13,6 +13,7 @@ interface NotesState {
   lastSyncTime: Date | null;
   pendingChanges: number;
   folderOrder: string[];
+  noteOrder: Record<string, string[]>; // { "folder_5": ["uuid1", "uuid2"], "root": ["uuid3"] }
   // Tab management
   openTabs: string[]; // Array of note IDs (UUIDs) that are open in tabs
   activeTabId: string | null; // Currently active tab
@@ -29,6 +30,7 @@ export const useNotesStore = defineStore('notes', {
     lastSyncTime: null,
     pendingChanges: 0,
     folderOrder: [],
+    noteOrder: {},
     openTabs: [],
     activeTabId: null
   }),
@@ -459,7 +461,8 @@ export const useNotesStore = defineStore('notes', {
     },
 
     setCurrentNote(note: Note | null): void {
-      this.currentNote = note;
+      // Force reactivity by creating new object reference
+      this.currentNote = note ? { ...note } : null;
     },
 
     // Folder ordering methods
@@ -568,6 +571,230 @@ export const useNotesStore = defineStore('notes', {
           this.folderOrder[index] = temp;
           this.saveFolderOrder();
         }
+      }
+    },
+
+    // Note ordering methods
+    async loadNoteOrder(): Promise<void> {
+      if (process.client) {
+        try {
+          // First, try to load from server if online
+          if (navigator.onLine) {
+            const authStore = useAuthStore();
+            if (authStore.token) {
+              try {
+                const response = await $fetch<{ note_order: Record<string, string[]> | null }>('/api/user/note-order', {
+                  headers: {
+                    Authorization: `Bearer ${authStore.token}`
+                  }
+                });
+                
+                if (response.note_order) {
+                  this.noteOrder = response.note_order;
+                  // Save to localStorage as cache
+                  localStorage.setItem('note_order', JSON.stringify(this.noteOrder));
+                  return;
+                }
+              } catch (err) {
+                console.error('Failed to load note order from server:', err);
+              }
+            }
+          }
+          
+          // Fallback to localStorage
+          const stored = localStorage.getItem('note_order');
+          if (stored) {
+            try {
+              this.noteOrder = JSON.parse(stored);
+            } catch (err) {
+              console.error('Failed to parse note order:', err);
+              this.noteOrder = {};
+            }
+          }
+        } catch (err) {
+          console.error('Error loading note order:', err);
+        }
+      }
+    },
+
+    async saveNoteOrder(): Promise<void> {
+      if (process.client) {
+        // Always save to localStorage for offline access
+        localStorage.setItem('note_order', JSON.stringify(this.noteOrder));
+        
+        // Try to sync with server if online
+        if (navigator.onLine) {
+          const authStore = useAuthStore();
+          if (authStore.token) {
+            try {
+              await $fetch('/api/user/note-order', {
+                method: 'PUT',
+                headers: {
+                  Authorization: `Bearer ${authStore.token}`
+                },
+                body: {
+                  note_order: this.noteOrder
+                }
+              });
+            } catch (err) {
+              console.error('Failed to save note order to server:', err);
+              // Silently fail - localStorage will serve as backup
+            }
+          }
+        }
+      }
+    },
+
+    async reorderNote(noteId: string, folderId: number | null, newIndex: number): Promise<void> {
+      this.loading = true;
+      this.error = null;
+
+      try {
+        const authStore = useAuthStore();
+        
+        if (!authStore.token) {
+          throw new Error('Not authenticated');
+        }
+
+        const response = await $fetch<{ note_order: Record<string, string[]> }>(`/api/notes/${noteId}/reorder`, {
+          method: 'PUT',
+          headers: {
+            Authorization: `Bearer ${authStore.token}`
+          },
+          body: {
+            folderId,
+            newIndex
+          }
+        });
+
+        // Update local note order
+        this.noteOrder = response.note_order;
+        await this.saveNoteOrder();
+
+        // Refresh notes to get updated state
+        await this.fetchNotes();
+      } catch (err: unknown) {
+        this.error = err instanceof Error ? err.message : 'Failed to reorder note';
+        throw err;
+      } finally {
+        this.loading = false;
+      }
+    },
+
+    async moveNote(noteId: string, newFolderId: number | null, newIndex?: number): Promise<void> {
+      console.log('[NotesStore] moveNote called', {
+        noteId,
+        newFolderId,
+        newIndex,
+        currentNoteId: this.currentNote?.id,
+        isCurrentNote: this.currentNote?.id === noteId
+      });
+      
+      this.loading = true;
+      this.error = null;
+
+      try {
+        const authStore = useAuthStore();
+        
+        if (!authStore.token) {
+          throw new Error('Not authenticated');
+        }
+
+        // Optimistically update the note in local state first
+        const noteIndex = this.notes.findIndex(n => n.id === noteId);
+        const oldFolderId = noteIndex !== -1 ? this.notes[noteIndex].folder_id : null;
+        
+        console.log('[NotesStore] Optimistic update', {
+          noteIndex,
+          oldFolderId,
+          newFolderId,
+          noteFound: noteIndex !== -1
+        });
+        
+        // Update note folder_id immediately for instant UI feedback
+        if (noteIndex !== -1) {
+          // Direct assignment triggers Vue reactivity
+          this.notes[noteIndex].folder_id = newFolderId;
+          // Also update updated_at to ensure reactivity
+          this.notes[noteIndex].updated_at = new Date().toISOString();
+          console.log('[NotesStore] Updated note in array', {
+            folder_id: this.notes[noteIndex].folder_id
+          });
+        }
+
+        console.log('[NotesStore] Calling API /api/notes/' + noteId + '/move', {
+          newFolderId,
+          newIndex
+        });
+        
+        const response = await $fetch<{ note_order: Record<string, string[]> }>(`/api/notes/${noteId}/move`, {
+          method: 'PUT',
+          headers: {
+            Authorization: `Bearer ${authStore.token}`
+          },
+          body: {
+            newFolderId,
+            newIndex
+          }
+        }).catch((err) => {
+          console.error('[NotesStore] API call failed, reverting optimistic update', err);
+          // Revert optimistic update on error
+          if (noteIndex !== -1 && oldFolderId !== undefined) {
+            this.notes[noteIndex].folder_id = oldFolderId;
+          }
+          throw err;
+        });
+        
+        console.log('[NotesStore] API response received', {
+          success: response.success,
+          noteOrderKeys: Object.keys(response.note_order || {}),
+          noteOrder: response.note_order
+        });
+
+        // Update local note order
+        console.log('[NotesStore] Updating noteOrder', {
+          before: Object.keys(this.noteOrder),
+          after: Object.keys(response.note_order)
+        });
+        this.noteOrder = response.note_order;
+        await this.saveNoteOrder();
+        console.log('[NotesStore] noteOrder saved');
+
+        // Update local storage - convert to plain object to avoid DataCloneError
+        if (process.client && noteIndex !== -1) {
+          const { saveNote } = await import('~/utils/db.client');
+          // Convert reactive object to plain object for IndexedDB
+          const plainNote = JSON.parse(JSON.stringify(this.notes[noteIndex]));
+          console.log('[NotesStore] Saving note to IndexedDB', {
+            noteId: plainNote.id,
+            folder_id: plainNote.folder_id
+          });
+          await saveNote(plainNote);
+          
+          // Also update currentNote if it's the one being moved
+          if (this.currentNote && this.currentNote.id === noteId) {
+            console.log('[NotesStore] Updating currentNote', {
+              before: this.currentNote.folder_id,
+              after: newFolderId
+            });
+            this.currentNote.folder_id = newFolderId;
+            this.currentNote.updated_at = this.notes[noteIndex].updated_at;
+            // Force reactivity by reassigning
+            this.currentNote = { ...this.currentNote };
+            console.log('[NotesStore] currentNote updated', {
+              folder_id: this.currentNote.folder_id
+            });
+          }
+        }
+
+        console.log('[NotesStore] moveNote completed successfully');
+        // The API call already saved to database - no need for additional sync
+        // The response confirms the database was updated successfully
+      } catch (err: unknown) {
+        this.error = err instanceof Error ? err.message : 'Failed to move note';
+        throw err;
+      } finally {
+        this.loading = false;
       }
     },
 

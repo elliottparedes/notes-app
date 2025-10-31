@@ -3,7 +3,7 @@ import { executeQuery, parseJsonField } from '~/server/utils/db';
 import type { Folder } from '~/models';
 
 interface ReorderDto {
-  direction: 'up' | 'down';
+  newIndex: number;
 }
 
 export default defineEventHandler(async (event) => {
@@ -20,10 +20,10 @@ export default defineEventHandler(async (event) => {
   try {
     const body = await readBody<ReorderDto>(event);
     
-    if (!body.direction || !['up', 'down'].includes(body.direction)) {
+    if (typeof body.newIndex !== 'number' || body.newIndex < 0) {
       throw createError({
         statusCode: 400,
-        statusMessage: 'Invalid direction. Must be "up" or "down"'
+        statusMessage: 'Invalid newIndex. Must be a non-negative number'
       });
     }
 
@@ -92,19 +92,17 @@ export default defineEventHandler(async (event) => {
       });
     }
 
-    // Calculate new index
-    const newIndex = body.direction === 'up' ? currentIndex - 1 : currentIndex + 1;
-
-    // Check bounds
-    if (newIndex < 0 || newIndex >= currentOrder.length) {
+    // Validate new index
+    if (body.newIndex < 0 || body.newIndex >= currentOrder.length) {
       throw createError({
         statusCode: 400,
-        statusMessage: `Cannot move ${body.direction}. Already at ${body.direction === 'up' ? 'top' : 'bottom'}.`
+        statusMessage: 'Invalid newIndex. Must be within bounds of sibling count'
       });
     }
 
-    // Swap positions
-    [currentOrder[currentIndex], currentOrder[newIndex]] = [currentOrder[newIndex], currentOrder[currentIndex]];
+    // Move the folder to the new position
+    const [movedFolder] = currentOrder.splice(currentIndex, 1);
+    currentOrder.splice(body.newIndex, 0, movedFolder);
 
     // Update folder order
     folderOrder[levelKey] = currentOrder;
@@ -117,7 +115,7 @@ export default defineEventHandler(async (event) => {
 
     return {
       success: true,
-      message: `Folder moved ${body.direction}`,
+      message: 'Folder reordered',
       folder_order: folderOrder
     };
   } catch (error: unknown) {

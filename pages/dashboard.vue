@@ -93,6 +93,10 @@ const renameFolderName = ref('');
 const folderToManage = ref<number | null>(null);
 const isFolderActionLoading = ref(false);
 
+// Folder drag-and-drop
+const foldersContainerRef = ref<HTMLElement | null>(null);
+let foldersSortableInstance: any = null;
+
 // AI generation modal
 const showAiGenerateModal = ref(false);
 const aiPrompt = ref('');
@@ -160,6 +164,7 @@ async function loadData() {
       foldersStore.fetchFolders(),
       notesStore.fetchNotes(),
       notesStore.updatePendingChangesCount(),
+      notesStore.loadNoteOrder(),
       sharedNotesStore.fetchSharedNotes()
     ]);
     hasInitialized.value = true;
@@ -205,6 +210,17 @@ onMounted(async () => {
   // Load open tabs
   if (process.client) {
     await notesStore.loadTabsFromStorage();
+  }
+  
+  // Initialize folder drag-and-drop after data is loaded
+  await nextTick();
+  await initializeFoldersSortable();
+});
+
+onUnmounted(() => {
+  if (foldersSortableInstance) {
+    foldersSortableInstance.destroy();
+    foldersSortableInstance = null;
   }
 });
 
@@ -274,8 +290,13 @@ watch(isOnline, async (online, wasOnlineValue) => {
   }
 });
 
-// Active note from store
-const activeNote = computed(() => notesStore.activeNote);
+// Active note from store - ensure reactivity for folder_id changes
+const activeNote = computed(() => {
+  const note = notesStore.activeNote;
+  // Return note directly - Vue reactivity will track folder_id changes
+  // The spread was breaking the reference equality check
+  return note;
+});
 
 // Notes without folders (for "Quick Notes" section)
 // Exclude notes shared WITH the user (they appear in "Shared" section instead)
@@ -285,8 +306,59 @@ const notesWithoutFolder = computed(() => {
   );
 });
 
+// Watch for active note folder_id changes separately to catch moves
+watch(
+  () => activeNote.value?.folder_id,
+  (newFolderId, oldFolderId) => {
+    const note = activeNote.value;
+    
+    if (!note) return;
+    
+    // If folder_id changed, update editForm immediately
+    if (newFolderId !== oldFolderId && newFolderId !== editForm.folder_id) {
+      console.log('[Dashboard] Folder changed, updating editForm', {
+        oldFolderId: editForm.folder_id,
+        newFolderId: note.folder_id
+      });
+      
+      const folderName = note.folder_id 
+        ? foldersStore.getFolderById(note.folder_id)?.name || null
+        : null;
+      
+      editForm.folder_id = note.folder_id || null;
+      editForm.folder = folderName || '';
+      prevFolderId.value = note.folder_id || null;
+      
+      console.log('[Dashboard] editForm.folder_id updated', {
+        folder_id: editForm.folder_id,
+        folder: editForm.folder
+      });
+    }
+  },
+  { immediate: false }
+);
+
 // Watch for active note changes and load it
 watch(activeNote, (note, oldNote) => {
+  // Skip if note hasn't actually changed (prevent duplicate updates)
+  // But ALWAYS update if folder_id changed (even if same note)
+  const folderIdChanged = oldNote && note && oldNote.id === note.id && oldNote.folder_id !== note.folder_id;
+  
+  console.log('[Dashboard] Active note watcher triggered', {
+    noteId: note?.id,
+    oldNoteId: oldNote?.id,
+    sameNote: oldNote?.id === note?.id,
+    folderIdChanged,
+    oldFolderId: oldNote?.folder_id,
+    newFolderId: note?.folder_id,
+    updatedAtChanged: oldNote?.updated_at !== note?.updated_at
+  });
+  
+  if (oldNote && note && oldNote.id === note.id && oldNote.updated_at === note.updated_at && !folderIdChanged) {
+    console.log('[Dashboard] Skipping update - note unchanged');
+    return;
+  }
+  
   if (note) {
     console.log('[Dashboard] Active note changed:', {
       id: note.id.substring(0, 20),
@@ -311,15 +383,36 @@ watch(activeNote, (note, oldNote) => {
       prevFolderId.value = note.folder_id || null;
     } else {
       // For regular notes, only sync if content actually changed or it's a different note
+      // OR if folder_id changed (even if same note and same content)
       const isDifferentNote = !oldNote || oldNote.id !== note.id;
       const contentChanged = note.content !== editForm.content;
+      const folderChanged = folderIdChanged || note.folder_id !== editForm.folder_id;
       
-      if (isDifferentNote || contentChanged) {
+      console.log('[Dashboard] Regular note update check', {
+        isDifferentNote,
+        contentChanged,
+        folderChanged,
+        folderIdChanged,
+        noteFolderId: note.folder_id,
+        editFormFolderId: editForm.folder_id
+      });
+      
+      if (isDifferentNote || contentChanged || folderChanged) {
+        console.log('[Dashboard] Updating editForm with note data', {
+          folder_id: note.folder_id,
+          folder: note.folder
+        });
+        
+        // Update editForm - use folder name from foldersStore if available
+        const folderName = note.folder_id 
+          ? foldersStore.getFolderById(note.folder_id)?.name || note.folder || null
+          : null;
+        
         Object.assign(editForm, {
           title: note.title,
           content: note.content || '',
           tags: note.tags || [],
-          folder: note.folder || '',
+          folder: folderName || '',
           folder_id: note.folder_id || null
         });
         
@@ -327,6 +420,12 @@ watch(activeNote, (note, oldNote) => {
         prevTitle.value = note.title;
         prevContent.value = note.content || '';
         prevFolderId.value = note.folder_id || null;
+        
+        console.log('[Dashboard] editForm updated', {
+          folder_id: editForm.folder_id,
+          folder: editForm.folder,
+          folderName
+        });
       }
     }
     
@@ -477,12 +576,21 @@ function handleDeleteFolder(folderId: number) {
 
 async function handleMoveUp(folderId: number) {
   try {
-    await foldersStore.reorderFolder(folderId, 'up');
-    toast.add({
-      title: 'Success',
-      description: 'Folder moved up',
-      color: 'success'
-    });
+    const siblings = foldersStore.getSiblings(folderId);
+    const currentIndex = siblings.findIndex(f => f.id === folderId);
+    if (currentIndex > 0) {
+      // Batch all updates together to prevent flickering
+      await foldersStore.reorderFolder(folderId, currentIndex - 1);
+      
+      // Refresh in one go after reorder completes
+      await foldersStore.fetchFolders();
+      
+      toast.add({
+        title: 'Success',
+        description: 'Folder moved up',
+        color: 'success'
+      });
+    }
   } catch (error) {
     console.error('Move up error:', error);
     toast.add({
@@ -495,12 +603,21 @@ async function handleMoveUp(folderId: number) {
 
 async function handleMoveDown(folderId: number) {
   try {
-    await foldersStore.reorderFolder(folderId, 'down');
-    toast.add({
-      title: 'Success',
-      description: 'Folder moved down',
-      color: 'success'
-    });
+    const siblings = foldersStore.getSiblings(folderId);
+    const currentIndex = siblings.findIndex(f => f.id === folderId);
+    if (currentIndex !== -1 && currentIndex < siblings.length - 1) {
+      // Batch all updates together to prevent flickering
+      await foldersStore.reorderFolder(folderId, currentIndex + 1);
+      
+      // Refresh in one go after reorder completes
+      await foldersStore.fetchFolders();
+      
+      toast.add({
+        title: 'Success',
+        description: 'Folder moved down',
+        color: 'success'
+      });
+    }
   } catch (error) {
     console.error('Move down error:', error);
     toast.add({
@@ -510,6 +627,128 @@ async function handleMoveDown(folderId: number) {
     });
   }
 }
+
+async function handleFolderReorder(folderId: number, newIndex: number) {
+  try {
+    console.log('[Dashboard] Reordering folder', { folderId, newIndex });
+    await foldersStore.reorderFolder(folderId, newIndex);
+    
+    // Refresh folder tree to update UI
+    await foldersStore.fetchFolders();
+  } catch (error) {
+    console.error('Reorder folder error:', error);
+    toast.add({
+      title: 'Error',
+      description: 'Failed to reorder folder',
+      color: 'error'
+    });
+  }
+}
+
+// Initialize folder drag-and-drop
+async function initializeFoldersSortable() {
+  if (!foldersContainerRef.value) {
+    return;
+  }
+  
+  if (foldersSortableInstance) {
+    foldersSortableInstance.destroy();
+    foldersSortableInstance = null;
+  }
+  
+  await nextTick();
+  
+  if (!foldersContainerRef.value) {
+    return;
+  }
+  
+  try {
+    const SortableJS = (await import('sortablejs')).default;
+    
+    // Check if folder items exist
+    const folderItems = foldersContainerRef.value.querySelectorAll('.folder-item');
+    console.log('[Dashboard] Found folder items:', folderItems.length);
+    
+    if (folderItems.length === 0) {
+      console.warn('[Dashboard] No folder items found, cannot initialize Sortable');
+      return;
+    }
+    
+    foldersSortableInstance = SortableJS.create(foldersContainerRef.value, {
+      animation: 150,
+      ghostClass: 'sortable-ghost',
+      chosenClass: 'sortable-chosen',
+      dragClass: 'sortable-drag',
+      draggable: '.folder-item',
+      forceFallback: false,
+      delay: 0,
+      delayOnTouchOnly: true,
+      touchStartThreshold: 3,
+      filter: '.no-drag',
+      preventOnFilter: false,
+      group: {
+        name: 'folders',
+        pull: false, // Don't allow moving folders between different parents
+        put: false // Don't allow dropping folders from other parents
+      },
+      onStart: (evt) => {
+        console.log('[Dashboard] Root folder drag started', evt);
+      },
+      onEnd: async (evt) => {
+        const { oldIndex, newIndex, item } = evt;
+        
+        console.log('[Dashboard] Root folder drag ended', {
+          oldIndex,
+          newIndex,
+          item
+        });
+        
+        if (oldIndex === undefined || newIndex === undefined || oldIndex === newIndex) {
+          console.log('[Dashboard] No root folder reorder needed');
+          return;
+        }
+        
+        const folderId = item.getAttribute('data-folder-id');
+        if (!folderId) {
+          console.error('[Dashboard] No folder ID found on dragged item');
+          return;
+        }
+        
+        console.log('[Dashboard] Reordering root folder', {
+          folderId,
+          oldIndex,
+          newIndex
+        });
+        
+        try {
+          await handleFolderReorder(parseInt(folderId), newIndex);
+        } catch (error) {
+          console.error('Failed to reorder folder:', error);
+        }
+      }
+    });
+    
+    console.log('[Dashboard] Root folders Sortable initialized', {
+      container: foldersContainerRef.value,
+      childCount: foldersContainerRef.value?.children.length,
+      folderItems: foldersContainerRef.value?.querySelectorAll('.folder-item').length
+    });
+  } catch (error) {
+    console.error('[Dashboard] Error initializing folders Sortable:', error);
+  }
+}
+
+// Watch for folder tree changes and reinitialize Sortable
+watch(
+  () => foldersStore.folderTree.length,
+  async () => {
+    if (foldersStore.folderTree.length > 0) {
+      await nextTick();
+      await initializeFoldersSortable();
+    }
+  },
+  { immediate: true }
+);
 
 // Folder CRUD operations
 function openCreateFolderModal() {
@@ -1196,11 +1435,14 @@ function selectFolderForNote(folderId: number | null) {
   editForm.folder = folderId ? foldersStore.getFolderById(folderId)?.name || null : null;
 }
 
-// Computed for selected folder name
+// Computed for selected folder name - ensure it updates when folder changes
 const selectedFolderName = computed(() => {
-  if (!editForm.folder_id) return null;
+  // Get folder_id from editForm or activeNote as fallback
+  const folderId = editForm.folder_id ?? activeNote.value?.folder_id ?? null;
   
-  const folder = foldersStore.getFolderById(editForm.folder_id);
+  if (!folderId) return null;
+  
+  const folder = foldersStore.getFolderById(folderId);
   if (!folder) return null;
   
   // Build full path
@@ -1425,7 +1667,7 @@ onMounted(() => {
             </div>
 
             <!-- Folder Tree with Notes -->
-            <div v-else class="space-y-0.5">
+            <div v-else ref="foldersContainerRef" class="space-y-0.5" id="root-folders-container">
               <FolderTreeItem
                 v-for="folder in foldersStore.folderTree"
                 :key="folder.id"
@@ -1440,6 +1682,7 @@ onMounted(() => {
                 @delete="handleDeleteFolder"
                 @move-up="handleMoveUp"
                 @move-down="handleMoveDown"
+                @reorder-folder="handleFolderReorder"
                 @open-note="handleFolderNoteClick"
                 @delete-note="(noteId) => handleDeleteNote(notesStore.notes.find(n => n.id === noteId)!)"
               />
@@ -1697,6 +1940,7 @@ onMounted(() => {
                       @delete="handleDeleteFolder"
                       @move-up="handleMoveUp"
                       @move-down="handleMoveDown"
+                      @reorder-folder="handleFolderReorder"
                       @open-note="handleFolderNoteClick"
                       @delete-note="(noteId) => handleDeleteNote(notesStore.notes.find(n => n.id === noteId)!)"
                     />
@@ -2846,4 +3090,5 @@ onMounted(() => {
   transform: scale(1) translateY(0);
 }
 </style>
+
 
