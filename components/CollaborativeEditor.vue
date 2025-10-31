@@ -712,10 +712,22 @@ onBeforeUnmount(() => {
   }
 })
 
-// Expose connection status for parent components
+// Method to get current HTML content (useful before unmounting or unsharing)
+function getCurrentContent(): string {
+  if (!editor.value) return ''
+  try {
+    return editor.value.getHTML()
+  } catch (error) {
+    console.error(`[CollabEditor ${props.noteId}] Error getting content:`, error)
+    return ''
+  }
+}
+
+// Expose connection status and getCurrentContent for parent components
 defineExpose({
   connectionStatus,
-  connectedUsers
+  connectedUsers,
+  getCurrentContent
 })
 </script>
 

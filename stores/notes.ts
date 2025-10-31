@@ -167,6 +167,12 @@ export const useNotesStore = defineStore('notes', {
 
           if (localNote) {
             this.currentNote = localNote;
+            
+            // Update the note in the notes array if it exists
+            const noteIndex = this.notes.findIndex(n => n.id === id);
+            if (noteIndex !== -1) {
+              this.notes[noteIndex] = localNote;
+            }
           }
 
           // Then try to sync with server if online
@@ -180,6 +186,15 @@ export const useNotesStore = defineStore('notes', {
               });
 
               this.currentNote = response;
+              
+              // Update the note in the notes array if it exists
+              const noteIndex = this.notes.findIndex(n => n.id === id);
+              if (noteIndex !== -1) {
+                this.notes[noteIndex] = response;
+              } else {
+                // If note not in array, add it (e.g., if it was just shared with user)
+                this.notes.push(response);
+              }
               
               // Update local storage (convert to plain object)
               const { saveNote } = await import('~/utils/db.client');

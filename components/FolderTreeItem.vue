@@ -225,6 +225,7 @@ async function initializeNotesSortable() {
       swapThreshold: 0.65,
       invertSwap: false,
       fallbackOnBody: true, // Recommended for nested scenarios
+      fallbackTolerance: 0, // Prevent creating duplicate drag elements
       onStart: (evt) => {
         console.log('[FolderTreeItem] Note drag started');
         // Add class to body to enable CSS for dragging state
@@ -922,9 +923,13 @@ onMounted(() => {
 }
 
 /* SortableJS drag states */
-:deep(.sortable-ghost) {
+/* Ghost element - placeholder where item will be dropped */
+/* IMPORTANT: Only apply to .note-item elements to prevent leaking to other elements */
+.note-item.sortable-ghost,
+:deep(.note-item.sortable-ghost) {
   opacity: 0.5;
   background: rgba(59, 130, 246, 0.1) !important;
+  /* Border will be conditionally shown/hidden based on drag element existence */
   border: 2px dashed rgba(59, 130, 246, 0.5) !important;
 }
 
@@ -932,10 +937,61 @@ onMounted(() => {
   cursor: grabbing !important;
 }
 
-:deep(.sortable-drag) {
+/* When drag element is active, hide the ghost outline to prevent double boxes */
+/* Only apply to .note-item elements to prevent affecting editor or other elements */
+.note-item.sortable-drag,
+:deep(.note-item.sortable-drag) {
   opacity: 1;
   box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
   transform: rotate(2deg);
+  /* Remove any duplicate border/outline */
+  outline: none !important;
+  border: none !important;
+}
+
+/* Prevent double outlines - when dragging, hide ghost border if drag element is visible */
+/* The sortable-dragging class is added to body in onStart handler */
+/* Only target .note-item elements */
+body.sortable-dragging :deep(.note-item.sortable-drag) {
+  /* Ensure drag element has no duplicate border */
+  border: none !important;
+  outline: none !important;
+}
+
+/* When dragging with sortable-drag (fallback mode), hide ghost border to prevent double outline */
+/* Only target note-item elements to prevent affecting other elements like editor */
+/* IMPORTANT: Hide ghost border when dragging - only show one outline (either ghost OR container, not both) */
+body.sortable-dragging :deep(.note-item.sortable-drag ~ .note-item.sortable-ghost) {
+  /* Hide ghost border when drag element exists in same container */
+  border: none !important;
+  outline: none !important;
+  background: rgba(59, 130, 246, 0.05) !important;
+  opacity: 0.2 !important;
+}
+
+/* When ghost is in an empty folder (drop target), show ghost border but hide container border */
+body.sortable-dragging :deep(.notes-container.empty-folder .note-item.sortable-ghost) {
+  /* Show ghost border when in empty folder - this is the drop indicator */
+  border: 2px dashed rgba(59, 130, 246, 0.5) !important;
+  opacity: 0.5 !important;
+  background: rgba(59, 130, 246, 0.1) !important;
+}
+
+/* When ghost is in a non-empty folder (has other notes), minimize its visibility */
+body.sortable-dragging :deep(.notes-container:not(.empty-folder) .note-item.sortable-ghost) {
+  /* Minimize ghost when not in empty folder - just show as placeholder */
+  border: none !important;
+  outline: none !important;
+  background: rgba(59, 130, 246, 0.05) !important;
+  opacity: 0.3 !important;
+}
+
+/* Prevent SortableJS classes from affecting non-note elements (like editor) */
+body.sortable-dragging :deep(.sortable-ghost:not(.note-item)),
+body.sortable-dragging :deep(.sortable-drag:not(.note-item)),
+body.sortable-dragging :deep(.sortable-chosen:not(.note-item)) {
+  border: none !important;
+  outline: none !important;
 }
 
 .folder-item,
@@ -966,20 +1022,27 @@ onMounted(() => {
 }
 
 /* Only show space when dragging AND hovering over empty folder */
+/* When ghost exists, hide container border to prevent double outline */
 .notes-container.empty-folder:has(.sortable-ghost) {
   min-height: 50px;
   padding: 8px 0;
-  border-color: rgba(59, 130, 246, 0.3);
+  border-color: transparent !important; /* Hide border when ghost exists to prevent double outline */
   background-color: rgba(59, 130, 246, 0.05);
 }
 
 /* Show space only when hovering over empty folder during drag */
 /* Exclude the source container (where note came from) to avoid weird space */
+/* Hide border if ghost element exists to prevent double outline */
 body.sortable-dragging .notes-container.empty-folder:hover:not(.sortable-source-container) {
   min-height: 50px;
   padding: 8px 0;
-  border-color: rgba(59, 130, 246, 0.3);
+  border-color: transparent !important; /* Hide border to prevent double outline with ghost */
   background-color: rgba(59, 130, 246, 0.05);
+}
+
+/* Show border only when NO ghost element exists (when dragging but not over this container yet) */
+body.sortable-dragging .notes-container.empty-folder:hover:not(.sortable-source-container):not(:has(.sortable-ghost)) {
+  border-color: rgba(59, 130, 246, 0.3);
 }
 
 /* Don't show space on source container even if it becomes empty */

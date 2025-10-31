@@ -40,6 +40,7 @@ const editForm = reactive<UpdateNoteDto & { content: string }>({
 const isSaving = ref(false);
 const autoSaveTimeout = ref<NodeJS.Timeout | null>(null);
 const isLocked = ref(false);
+const collaborativeEditorRef = ref<{ getCurrentContent: () => string } | null>(null);
 const showFolderDropdown = ref(false);
 const folderDropdownPos = ref({ top: 0, left: 0 });
 const folderButtonRef = ref<HTMLButtonElement | null>(null);
@@ -180,11 +181,77 @@ async function loadData() {
   }
 }
 
-// Watch for space changes and refetch folders
+// Watch for space changes and refetch folders, update tabs
 watch(() => spacesStore.currentSpaceId, async (newSpaceId, oldSpaceId) => {
   if (hasInitialized.value && newSpaceId !== oldSpaceId && newSpaceId !== null) {
     try {
       await foldersStore.fetchFolders();
+      
+      // Update open tabs when switching spaces
+      // Close tabs that belong to folders in other spaces, but preserve:
+      // - Notes without folders (folder_id === null) - these are global
+      // - Shared notes (share_permission) - preserve for collaborative editing
+      const currentSpaceFolderIds = new Set(
+        foldersStore.folders.map(f => f.id)
+      );
+      
+      const validTabs = notesStore.openTabs.filter(noteId => {
+        const note = notesStore.notes.find(n => n.id === noteId);
+        if (!note) {
+          console.log('[Dashboard] Tab note not found:', noteId);
+          return false;
+        }
+        
+        // Keep shared notes for collaborative editing (preserve collaboration sessions)
+        if (note.share_permission) {
+          console.log('[Dashboard] Keeping shared note tab:', noteId, note.title);
+          return true;
+        }
+        
+        // Keep notes without folders (global notes, not tied to any space)
+        if (note.folder_id === null) {
+          console.log('[Dashboard] Keeping note without folder:', noteId, note.title);
+          return true;
+        }
+        
+        // Check if note's folder belongs to current space
+        const noteFolder = foldersStore.getFolderById(note.folder_id);
+        if (!noteFolder) {
+          console.log('[Dashboard] Note folder not found:', noteId, note.folder_id);
+          return false;
+        }
+        
+        const folderBelongsToCurrentSpace = currentSpaceFolderIds.has(note.folder_id);
+        if (!folderBelongsToCurrentSpace) {
+          console.log('[Dashboard] Closing tab - note folder not in current space:', noteId, note.title, 'folder_id:', note.folder_id);
+        }
+        
+        return folderBelongsToCurrentSpace;
+      });
+      
+      // Update tabs if they changed
+      if (validTabs.length !== notesStore.openTabs.length || 
+          validTabs.some((id, i) => notesStore.openTabs[i] !== id)) {
+        console.log('[Dashboard] Filtering tabs for space change:', {
+          before: notesStore.openTabs.length,
+          after: validTabs.length,
+          currentSpaceId: newSpaceId
+        });
+        
+        // Update tabs in store
+        notesStore.openTabs = validTabs;
+        
+        // Update active tab if it's no longer valid
+        if (notesStore.activeTabId && !validTabs.includes(notesStore.activeTabId)) {
+          if (validTabs.length > 0) {
+            notesStore.setActiveTab(validTabs[0]);
+          } else {
+            notesStore.activeTabId = null;
+          }
+        }
+        
+        notesStore.saveTabsToStorage();
+      }
     } catch (error) {
       console.error('Failed to fetch folders for new space:', error);
     }
@@ -300,10 +367,19 @@ const activeNote = computed(() => {
 
 // Notes without folders (for "Quick Notes" section)
 // Exclude notes shared WITH the user (they appear in "Shared" section instead)
+// Only show notes that don't belong to folders in other spaces
 const notesWithoutFolder = computed(() => {
-  return notesStore.notes.filter(note => 
-    note.folder_id === null && !note.share_permission // Only show notes owned by user
-  );
+  return notesStore.notes.filter(note => {
+    // Only show notes owned by user (not shared with them)
+    if (note.share_permission) return false;
+    
+    // Only show notes without folders
+    if (note.folder_id !== null) return false;
+    
+    // Note is without folder, so it can be shown in any space
+    // Quick notes are global (not tied to a specific space)
+    return true;
+  });
 });
 
 // Watch for active note folder_id changes separately to catch moves
@@ -928,10 +1004,51 @@ async function shareNote() {
 
 async function removeShare(shareId: number) {
   try {
+    // Preserve the active note ID before unsharing
+    const activeNoteId = activeNote.value?.id;
+    const wasShared = activeNote.value?.is_shared || activeNote.value?.share_permission;
+    
+    // If the note is currently shared (using CollaborativeEditor), save the current content
+    // from CollaborativeEditor's Y.Doc to the database before unsharing
+    if (wasShared && activeNote.value) {
+      console.log('[Dashboard] Saving CollaborativeEditor content before unsharing');
+      try {
+        // Get the current content directly from CollaborativeEditor
+        let contentToSave = '';
+        if (collaborativeEditorRef.value?.getCurrentContent) {
+          contentToSave = collaborativeEditorRef.value.getCurrentContent();
+          console.log('[Dashboard] Got content from CollaborativeEditor, length:', contentToSave.length);
+        } else {
+          // Fallback: use content from activeNote (updated by CollaborativeEditor's @update:content)
+          contentToSave = activeNote.value.content || '';
+          console.log('[Dashboard] Using content from activeNote, length:', contentToSave.length);
+        }
+        
+        // Only save if we have content
+        if (contentToSave || activeNote.value.title) {
+          await notesStore.updateNote(activeNoteId!, {
+            title: activeNote.value.title,
+            content: contentToSave, // Get content from CollaborativeEditor
+            tags: activeNote.value.tags || [],
+            folder_id: activeNote.value.folder_id || null
+          });
+          console.log('[Dashboard] Content saved successfully, length:', contentToSave.length);
+        }
+      } catch (saveError) {
+        console.error('[Dashboard] Failed to save content before unsharing:', saveError);
+        // Continue with unsharing even if save fails
+      }
+    }
+    
     await sharedNotesStore.removeShare(shareId);
     
     // Refresh notes to update the is_shared field
     await notesStore.fetchNotes();
+    
+    // Explicitly refetch the active note to ensure it has correct data
+    if (activeNoteId) {
+      await notesStore.fetchNote(activeNoteId);
+    }
     
     toast.add({
       title: 'Success',
@@ -2359,6 +2476,7 @@ onMounted(() => {
               <!-- Use CollaborativeEditor for shared notes -->
               <CollaborativeEditor
                 v-if="activeNote.is_shared || activeNote.share_permission"
+                ref="collaborativeEditorRef"
                 :key="`collab-${activeNote.id}`"
                 :note-id="activeNote.id"
                 :editable="!isLocked && (activeNote.share_permission === 'editor' || activeNote.user_id === authStore.currentUser?.id)"
