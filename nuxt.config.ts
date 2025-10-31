@@ -147,7 +147,8 @@ export default defineNuxtConfig({
       enabled: false,  // Disable PWA in dev for better performance - test in preview mode
       type: 'module',
       suppressWarnings: true
-    }
+    },
+    injectRegister: process.env.NODE_ENV === 'production' ? 'auto' : null  // Disable service worker registration in dev
     // Note: PWA disabled in dev for performance. Test with: npm run build && npm run preview
   },
 
