@@ -13,6 +13,7 @@ import TableHeader from '@tiptap/extension-table-header'
 import Image from '@tiptap/extension-image'
 import Gapcursor from '@tiptap/extension-gapcursor'
 import { Extension } from '@tiptap/core'
+import { Plugin, PluginKey } from '@tiptap/pm/state'
 import type { Level } from '@tiptap/extension-heading'
 
 // Custom extension to handle table exit
@@ -73,6 +74,71 @@ const TableExit = Extension.create({
         return false
       }
     }
+  }
+})
+
+// Custom TaskItem extension that applies strike formatting when checked
+const TaskItemWithStrike = TaskItem.extend({
+  addProseMirrorPlugins() {
+    return [
+      new Plugin({
+        key: new PluginKey('taskItemStrike'),
+        appendTransaction(transactions, oldState, newState) {
+          // Only process if the document actually changed
+          if (!transactions.some(tr => tr.docChanged)) {
+            return null
+          }
+
+          const tr = newState.tr
+          let modified = false
+
+          // Iterate through all task items to check for checked state changes
+          newState.doc.descendants((node, pos) => {
+            if (node.type.name === 'taskItem') {
+              const isChecked = node.attrs.checked
+              const oldNode = oldState.doc.nodeAt(pos)
+              const wasChecked = oldNode?.attrs?.checked || false
+
+              // If checked state changed, apply or remove strike formatting
+              if (isChecked !== wasChecked) {
+                // Find all text nodes within the task item and apply/remove strike
+                // The task item content starts after the checkbox (pos + 1)
+                const contentStart = pos + 1
+                const contentEnd = pos + node.nodeSize - 1
+
+                newState.doc.nodesBetween(contentStart, contentEnd, (textNode, textPos) => {
+                  if (textNode.isText) {
+                    // Check if strike mark exists
+                    const hasStrike = textNode.marks.some(mark => mark.type.name === 'strike')
+                    const strikeMarkType = newState.schema.marks.strike
+                    
+                    if (!strikeMarkType) {
+                      return // Strike mark type not available
+                    }
+                    
+                    if (isChecked && !hasStrike) {
+                      // Apply strike formatting to this text node
+                      const strikeMark = strikeMarkType.create()
+                      tr.addMark(textPos, textPos + textNode.nodeSize, strikeMark)
+                      modified = true
+                    } else if (!isChecked && hasStrike) {
+                      // Remove strike formatting from this text node
+                      const strikeMark = textNode.marks.find(mark => mark.type.name === 'strike')
+                      if (strikeMark) {
+                        tr.removeMark(textPos, textPos + textNode.nodeSize, strikeMark)
+                        modified = true
+                      }
+                    }
+                  }
+                })
+              }
+            }
+          })
+
+          return modified ? tr : null
+        }
+      })
+    ]
   }
 })
 
@@ -142,7 +208,7 @@ const editor = useEditor({
       }
     }),
     TaskList,
-    TaskItem.configure({
+    TaskItemWithStrike.configure({
       nested: true,
       HTMLAttributes: {
         class: 'flex items-start gap-2'
