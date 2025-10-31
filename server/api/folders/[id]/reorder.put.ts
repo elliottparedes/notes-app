@@ -27,9 +27,9 @@ export default defineEventHandler(async (event) => {
       });
     }
 
-    // Get the folder to reorder
+    // Get the folder to reorder (including space_id)
     const folderResults = await executeQuery<Folder[]>(
-      'SELECT id, user_id, name, parent_id FROM folders WHERE id = ? AND user_id = ?',
+      'SELECT id, user_id, name, parent_id, space_id FROM folders WHERE id = ? AND user_id = ?',
       [folderId, userId]
     );
 
@@ -42,14 +42,14 @@ export default defineEventHandler(async (event) => {
 
     const folder = folderResults[0];
 
-    // Get all sibling folders (folders with the same parent_id)
+    // Get all sibling folders (folders with the same parent_id AND same space_id)
     const siblings = await executeQuery<Folder[]>(
-      'SELECT id, user_id, name, parent_id FROM folders WHERE user_id = ? AND ' +
+      'SELECT id, user_id, name, parent_id, space_id FROM folders WHERE user_id = ? AND space_id = ? AND ' +
       (folder.parent_id === null 
         ? 'parent_id IS NULL' 
         : 'parent_id = ?') +
       ' ORDER BY created_at ASC',
-      folder.parent_id === null ? [userId] : [userId, folder.parent_id]
+      folder.parent_id === null ? [userId, folder.space_id] : [userId, folder.space_id, folder.parent_id]
     );
 
     // Get user's current folder order

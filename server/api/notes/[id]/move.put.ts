@@ -61,9 +61,11 @@ export default defineEventHandler(async (event) => {
     }
 
     // Verify new folder exists if provided
+    // Note: We allow moving notes between folders in different spaces
+    // The UI filters folders by space, but the API allows cross-space moves
     if (body.newFolderId !== null) {
       const folderResults = await executeQuery<any[]>(
-        'SELECT id, user_id FROM folders WHERE id = ? AND user_id = ?',
+        'SELECT id, user_id, space_id FROM folders WHERE id = ? AND user_id = ?',
         [body.newFolderId, userId]
       );
 

@@ -418,19 +418,25 @@ watch(
 watch(activeNote, (note, oldNote) => {
   // Skip if note hasn't actually changed (prevent duplicate updates)
   // But ALWAYS update if folder_id changed (even if same note)
+  // OR if sharing status changed (e.g., after unsharing)
   const folderIdChanged = oldNote && note && oldNote.id === note.id && oldNote.folder_id !== note.folder_id;
+  const sharingStatusChanged = oldNote && note && oldNote.id === note.id && 
+    ((oldNote.is_shared !== note.is_shared) || (oldNote.share_permission !== note.share_permission));
   
   console.log('[Dashboard] Active note watcher triggered', {
     noteId: note?.id,
     oldNoteId: oldNote?.id,
     sameNote: oldNote?.id === note?.id,
     folderIdChanged,
+    sharingStatusChanged,
+    oldNoteIsShared: oldNote?.is_shared,
+    newNoteIsShared: note?.is_shared,
     oldFolderId: oldNote?.folder_id,
     newFolderId: note?.folder_id,
     updatedAtChanged: oldNote?.updated_at !== note?.updated_at
   });
   
-  if (oldNote && note && oldNote.id === note.id && oldNote.updated_at === note.updated_at && !folderIdChanged) {
+  if (oldNote && note && oldNote.id === note.id && oldNote.updated_at === note.updated_at && !folderIdChanged && !sharingStatusChanged) {
     console.log('[Dashboard] Skipping update - note unchanged');
     return;
   }
@@ -440,12 +446,27 @@ watch(activeNote, (note, oldNote) => {
       id: note.id.substring(0, 20),
       is_shared: note.is_shared,
       share_permission: note.share_permission,
-      willUseCollabEditor: !!(note.is_shared || note.share_permission)
+      willUseCollabEditor: !!(note.is_shared || note.share_permission),
+      hasContent: !!note.content,
+      contentLength: note.content ? note.content.length : 0
     });
+    
+    // If note doesn't have content or seems incomplete, try to fetch it
+    if ((!note.content || note.content === '') && process.client) {
+      console.log('[Dashboard] Note missing content, fetching full note:', note.id);
+      notesStore.fetchNote(note.id).catch(err => {
+        console.error('[Dashboard] Failed to fetch note:', err);
+      });
+    }
     
     // For collaborative notes, don't update editForm.content (CollaborativeEditor handles it)
     // Only update title and metadata for the UI
-    if (note.is_shared || note.share_permission) {
+    // BUT if transitioning FROM collaborative TO regular (unsharing), update content
+    const wasCollaborative = oldNote && (oldNote.is_shared || oldNote.share_permission);
+    const isNowCollaborative = note.is_shared || note.share_permission;
+    const transitioningToRegular = wasCollaborative && !isNowCollaborative;
+    
+    if (isNowCollaborative && !transitioningToRegular) {
       console.log('[Dashboard] Loading collaborative note, skipping content sync to editForm');
       editForm.title = note.title;
       editForm.tags = note.tags || [];
@@ -458,8 +479,8 @@ watch(activeNote, (note, oldNote) => {
       prevContent.value = editForm.content; // Keep current content value
       prevFolderId.value = note.folder_id || null;
     } else {
-      // For regular notes, only sync if content actually changed or it's a different note
-      // OR if folder_id changed (even if same note and same content)
+      // For regular notes, ALWAYS update if it's a different note
+      // OR if content/folder changed (even if same note)
       const isDifferentNote = !oldNote || oldNote.id !== note.id;
       const contentChanged = note.content !== editForm.content;
       const folderChanged = folderIdChanged || note.folder_id !== editForm.folder_id;
@@ -470,9 +491,13 @@ watch(activeNote, (note, oldNote) => {
         folderChanged,
         folderIdChanged,
         noteFolderId: note.folder_id,
-        editFormFolderId: editForm.folder_id
+        editFormFolderId: editForm.folder_id,
+        noteContent: note.content ? note.content.substring(0, 50) : 'null/undefined',
+        editFormContent: editForm.content ? editForm.content.substring(0, 50) : 'null/undefined'
       });
       
+      // Always update editForm when switching to a different note
+      // OR when content/folder changed (for same note)
       if (isDifferentNote || contentChanged || folderChanged) {
         console.log('[Dashboard] Updating editForm with note data', {
           folder_id: note.folder_id,
@@ -618,7 +643,7 @@ async function handleCreateNoteInFolder(folderId: number) {
     const note = await notesStore.createNote(noteData);
     // Refresh notes and open in a new tab
     await notesStore.fetchNotes();
-    notesStore.openTab(note.id);
+    await notesStore.openTab(note.id);
     
     toast.add({
       title: 'Success',
@@ -1048,6 +1073,21 @@ async function removeShare(shareId: number) {
     // Explicitly refetch the active note to ensure it has correct data
     if (activeNoteId) {
       await notesStore.fetchNote(activeNoteId);
+      
+      // Force update editForm after unsharing to ensure content is displayed
+      // The active note watcher should pick this up, but we'll trigger it manually if needed
+      await nextTick();
+      
+      // Ensure the note is in the notes array and properly updated
+      const updatedNote = notesStore.notes.find(n => n.id === activeNoteId);
+      if (updatedNote && activeNote.value) {
+        // Force reactivity update by ensuring the note reference is updated
+        const noteIndex = notesStore.notes.findIndex(n => n.id === activeNoteId);
+        if (noteIndex !== -1) {
+          // Update the note in the array to trigger reactivity
+          notesStore.notes[noteIndex] = { ...updatedNote };
+        }
+      }
     }
     
     toast.add({
@@ -1064,8 +1104,8 @@ async function removeShare(shareId: number) {
   }
 }
 
-function handleOpenSharedNote(share: any) {
-  notesStore.openTab(share.note_id);
+async function handleOpenSharedNote(share: any) {
+  await notesStore.openTab(share.note_id);
   isMobileSidebarOpen.value = false;
 }
 
@@ -1099,48 +1139,11 @@ async function handleCreateNote() {
     const note = await notesStore.createNote(noteData);
     // Refresh notes and open in a new tab
     await notesStore.fetchNotes();
-    notesStore.openTab(note.id);
+    await notesStore.openTab(note.id);
   } catch (error) {
     toast.add({
       title: 'Error',
       description: 'Failed to create note',
-      color: 'error'
-    });
-  } finally {
-    isCreating.value = false;
-  }
-}
-
-async function handleQuickNote() {
-  if (isCreating.value) return;
-  
-  showFabMenu.value = false;
-  isCreating.value = true;
-  
-  try {
-    const now = new Date();
-    const timestamp = now.toLocaleString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true
-    });
-    
-    const noteData: CreateNoteDto = {
-      title: `Quick Note - ${timestamp}`,
-      content: '',
-      folder_id: null
-    };
-    
-    const note = await notesStore.createNote(noteData);
-    await notesStore.fetchNotes();
-    notesStore.openTab(note.id);
-  } catch (error) {
-    toast.add({
-      title: 'Error',
-      description: 'Failed to create quick note',
       color: 'error'
     });
   } finally {
@@ -1163,7 +1166,7 @@ async function handleListNote() {
     
     const note = await notesStore.createNote(noteData);
     await notesStore.fetchNotes();
-    notesStore.openTab(note.id);
+    await notesStore.openTab(note.id);
   } catch (error) {
     toast.add({
       title: 'Error',
@@ -1212,7 +1215,7 @@ async function createNoteFromTemplate(template: NoteTemplate) {
     });
     
     await notesStore.fetchNotes();
-    notesStore.openTab(note.id);
+    await notesStore.openTab(note.id);
   } catch (error) {
     toast.add({
       title: 'Error',
@@ -1257,7 +1260,7 @@ async function generateAiNote() {
 
     showAiGenerateModal.value = false;
     await notesStore.fetchNotes();
-    notesStore.openTab(response.id);
+    await notesStore.openTab(response.id);
   } catch (error) {
     console.error('AI generation error:', error);
     toast.add({
@@ -1325,7 +1328,7 @@ async function importRecipe() {
 
     showRecipeImportModal.value = false;
     await notesStore.fetchNotes();
-    notesStore.openTab(response.id);
+    await notesStore.openTab(response.id);
   } catch (error: any) {
     console.error('Recipe import error:', error);
     toast.add({
@@ -1437,13 +1440,13 @@ function toggleFabMenu() {
 }
 
 // Note opening and tab management
-function handleOpenNote(noteId: string) {
-  notesStore.openTab(noteId);
+async function handleOpenNote(noteId: string) {
+  await notesStore.openTab(noteId);
   isMobileSidebarOpen.value = false;
 }
 
-function handleFolderNoteClick(noteId: string) {
-  handleOpenNote(noteId);
+async function handleFolderNoteClick(noteId: string) {
+  await handleOpenNote(noteId);
 }
 
 // Note editing functions
@@ -2525,21 +2528,6 @@ onMounted(() => {
                   </div>
                 </button>
 
-                <!-- Quick Note -->
-                <button
-                  @click="handleQuickNote"
-                  :disabled="isCreating"
-                  class="w-full text-left px-4 py-3.5 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-purple-50 dark:hover:bg-purple-900/20 flex items-center gap-3 transition-colors disabled:opacity-50"
-                >
-                  <div class="w-10 h-10 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl flex items-center justify-center shadow-sm">
-                    <UIcon name="i-heroicons-bolt" class="w-5 h-5 text-white" />
-                  </div>
-                  <div class="flex-1">
-                    <div class="font-semibold text-gray-900 dark:text-white">Quick Note</div>
-                    <div class="text-xs text-gray-500 dark:text-gray-400">With timestamp</div>
-                  </div>
-                </button>
-
                 <!-- List Note -->
                 <button
                   @click="handleListNote"
@@ -2710,7 +2698,7 @@ onMounted(() => {
             </div>
             <h3 class="text-lg font-semibold text-gray-900 dark:text-white text-center mb-2">Delete Folder?</h3>
             <p class="text-sm text-gray-600 dark:text-gray-400 text-center mb-6">
-              Are you sure you want to delete <span class="font-semibold text-gray-900 dark:text-white">"{{ folderToManage !== null ? foldersStore.getFolderById(folderToManage)?.name : '' }}"</span>? Notes in this folder will be moved to "Quick Notes". This action cannot be undone.
+              Are you sure you want to delete <span class="font-semibold text-gray-900 dark:text-white">"{{ folderToManage !== null ? foldersStore.getFolderById(folderToManage)?.name : '' }}"</span>? Notes in this folder will be moved to notes without folders. This action cannot be undone.
             </p>
             <div class="flex gap-3">
               <UButton color="neutral" variant="soft" block @click="showDeleteFolderModal = false" :disabled="isFolderActionLoading">Cancel</UButton>

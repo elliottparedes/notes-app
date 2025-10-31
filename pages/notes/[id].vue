@@ -124,7 +124,7 @@ watch(showFolderDropdown, (show) => {
 onMounted(async () => {
   // Redirect to dashboard and open this note in a tab
   try {
-    notesStore.openTab(noteId.value);
+    await notesStore.openTab(noteId.value);
     router.push('/dashboard');
   } catch (error) {
     console.error('Error opening note:', error);

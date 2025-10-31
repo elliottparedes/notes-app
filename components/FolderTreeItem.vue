@@ -288,17 +288,45 @@ async function initializeNotesSortable() {
         }
         
         // Determine target folder from the notes container (to element)
-        // The 'to' element is the notes-container div where the note was dropped
+        // The 'to' element should be the notes-container div where the note was dropped
         let targetFolderId: number | null = null;
         
-        // Check if 'to' element itself has the folder-id (notes container)
-        const folderIdAttr = to.getAttribute('data-folder-id');
+        // Try multiple methods to get the target folder ID
+        // Method 1: Check if 'to' element itself has the folder-id (most common case)
+        let folderIdAttr = to.getAttribute('data-folder-id');
+        
+        // Method 2: If not found, check if 'to' element has a parent with data-folder-id
+        if (!folderIdAttr) {
+          const parentWithFolderId = to.closest('[data-folder-id]') as HTMLElement | null;
+          if (parentWithFolderId) {
+            folderIdAttr = parentWithFolderId.getAttribute('data-folder-id');
+          }
+        }
+        
+        // Method 3: If still not found, look for the notes-container element
+        if (!folderIdAttr) {
+          const notesContainer = to.closest('.notes-container') as HTMLElement | null;
+          if (notesContainer) {
+            folderIdAttr = notesContainer.getAttribute('data-folder-id');
+          }
+        }
+        
+        // Method 4: If still not found, check if 'to' contains a notes-container
+        if (!folderIdAttr) {
+          const notesContainer = to.querySelector('.notes-container') as HTMLElement | null;
+          if (notesContainer) {
+            folderIdAttr = notesContainer.getAttribute('data-folder-id');
+          }
+        }
+        
         console.log('[FolderTreeItem] onEnd triggered', {
           oldIndex,
           newIndex,
           noteId,
           fromFolder: from?.getAttribute('data-folder-id'),
           toDataFolderId: folderIdAttr,
+          toElement: to.className,
+          toTagName: to.tagName,
           currentFolderId: props.folder.id,
           depth: props.depth
         });
@@ -308,31 +336,20 @@ async function initializeNotesSortable() {
             targetFolderId = null; // Root level
             console.log('[FolderTreeItem] Target folder: root (null)');
           } else {
-            targetFolderId = parseInt(folderIdAttr);
-            console.log('[FolderTreeItem] Target folder from data attribute:', targetFolderId);
-          }
-        } else {
-          // Fallback: look for the notes container in the drop target
-          const notesContainer = to.querySelector('.notes-container') as HTMLElement | null;
-          console.log('[FolderTreeItem] Looking for notes-container', {
-            foundContainer: !!notesContainer,
-            containerFolderId: notesContainer?.getAttribute('data-folder-id')
-          });
-          
-          if (notesContainer) {
-            const containerFolderId = notesContainer.getAttribute('data-folder-id');
-            if (containerFolderId === 'null') {
-              targetFolderId = null;
-              console.log('[FolderTreeItem] Target folder from container: root (null)');
-            } else if (containerFolderId) {
-              targetFolderId = parseInt(containerFolderId);
-              console.log('[FolderTreeItem] Target folder from container:', targetFolderId);
+            const parsedId = parseInt(folderIdAttr);
+            if (!isNaN(parsedId)) {
+              targetFolderId = parsedId;
+              console.log('[FolderTreeItem] Target folder from data attribute:', targetFolderId);
+            } else {
+              console.error('[FolderTreeItem] Invalid folder ID:', folderIdAttr);
             }
-          } else {
-            // If we can't find the container, use the current folder as fallback
-            targetFolderId = props.folder.id;
-            console.log('[FolderTreeItem] Using current folder as fallback:', targetFolderId);
           }
+        }
+        
+        // Final fallback: use the current folder if we still don't have a target
+        if (targetFolderId === null && folderIdAttr !== 'null') {
+          targetFolderId = props.folder.id;
+          console.warn('[FolderTreeItem] Could not determine target folder, using current folder as fallback:', targetFolderId);
         }
         
         const currentNote = notesStore.notes.find(n => n.id === noteId);
@@ -368,8 +385,15 @@ async function initializeNotesSortable() {
               fromFolderId: currentNote.folder_id,
               toFolderId: targetFolderId,
               newIndex,
-              depth: props.depth
+              depth: props.depth,
+              targetFolderIdValid: targetFolderId !== null || targetFolderId === null // null is valid for root
             });
+            
+            // Validate targetFolderId is determined correctly
+            if (targetFolderId === undefined) {
+              console.error('[FolderTreeItem] Target folder ID is undefined, cannot move note');
+              return;
+            }
             
             // Expand the target folder if it's collapsed to show the moved note
             if (targetFolderId !== null) {
@@ -381,9 +405,13 @@ async function initializeNotesSortable() {
             await nextTick();
             
             // Do the API call - this updates the note in the store optimistically
-            console.log('[FolderTreeItem] Calling notesStore.moveNote...');
+            console.log('[FolderTreeItem] Calling notesStore.moveNote with:', {
+              noteId,
+              targetFolderId,
+              newIndex: newIndex ?? undefined
+            });
             await notesStore.moveNote(noteId, targetFolderId, newIndex);
-            console.log('[FolderTreeItem] moveNote completed');
+            console.log('[FolderTreeItem] moveNote completed successfully');
             
             // Force Vue reactivity update by using nextTick after store update
             await nextTick();

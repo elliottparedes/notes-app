@@ -29,10 +29,24 @@ export default defineEventHandler(async (event) => {
       folderOrder = {};
     }
 
+    // Create a set of valid folder IDs from the current space for filtering
+    const validFolderIds = new Set(folders.map(f => f.id));
+    
+    // Filter folder_order to only include folders from current space
+    // This prevents ordering issues when folders from different spaces share the same keys
+    const filterOrderBySpace = (order: number[]): number[] => {
+      return order.filter(id => validFolderIds.has(id));
+    };
+    
     // Helper function to sort folders by custom order
     const sortFoldersByOrder = (foldersToSort: Folder[], parentId: number | null): Folder[] => {
       const levelKey = parentId === null ? 'root' : `parent_${parentId}`;
-      const customOrder = folderOrder[levelKey];
+      let customOrder = folderOrder[levelKey];
+      
+      // Filter custom order to only include folders from current space
+      if (customOrder && customOrder.length > 0) {
+        customOrder = filterOrderBySpace(customOrder);
+      }
       
       if (!customOrder || customOrder.length === 0) {
         // No custom order, return as-is (by created_at)

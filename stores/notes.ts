@@ -257,8 +257,33 @@ export const useNotesStore = defineStore('notes', {
                 body: data
               });
 
+              // Update tab IDs if the temp ID was used in tabs
+              const tempId = tempNote.id;
+              const realId = String(response.id);
+              
+              // Update openTabs if temp ID exists
+              const tempTabIndex = this.openTabs.indexOf(tempId);
+              if (tempTabIndex !== -1) {
+                this.openTabs[tempTabIndex] = realId;
+                console.log('[Store] Updated tab ID from temp to real:', tempId, '->', realId);
+              }
+              
+              // Update activeTabId if it was the temp ID
+              if (this.activeTabId === tempId) {
+                this.activeTabId = realId;
+                console.log('[Store] Updated activeTabId from temp to real:', tempId, '->', realId);
+              }
+
               // Update current note with server response
               this.currentNote = response;
+              
+              // Add note to notes array if not already there
+              const noteIndex = this.notes.findIndex(n => n.id === realId);
+              if (noteIndex === -1) {
+                this.notes.push(response);
+              } else {
+                this.notes[noteIndex] = response;
+              }
 
               // Update local storage with real note (convert to plain object)
               const plainResponse = JSON.parse(JSON.stringify(response));
@@ -267,6 +292,9 @@ export const useNotesStore = defineStore('notes', {
               // Remove temp note from local storage
               const { deleteNote } = await import('~/utils/db.client');
               await deleteNote(tempNote.id);
+              
+              // Save tabs to storage after updating IDs
+              this.saveTabsToStorage();
             } catch (err) {
               // If sync fails, add to sync queue
               await addToSyncQueue({
@@ -869,9 +897,24 @@ export const useNotesStore = defineStore('notes', {
       }
     },
 
-    openTab(noteId: string): void {
+    async openTab(noteId: string): Promise<void> {
       // Ensure we're working with string IDs
       const stringId = String(noteId);
+      
+      // Check if note exists in notes array with full content
+      let note = this.notes.find(note => String(note.id) === stringId);
+      
+      // If note doesn't exist or might be incomplete, fetch it
+      if (!note && process.client) {
+        console.log('[Store] Note not found in array, fetching:', stringId);
+        try {
+          await this.fetchNote(stringId);
+          note = this.notes.find(note => String(note.id) === stringId);
+        } catch (err) {
+          console.error('[Store] Failed to fetch note:', err);
+          // Still open the tab even if fetch fails (might be temp ID that gets updated later)
+        }
+      }
       
       // Add to tabs if not already open
       if (!this.openTabs.includes(stringId)) {

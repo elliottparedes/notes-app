@@ -77,7 +77,18 @@ watch(
     if (newLength > 0 && !sortableInstance) {
       // Wait a tick for the template to render
       await nextTick();
-      initializeSortable();
+      // Double-check that the container still exists after nextTick
+      if (tabsContainer.value) {
+        initializeSortable();
+      }
+    } else if (newLength === 0 && sortableInstance) {
+      // Destroy sortable when no tabs remain
+      try {
+        sortableInstance.destroy();
+        sortableInstance = null;
+      } catch (e) {
+        console.warn('[TabBar] Error destroying sortable:', e);
+      }
     }
   },
   { immediate: true }
@@ -86,7 +97,23 @@ watch(
 // Cleanup on unmount
 onUnmounted(() => {
   if (sortableInstance) {
-    sortableInstance.destroy();
+    try {
+      sortableInstance.destroy();
+    } catch (e) {
+      console.warn('[TabBar] Error destroying sortable on unmount:', e);
+    }
+    sortableInstance = null;
+  }
+});
+
+// Cleanup on beforeUnmount to prevent reactivity issues
+onBeforeUnmount(() => {
+  if (sortableInstance) {
+    try {
+      sortableInstance.destroy();
+    } catch (e) {
+      // Ignore errors during cleanup
+    }
     sortableInstance = null;
   }
 });
