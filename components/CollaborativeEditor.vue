@@ -28,11 +28,103 @@ import TableCell from '@tiptap/extension-table-cell'
 import TableHeader from '@tiptap/extension-table-header'
 import Image from '@tiptap/extension-image'
 import Gapcursor from '@tiptap/extension-gapcursor'
-import { Extension } from '@tiptap/core'
+import { Extension, Mark } from '@tiptap/core'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 import { WebsocketProvider } from 'y-websocket'
 import * as Y from 'yjs'
 import ydocManager from '~/utils/ydocManager.client'
+
+// Custom mark for highlighting text with user colors that fade to normal
+const UserHighlight = Mark.create({
+  name: 'userHighlight',
+  
+  addAttributes() {
+    return {
+      userColor: {
+        default: null,
+        parseHTML: element => element.getAttribute('data-user-color'),
+        renderHTML: attributes => {
+          if (!attributes.userColor) {
+            return {}
+          }
+          return {
+            'data-user-color': attributes.userColor,
+            style: `color: ${attributes.userColor}; transition: color 2s ease-out;`,
+            class: 'user-highlight-text'
+          }
+        },
+      },
+      userId: {
+        default: null,
+        parseHTML: element => element.getAttribute('data-user-id'),
+        renderHTML: attributes => {
+          if (!attributes.userId) {
+            return {}
+          }
+          return {
+            'data-user-id': attributes.userId,
+          }
+        },
+      },
+      timestamp: {
+        default: Date.now(),
+        parseHTML: element => parseInt(element.getAttribute('data-timestamp') || '0'),
+        renderHTML: attributes => {
+          return {
+            'data-timestamp': attributes.timestamp?.toString() || Date.now().toString(),
+          }
+        },
+      },
+    }
+  },
+  
+  parseHTML() {
+    return [
+      {
+        tag: 'span[data-user-color]',
+      },
+    ]
+  },
+  
+  renderHTML({ HTMLAttributes }) {
+    return ['span', HTMLAttributes, 0]
+  },
+  
+  addProseMirrorPlugins() {
+    return [
+      new Plugin({
+        key: new PluginKey('userHighlightFade'),
+        appendTransaction(transactions, oldState, newState) {
+          const tr = newState.tr
+          let modified = false
+          
+          // Check all user highlight marks and remove them after 2 seconds
+          newState.doc.descendants((node, pos) => {
+            if (node.marks) {
+              node.marks.forEach((mark, markIndex) => {
+                if (mark.type.name === 'userHighlight') {
+                  const timestamp = mark.attrs.timestamp || 0
+                  const age = Date.now() - timestamp
+                  
+                  // Remove mark after 2 seconds (2000ms)
+                  if (age > 2000) {
+                    const markType = newState.schema.marks.userHighlight
+                    if (markType) {
+                      tr.removeMark(pos, pos + node.nodeSize, markType)
+                      modified = true
+                    }
+                  }
+                }
+              })
+            }
+          })
+          
+          return modified ? tr : null
+        },
+      }),
+    ]
+  },
+})
 
 // Custom extension to handle table exit
 const TableExit = Extension.create({
@@ -160,8 +252,18 @@ const TaskItemWithStrike = TaskItem.extend({
   }
 })
 
-// Track other users' cursors
-const collaboratorCursors = ref<Array<{ name: string; color: string; clientId: number; x?: number; y?: number }>>([])
+// Track other users' cursors and typing positions
+const collaboratorCursors = ref<Array<{ 
+  name: string; 
+  color: string; 
+  clientId: number; 
+  x?: number; 
+  y?: number;
+  position?: number; // Document position where user is typing
+}>>([])
+
+// Map to track user colors and names by client ID
+const userMap = ref<Map<number, { name: string; color: string }>>(new Map())
 
 // Context menu state (matches regular editor)
 const showContextMenu = ref(false)
@@ -209,6 +311,8 @@ let disconnectHandler: (() => void) | null = null
 let syncedHandler: (() => void) | null = null
 let updateHandler: ((update: Uint8Array, origin: any) => void) | null = null
 let awarenessChangeHandler: (() => void) | null = null
+let resizeObserverInstance: ResizeObserver | null = null
+let resizeTimeout: NodeJS.Timeout | null = null
 
 console.log(`[CollabEditor ${props.noteId}] 🔧 Component created`)
 
@@ -290,7 +394,9 @@ const editor = useEditor({
     TableExit, // Custom extension for table navigation
     Placeholder.configure({
       placeholder: props.placeholder
-    })
+    }),
+    // User highlight for collaborative editing
+    UserHighlight
   ]
 })
 
@@ -304,11 +410,61 @@ watch(() => props.editable, (newValue) => {
   }
 })
 
-// Track cursor position for awareness and emit content updates
+// Function to recalculate and update cursor position
+function updateCursorPosition(editorInstance?: typeof editor.value) {
+  const ed = editorInstance || editor.value
+  if (!ed || !provider.value?.awareness || isDestroying.value) return
+  
+  try {
+    const { from } = ed.state.selection
+    const coords = ed.view.coordsAtPos(from)
+    const editorEl = editorContainer.value
+    
+    if (editorEl) {
+      const editorRect = editorEl.getBoundingClientRect()
+      // Calculate position relative to editor container
+      const relativeX = coords.left - editorRect.left + editorEl.scrollLeft
+      const relativeY = coords.top - editorRect.top + editorEl.scrollTop
+      
+      provider.value.awareness.setLocalStateField('cursor', {
+        x: relativeX,
+        y: relativeY,
+        position: from // Document position
+      })
+    }
+  } catch (error) {
+    // Ignore coordinate errors
+  }
+}
+
+// Function to update cursor screen positions from document positions - synchronous
+function updateCursorScreenPositions() {
+  if (!editor.value || !editorContainer.value || isDestroying.value) return
+  
+  // Update synchronously - no delays
+  collaboratorCursors.value.forEach(user => {
+    if (user.position !== undefined) {
+      try {
+        const coords = editor.value!.view.coordsAtPos(user.position)
+        const editorEl = editorContainer.value
+        
+        if (editorEl && coords) {
+          const editorRect = editorEl.getBoundingClientRect()
+          user.x = coords.left - editorRect.left + editorEl.scrollLeft
+          user.y = coords.top - editorRect.top + editorEl.scrollTop
+        }
+      } catch (err) {
+        // Ignore coordinate errors
+      }
+    }
+  })
+}
+
+  // Track cursor position for awareness and emit content updates
 watch(editor, (editorInstance) => {
   if (!editorInstance) return
   
-  // Track cursor position for awareness
+  // Track cursor position for awareness - store document position
   editorInstance.on('selectionUpdate', ({ editor: ed }) => {
     if (!provider.value?.awareness || isDestroying.value) return
     
@@ -319,13 +475,14 @@ watch(editor, (editorInstance) => {
       
       if (editorEl) {
         const editorRect = editorEl.getBoundingClientRect()
-        // Calculate position relative to editor container
         const relativeX = coords.left - editorRect.left + editorEl.scrollLeft
         const relativeY = coords.top - editorRect.top + editorEl.scrollTop
         
+        // Store both screen position and document position
         provider.value.awareness.setLocalStateField('cursor', {
           x: relativeX,
-          y: relativeY
+          y: relativeY,
+          position: from // Document position
         })
       }
     } catch (error) {
@@ -333,17 +490,101 @@ watch(editor, (editorInstance) => {
     }
   })
   
-  // Emit content updates for metrics/parent component
-  editorInstance.on('update', ({ editor: ed }) => {
+  // Track document changes to apply highlights and update cursor positions
+  editorInstance.on('update', ({ editor: ed, transaction }) => {
     if (isDestroying.value) return
     
     try {
+      // Update cursor positions synchronously after document changes
+      // This prevents the cursor from jumping as text is inserted
+      updateCursorScreenPositions()
+      
       const html = ed.getHTML()
       emit('update:content', html)
     } catch (error) {
       // Ignore errors during destruction
     }
   })
+  
+  // Also update on selection changes (cursor moves)
+  editorInstance.on('selectionUpdate', () => {
+    if (isDestroying.value) return
+    updateCursorScreenPositions()
+  })
+  
+  // Add a plugin to track insertions, apply highlights, and update cursor positions
+  editorInstance.registerPlugin(
+    new Plugin({
+      key: new PluginKey('collaborativeHighlight'),
+      appendTransaction(transactions, oldState, newState) {
+        // Find remote insertions and apply highlights
+        // Position updates happen in view.update() which runs after DOM updates
+        let modified = false
+        const tr = newState.tr
+        
+        transactions.forEach(transaction => {
+          const isRemote = transaction.getMeta('origin') === 'yjs' || transaction.getMeta('isRemote')
+          
+          if (isRemote && transaction.steps.length > 0) {
+            transaction.steps.forEach((step: any) => {
+              if (step.from !== undefined && step.to !== undefined && step.to > step.from) {
+                // This is an insertion - find which user made it
+                const insertPos = step.from
+                const endPos = step.to
+                const otherUsers = collaboratorCursors.value.filter(u => u.position !== undefined)
+                
+                // Find the closest user's cursor position
+                let closestUser: typeof otherUsers[0] | null = null
+                let minDistance = Infinity
+                
+                otherUsers.forEach(user => {
+                  if (user.position !== undefined) {
+                    // Check if insertion is at or near this user's cursor
+                    const distance = Math.abs(user.position - insertPos)
+                    // Allow up to 20 characters of distance (user might be typing quickly)
+                    if (distance < 20 && distance < minDistance) {
+                      minDistance = distance
+                      closestUser = user
+                    }
+                  }
+                })
+                
+                // Apply highlight mark if we found a user
+                if (closestUser && newState.schema.marks.userHighlight) {
+                  const markType = newState.schema.marks.userHighlight
+                  const mark = markType.create({
+                    userColor: closestUser.color,
+                    userId: closestUser.clientId.toString(),
+                    timestamp: Date.now()
+                  })
+                  
+                  // Apply mark to the inserted content
+                  try {
+                    tr.addMark(insertPos, endPos, mark)
+                    modified = true
+                  } catch (err) {
+                    // Ignore errors
+                  }
+                }
+              }
+            })
+          }
+        })
+        
+        return modified ? tr : null
+      },
+      // Also update on view updates - synchronous
+      view() {
+        return {
+          update(view, prevState) {
+            // Update cursor positions synchronously when view updates
+            // This catches all document and selection changes
+            updateCursorScreenPositions()
+          }
+        }
+      }
+    })
+  )
 })
 
 // Context menu handlers (matches regular editor)
@@ -619,21 +860,58 @@ onMounted(() => {
     // Track connected users via awareness
     awarenessChangeHandler = () => {
       if (isDestroying.value) return
-      if (provider.value?.awareness) {
+      if (provider.value?.awareness && editor.value) {
         const myClientId = provider.value.awareness.clientID
         const states = provider.value.awareness.getStates()
         const count = states.size
         
         // Build list of other users (exclude self) with cursor positions
-        const otherUsers: Array<{ name: string; color: string; clientId: number; x?: number; y?: number }> = []
+        const otherUsers: Array<{ 
+          name: string; 
+          color: string; 
+          clientId: number; 
+          x?: number; 
+          y?: number;
+          position?: number;
+        }> = []
+        
+        // Update user map
         states.forEach((state: any, clientId: number) => {
+          if (state.user) {
+            userMap.value.set(clientId, {
+              name: state.user.name,
+              color: state.user.color
+            })
+          }
+          
           if (clientId !== myClientId && state.user) {
+            const docPosition = state.cursor?.position
+            let screenX = state.cursor?.x
+            let screenY = state.cursor?.y
+            
+            // If we have document position but not screen position, calculate it
+            if (docPosition !== undefined && editor.value) {
+              try {
+                const coords = editor.value.view.coordsAtPos(docPosition)
+                const editorEl = editorContainer.value
+                
+                if (editorEl && coords) {
+                  const editorRect = editorEl.getBoundingClientRect()
+                  screenX = coords.left - editorRect.left + editorEl.scrollLeft
+                  screenY = coords.top - editorRect.top + editorEl.scrollTop
+                }
+              } catch (err) {
+                // Use provided screen position or undefined
+              }
+            }
+            
             otherUsers.push({
               name: state.user.name,
               color: state.user.color,
               clientId,
-              x: state.cursor?.x,
-              y: state.cursor?.y
+              x: screenX,
+              y: screenY,
+              position: docPosition
             })
           }
         })
@@ -648,9 +926,61 @@ onMounted(() => {
       }
     }
 
-    provider.value.awareness.on('change', awarenessChangeHandler)
-    awarenessChangeHandler() // Initial count
+    // Wrap awareness handler to update cursor positions
+    const wrappedAwarenessHandler = () => {
+      awarenessChangeHandler()
+      // Update screen positions immediately after awareness updates
+      updateCursorScreenPositions()
+    }
+    
+    provider.value.awareness.on('change', wrappedAwarenessHandler)
+    wrappedAwarenessHandler() // Initial count
   }
+  
+  // Watch collaboratorCursors for position changes - fully reactive
+  watch(
+    () => collaboratorCursors.value.map(u => u.position),
+    () => {
+      // Update screen positions when document positions change
+      updateCursorScreenPositions()
+    },
+    { deep: true, flush: 'sync' }
+  )
+  
+  // Set up ResizeObserver to recalculate cursor positions when editor container resizes
+  // This handles cases where the sidebar width changes, causing the editor to resize
+  const setupResizeObserver = () => {
+    if (!process.client || !editorContainer.value || !editor.value || resizeObserverInstance) return
+    
+    resizeObserverInstance = new ResizeObserver(() => {
+      if (resizeTimeout) clearTimeout(resizeTimeout)
+      resizeTimeout = setTimeout(() => {
+        // Recalculate cursor position when container resizes
+        // This ensures cursor positions are correct after sidebar toggle
+        updateCursorPosition()
+        
+        // Also trigger a view update to force ProseMirror to recalculate positions
+        if (editor.value) {
+          editor.value.view.dom.dispatchEvent(new Event('resize'))
+        }
+      }, 150) // 150ms debounce to allow for smooth transitions
+    })
+    
+    resizeObserverInstance.observe(editorContainer.value)
+    console.log(`[CollabEditor ${props.noteId}] 📏 ResizeObserver set up`)
+  }
+  
+  // Try to set up immediately, then watch for editorContainer availability
+  nextTick(() => {
+    setupResizeObserver()
+    
+    // Also watch editorContainer in case it becomes available later
+    watch(editorContainer, (newVal) => {
+      if (newVal && editor.value && !resizeObserverInstance) {
+        setupResizeObserver()
+      }
+    }, { immediate: true })
+  })
 })
 
 onBeforeUnmount(() => {
@@ -683,6 +1013,19 @@ onBeforeUnmount(() => {
     
     if (ydoc && updateHandler) {
       ydoc.off('update', updateHandler)
+    }
+    
+    // Clean up ResizeObserver
+    if (resizeTimeout) {
+      clearTimeout(resizeTimeout)
+      resizeTimeout = null
+    }
+    if (resizeObserverInstance) {
+      if (editorContainer.value) {
+        resizeObserverInstance.unobserve(editorContainer.value)
+      }
+      resizeObserverInstance.disconnect()
+      resizeObserverInstance = null
     }
     
     console.log(`[CollabEditor ${props.noteId}] ✅ Event listeners removed`)
@@ -773,26 +1116,30 @@ defineExpose({
 
     <!-- Editor content -->
     <div ref="editorContainer" class="relative" @contextmenu="handleContextMenu">
-      <!-- Other users' cursors -->
-      <div
-        v-for="user in collaboratorCursors.filter(u => u.x && u.y)"
-        :key="user.clientId"
-        class="absolute pointer-events-none z-40"
-        :style="{ left: user.x + 'px', top: user.y + 'px' }"
-      >
-        <div class="flex items-center gap-1">
-          <div
-            class="w-0.5 h-5 animate-pulse"
-            :style="{ backgroundColor: user.color }"
-          ></div>
-          <div
-            class="px-1.5 py-0.5 rounded text-xs font-medium text-white shadow-sm whitespace-nowrap"
-            :style="{ backgroundColor: user.color }"
-          >
-            {{ user.name }}
+      <!-- Other users' cursors - shown at typing positions -->
+      <template v-for="user in collaboratorCursors.filter(u => u.position !== undefined && (u.x !== undefined && u.y !== undefined))" :key="user.clientId">
+        <div
+          class="absolute pointer-events-none z-40 transition-all duration-150"
+          :style="{ 
+            left: user.x + 'px', 
+            top: user.y + 'px',
+            transform: 'translateY(-2px)'
+          }"
+        >
+          <div class="flex items-center gap-1">
+            <div
+              class="w-0.5 h-5 animate-pulse"
+              :style="{ backgroundColor: user.color }"
+            ></div>
+            <div
+              class="px-1.5 py-0.5 rounded text-xs font-medium text-white shadow-sm whitespace-nowrap"
+              :style="{ backgroundColor: user.color }"
+            >
+              {{ user.name }}
+            </div>
           </div>
         </div>
-      </div>
+      </template>
 
       <EditorContent
         :editor="editor"
@@ -1342,6 +1689,35 @@ defineExpose({
   top: -1.4em;
   user-select: none;
   white-space: nowrap;
+}
+
+/* User Highlight Text - fade from user color to normal */
+.collaborative-editor :deep(.user-highlight-text) {
+  animation: fadeToNormal 2s ease-out forwards;
+  will-change: color;
+}
+
+@keyframes fadeToNormal {
+  from {
+    /* Color stays at user color initially */
+  }
+  to {
+    color: inherit !important;
+  }
+}
+
+/* Dark mode support for user highlight */
+.dark .collaborative-editor :deep(.user-highlight-text) {
+  animation: fadeToNormalDark 2s ease-out forwards;
+}
+
+@keyframes fadeToNormalDark {
+  from {
+    /* Color stays at user color initially */
+  }
+  to {
+    color: #e5e7eb !important; /* Default dark mode text color */
+  }
 }
 </style>
 

@@ -73,6 +73,24 @@ watch(isSharedNotesExpanded, (newValue) => {
   }
 });
 
+// Desktop sidebar visibility state - persist to localStorage
+const isDesktopSidebarVisible = ref(true);
+
+// Load saved state from localStorage on mount
+if (process.client) {
+  const savedSidebarState = localStorage.getItem('desktopSidebarVisible');
+  if (savedSidebarState !== null) {
+    isDesktopSidebarVisible.value = savedSidebarState === 'true';
+  }
+}
+
+// Save state to localStorage when it changes
+watch(isDesktopSidebarVisible, (newValue) => {
+  if (process.client) {
+    localStorage.setItem('desktopSidebarVisible', String(newValue));
+  }
+});
+
 // Delete confirmation modal
 const showDeleteModal = ref(false);
 const noteToDelete = ref<Note | null>(null);
@@ -1716,17 +1734,35 @@ onMounted(() => {
     <!-- Main dashboard with Notion-like layout -->
     <div v-else :key="`dashboard-${authStore.currentUser?.id}-${sessionKey}`" class="flex h-screen bg-gray-50 dark:bg-gray-900 overflow-hidden">
       <!-- Left Sidebar (Desktop Only) -->
-      <aside class="hidden md:flex md:flex-col w-64 lg:w-72 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700">
-        <!-- Sidebar Header -->
-        <div class="flex items-center justify-between h-14 px-3">
-          <div class="flex items-center gap-1">
-            <img src="/folder.png" alt="Unfold" class="w-16 h-16" />
-            <h1 class="text-lg font-extrabold text-gray-900 dark:text-white tracking-wide">Unfold</h1>
+      <aside 
+        class="hidden md:flex md:flex-col bg-white dark:bg-gray-800 flex-shrink-0 transition-all duration-300 ease-in-out overflow-hidden"
+        :class="isDesktopSidebarVisible ? 'w-64 lg:w-72 border-r border-gray-200 dark:border-gray-700' : 'w-0 border-r-0'"
+      >
+        <!-- Sidebar Content Wrapper (smooth opacity transition) -->
+        <div 
+          class="flex flex-col h-full transition-opacity duration-300 ease-in-out min-w-0"
+          :class="isDesktopSidebarVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'"
+        >
+          <!-- Sidebar Header -->
+          <div class="flex items-center justify-between h-14 px-3 flex-shrink-0">
+            <div class="flex items-center gap-1 min-w-0">
+              <img src="/folder.png" alt="Unfold" class="w-16 h-16 flex-shrink-0" />
+              <h1 class="text-lg font-extrabold text-gray-900 dark:text-white tracking-wide truncate">Unfold</h1>
+            </div>
+            <!-- Hide Sidebar Button (Notability-style) -->
+            <button
+              v-if="isDesktopSidebarVisible"
+              @click="isDesktopSidebarVisible = false"
+              class="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700/50 active:bg-gray-200 dark:active:bg-gray-600 transition-all duration-200 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 group flex-shrink-0"
+              title="Hide sidebar"
+              aria-label="Hide sidebar"
+            >
+              <UIcon name="i-heroicons-chevron-left" class="w-5 h-5 group-hover:scale-110 transition-transform duration-200" />
+            </button>
           </div>
-        </div>
 
-        <!-- Sidebar Content -->
-        <div class="flex-1 overflow-y-auto p-3">
+          <!-- Sidebar Content -->
+          <div class="flex-1 overflow-y-auto p-3 min-w-0">
           <!-- Space Selector -->
           <SpaceSelector />
           
@@ -1952,7 +1988,28 @@ onMounted(() => {
             </Transition>
           </div>
         </div>
+        </div>
       </aside>
+
+      <!-- Floating Show Sidebar Button (when sidebar is hidden, Notability-style) -->
+      <Transition
+        enter-active-class="transition-all duration-300 ease-out"
+        enter-from-class="opacity-0 -translate-x-4"
+        enter-to-class="opacity-100 translate-x-0"
+        leave-active-class="transition-all duration-300 ease-in"
+        leave-from-class="opacity-100 translate-x-0"
+        leave-to-class="opacity-0 -translate-x-4"
+      >
+        <button
+          v-if="!isDesktopSidebarVisible"
+          @click="isDesktopSidebarVisible = true"
+          class="hidden md:flex fixed left-0 top-1/2 -translate-y-1/2 z-30 p-2.5 bg-white dark:bg-gray-800 border-r border-y border-gray-200 dark:border-gray-700 rounded-r-xl shadow-xl hover:shadow-2xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-all duration-200 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 group backdrop-blur-sm bg-opacity-95 dark:bg-opacity-95"
+          title="Show sidebar"
+          aria-label="Show sidebar"
+        >
+          <UIcon name="i-heroicons-chevron-right" class="w-5 h-5 group-hover:translate-x-0.5 transition-transform duration-200" />
+        </button>
+      </Transition>
 
       <!-- Mobile Sidebar Drawer -->
       <Teleport to="body">
@@ -2202,7 +2259,7 @@ onMounted(() => {
       </Teleport>
 
       <!-- Main Content Area -->
-      <div class="flex-1 flex flex-col overflow-hidden">
+      <div class="flex-1 flex flex-col overflow-hidden transition-all duration-300 ease-in-out">
         <!-- Mobile Menu Button (Floating on Mobile) -->
         <button
           @click="isMobileSidebarOpen = true"
