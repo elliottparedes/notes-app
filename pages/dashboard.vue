@@ -207,6 +207,7 @@ watch(() => spacesStore.currentSpaceId, async (newSpaceId, oldSpaceId) => {
   if (hasInitialized.value && newSpaceId !== oldSpaceId && newSpaceId !== null) {
     try {
       await foldersStore.fetchFolders();
+      await sharedNotesStore.fetchSharedNotes();
       
       // Update open tabs when switching spaces
       // Close tabs that belong to folders in other spaces, but preserve:
@@ -2437,7 +2438,7 @@ onMounted(() => {
             <!-- Metadata: Folder + Tags -->
             <div v-if="!isLocked && !activeNote.share_permission" class="flex items-center gap-4 text-sm flex-wrap">
               <!-- Folder -->
-              <div class="flex items-center gap-2 relative">
+              <!-- <div class="flex items-center gap-2 relative">
                 <UIcon name="i-heroicons-folder" class="w-3.5 h-3.5 text-gray-400" />
                 <button
                   ref="folderButtonRef"
@@ -2449,7 +2450,6 @@ onMounted(() => {
                   <UIcon name="i-heroicons-chevron-down" class="w-2.5 h-2.5 flex-shrink-0" />
                 </button>
                 
-                <!-- Folder Dropdown -->
                 <Teleport to="body">
                   <div
                     v-if="showFolderDropdown"
@@ -2478,7 +2478,7 @@ onMounted(() => {
                     />
                   </div>
                 </Teleport>
-              </div>
+              </div> -->
 
               <!-- Tags -->
               <div class="flex items-center gap-2 flex-1 min-w-0">
@@ -2510,10 +2510,10 @@ onMounted(() => {
             
             <!-- Read-only metadata (when locked OR when user is not owner) -->
             <div v-else-if="(isLocked || activeNote.share_permission) && (selectedFolderName || editForm.tags?.length)" class="flex items-center gap-3 text-xs flex-wrap">
-              <div v-if="selectedFolderName || !editForm.folder_id" class="flex items-center gap-2">
+              <!-- <div v-if="selectedFolderName || !editForm.folder_id" class="flex items-center gap-2">
                 <UIcon name="i-heroicons-folder" class="w-3.5 h-3.5 text-gray-400" />
                 <span class="text-gray-600 dark:text-gray-400">{{ selectedFolderName || 'No folder' }}</span>
-              </div>
+              </div> -->
               <div v-if="editForm.tags && editForm.tags.length > 0" class="flex items-center gap-2 flex-wrap">
                 <UIcon name="i-heroicons-tag" class="w-3.5 h-3.5 text-gray-400" />
                 <UBadge
