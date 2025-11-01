@@ -84,6 +84,12 @@ const noteShareCount = ref(0); // Track how many users this note is shared with
 // Keyboard shortcuts modal
 const showShortcutsModal = ref(false);
 
+// Search modal
+const showSearchModal = ref(false);
+
+// Keyboard shortcut handler reference
+let keyboardShortcutHandler: ((event: KeyboardEvent) => void) | null = null;
+
 // Folder management modals
 const showCreateFolderModal = ref(false);
 const showRenameFolderModal = ref(false);
@@ -270,6 +276,17 @@ onMounted(async () => {
     if (savedFolderId && savedFolderId !== 'null') {
       selectedFolderId.value = parseInt(savedFolderId);
     }
+
+    // Keyboard shortcut: Ctrl+P or Cmd+P to open search
+    keyboardShortcutHandler = (event: KeyboardEvent) => {
+      // Check if Ctrl+P (Windows/Linux) or Cmd+P (Mac) is pressed
+      if ((event.ctrlKey || event.metaKey) && event.key === 'p') {
+        event.preventDefault();
+        showSearchModal.value = true;
+      }
+    };
+
+    window.addEventListener('keydown', keyboardShortcutHandler);
   }
 
   await loadData();
@@ -288,6 +305,12 @@ onUnmounted(() => {
   if (foldersSortableInstance) {
     foldersSortableInstance.destroy();
     foldersSortableInstance = null;
+  }
+  
+  // Clean up keyboard shortcut listener
+  if (process.client && keyboardShortcutHandler) {
+    window.removeEventListener('keydown', keyboardShortcutHandler);
+    keyboardShortcutHandler = null;
   }
 });
 
@@ -1440,6 +1463,11 @@ function toggleFabMenu() {
 }
 
 // Note opening and tab management
+// Handle note selection from search modal
+async function handleNoteSelected(note: Note) {
+  await notesStore.openTab(note.id);
+}
+
 async function handleOpenNote(noteId: string) {
   await notesStore.openTab(noteId);
   isMobileSidebarOpen.value = false;
@@ -2246,12 +2274,23 @@ onMounted(() => {
               </button>
               
               <!-- Keyboard Shortcuts Info -->
-              <button
+              <!-- <button
                 @click="showShortcutsModal = true"
                 class="p-2 rounded-lg transition-colors hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400"
                 title="Keyboard Shortcuts"
               >
                 <UIcon name="i-heroicons-information-circle" class="w-4 h-4" />
+              </button> -->
+            </div>
+            
+            <!-- Search Button (always visible) -->
+            <div class="flex items-center gap-2 px-4 border-l border-gray-200 dark:border-gray-700">
+              <button
+                @click="showSearchModal = true"
+                class="p-2 rounded-lg transition-colors hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
+                title="Search Notes (Ctrl+P)"
+              >
+                <UIcon name="i-heroicons-magnifying-glass" class="w-5 h-5" />
               </button>
             </div>
             
@@ -3071,6 +3110,13 @@ onMounted(() => {
         </div>
       </Transition>
     </Teleport>
+
+    <!-- Search Modal -->
+    <SearchModal 
+      :is-open="showSearchModal"
+      @update:is-open="showSearchModal = $event"
+      @selected="handleNoteSelected"
+    />
   </div>
 </template>
 
