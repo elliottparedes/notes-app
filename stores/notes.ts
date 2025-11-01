@@ -9,9 +9,6 @@ interface NotesState {
   loading: boolean;
   error: string | null;
   filters: NoteFilters;
-  syncing: boolean;
-  lastSyncTime: Date | null;
-  pendingChanges: number;
   folderOrder: string[];
   noteOrder: Record<string, string[]>; // { "folder_5": ["uuid1", "uuid2"], "root": ["uuid3"] }
   // Tab management
@@ -26,9 +23,6 @@ export const useNotesStore = defineStore('notes', {
     loading: false,
     error: null,
     filters: {},
-    syncing: false,
-    lastSyncTime: null,
-    pendingChanges: 0,
     folderOrder: [],
     noteOrder: {},
     openTabs: [],
@@ -119,34 +113,23 @@ export const useNotesStore = defineStore('notes', {
   },
 
   actions: {
-    async initializeFromLocal(): Promise<void> {
-      // Load notes from IndexedDB on startup
-      if (process.client) {
-        try {
-          const { getAllNotes, initDB } = await import('~/utils/db.client');
-          await initDB();
-          this.notes = await getAllNotes();
-        } catch (err) {
-          console.error('Failed to load from local storage:', err);
-        }
-      }
-    },
-
     async fetchNotes(): Promise<void> {
       this.loading = true;
       this.error = null;
 
       try {
-        if (process.client) {
-          // First, load from local storage
-          const { getAllNotes } = await import('~/utils/db.client');
-          this.notes = await getAllNotes();
-
-          // Then try to sync with server if online
-          if (navigator.onLine) {
-            await this.syncWithServer();
-          }
+        const authStore = useAuthStore();
+        if (!authStore.token) {
+          throw new Error('Not authenticated');
         }
+
+        const response = await $fetch<Note[]>('/api/notes', {
+          headers: {
+            Authorization: `Bearer ${authStore.token}`
+          }
+        });
+
+        this.notes = response;
       } catch (err: unknown) {
         this.error = err instanceof Error ? err.message : 'Failed to fetch notes';
         throw err;
@@ -160,53 +143,26 @@ export const useNotesStore = defineStore('notes', {
       this.error = null;
 
       try {
-        if (process.client) {
-          // First try local storage
-          const { getNote } = await import('~/utils/db.client');
-          const localNote = await getNote(id);
+        const authStore = useAuthStore();
+        if (!authStore.token) {
+          throw new Error('Not authenticated');
+        }
 
-          if (localNote) {
-            this.currentNote = localNote;
-            
-            // Update the note in the notes array if it exists
-            const noteIndex = this.notes.findIndex(n => n.id === id);
-            if (noteIndex !== -1) {
-              this.notes[noteIndex] = localNote;
-            }
+        const response = await $fetch<Note>(`/api/notes/${id}`, {
+          headers: {
+            Authorization: `Bearer ${authStore.token}`
           }
+        });
 
-          // Then try to sync with server if online
-          if (navigator.onLine) {
-            const authStore = useAuthStore();
-            try {
-              const response = await $fetch<Note>(`/api/notes/${id}`, {
-                headers: {
-                  Authorization: `Bearer ${authStore.token}`
-                }
-              });
-
-              this.currentNote = response;
-              
-              // Update the note in the notes array if it exists
-              const noteIndex = this.notes.findIndex(n => n.id === id);
-              if (noteIndex !== -1) {
-                this.notes[noteIndex] = response;
-              } else {
-                // If note not in array, add it (e.g., if it was just shared with user)
-                this.notes.push(response);
-              }
-              
-              // Update local storage (convert to plain object)
-              const { saveNote } = await import('~/utils/db.client');
-              const plainResponse = JSON.parse(JSON.stringify(response));
-              await saveNote(plainResponse);
-            } catch (err) {
-              // If server fetch fails but we have local data, that's okay
-              if (!localNote) {
-                throw err;
-              }
-            }
-          }
+        this.currentNote = response;
+        
+        // Update the note in the notes array if it exists
+        const noteIndex = this.notes.findIndex(n => n.id === id);
+        if (noteIndex !== -1) {
+          this.notes[noteIndex] = response;
+        } else {
+          // If note not in array, add it (e.g., if it was just shared with user)
+          this.notes.push(response);
         }
       } catch (err: unknown) {
         this.error = err instanceof Error ? err.message : 'Failed to fetch note';
@@ -221,102 +177,31 @@ export const useNotesStore = defineStore('notes', {
       this.error = null;
 
       try {
-        if (process.client) {
-          const { saveNote, addToSyncQueue } = await import('~/utils/db.client');
-
-          // Create a temporary note with a temp UUID (will be replaced by server)
-          // Use toRaw to convert any reactive data to plain objects
-          const plainData = toRaw(data);
-          const tempNote: Note = {
-            id: `temp-${Date.now()}`, // Temporary ID to distinguish from server IDs
-            user_id: 0, // Will be set by server
-            ...plainData,
-            content: plainData.content || null,
-            tags: plainData.tags ? JSON.parse(JSON.stringify(plainData.tags)) : null,
-            is_favorite: plainData.is_favorite || false,
-            folder: plainData.folder || null,
-            folder_id: plainData.folder_id ?? null,
-            created_at: new Date(),
-            updated_at: new Date()
-          };
-
-          // Save to local storage immediately
-          await saveNote(tempNote);
-          // Don't add to notes array yet - let it appear when user navigates back
-          this.currentNote = tempNote;
-
-          // If online, try to sync immediately
-          if (navigator.onLine) {
-            try {
-              const authStore = useAuthStore();
-              const response = await $fetch<Note>('/api/notes', {
-                method: 'POST',
-                headers: {
-                  Authorization: `Bearer ${authStore.token}`
-                },
-                body: data
-              });
-
-              // Update tab IDs if the temp ID was used in tabs
-              const tempId = tempNote.id;
-              const realId = String(response.id);
-              
-              // Update openTabs if temp ID exists
-              const tempTabIndex = this.openTabs.indexOf(tempId);
-              if (tempTabIndex !== -1) {
-                this.openTabs[tempTabIndex] = realId;
-                console.log('[Store] Updated tab ID from temp to real:', tempId, '->', realId);
-              }
-              
-              // Update activeTabId if it was the temp ID
-              if (this.activeTabId === tempId) {
-                this.activeTabId = realId;
-                console.log('[Store] Updated activeTabId from temp to real:', tempId, '->', realId);
-              }
-
-              // Update current note with server response
-              this.currentNote = response;
-              
-              // Add note to notes array if not already there
-              const noteIndex = this.notes.findIndex(n => n.id === realId);
-              if (noteIndex === -1) {
-                this.notes.push(response);
-              } else {
-                this.notes[noteIndex] = response;
-              }
-
-              // Update local storage with real note (convert to plain object)
-              const plainResponse = JSON.parse(JSON.stringify(response));
-              await saveNote(plainResponse);
-              
-              // Remove temp note from local storage
-              const { deleteNote } = await import('~/utils/db.client');
-              await deleteNote(tempNote.id);
-              
-              // Save tabs to storage after updating IDs
-              this.saveTabsToStorage();
-            } catch (err) {
-              // If sync fails, add to sync queue
-              await addToSyncQueue({
-                type: 'create',
-                data
-              });
-              this.pendingChanges++;
-            }
-          } else {
-            // If offline, add to sync queue
-            await addToSyncQueue({
-              type: 'create',
-              data
-            });
-            this.pendingChanges++;
-          }
-
-          return this.currentNote;
+        const authStore = useAuthStore();
+        if (!authStore.token) {
+          throw new Error('Not authenticated');
         }
 
-        // Fallback for SSR (shouldn't happen in practice)
-        throw new Error('Client-side only operation');
+        const plainData = toRaw(data);
+        const response = await $fetch<Note>('/api/notes', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${authStore.token}`
+          },
+          body: plainData
+        });
+
+        this.currentNote = response;
+        
+        // Add note to notes array
+        const noteIndex = this.notes.findIndex(n => n.id === response.id);
+        if (noteIndex === -1) {
+          this.notes.push(response);
+        } else {
+          this.notes[noteIndex] = response;
+        }
+
+        return response;
       } catch (err: unknown) {
         this.error = err instanceof Error ? err.message : 'Failed to create note';
         throw err;
@@ -330,77 +215,28 @@ export const useNotesStore = defineStore('notes', {
       this.error = null;
 
       try {
-        if (process.client) {
-          const { saveNote, addToSyncQueue, getNote } = await import('~/utils/db.client');
+        const authStore = useAuthStore();
+        if (!authStore.token) {
+          throw new Error('Not authenticated');
+        }
 
-          // Update local note immediately
-          const localNote = await getNote(id);
-          if (localNote) {
-            // Convert to plain object to avoid Vue reactivity issues with IndexedDB
-            const updatedNote: Note = {
-              ...localNote,
-              ...toRaw(data),
-              // Ensure tags is always an array or null, never undefined
-              tags: data.tags !== undefined ? JSON.parse(JSON.stringify(data.tags || [])) : localNote.tags,
-              updated_at: new Date()
-            };
+        const plainData = toRaw(data);
+        const response = await $fetch<Note>(`/api/notes/${id}`, {
+          method: 'PUT',
+          headers: {
+            Authorization: `Bearer ${authStore.token}`
+          },
+          body: plainData
+        });
 
-            console.log('Saving to IndexedDB:', updatedNote);
-            await saveNote(updatedNote);
+        // Update with server response
+        const index = this.notes.findIndex(n => n.id === id);
+        if (index !== -1) {
+          this.notes[index] = response;
+        }
 
-            const index = this.notes.findIndex(n => n.id === id);
-            if (index !== -1) {
-              this.notes[index] = updatedNote;
-            }
-
-            if (this.currentNote?.id === id) {
-              this.currentNote = updatedNote;
-            }
-          }
-
-          // If online, try to sync immediately
-          if (navigator.onLine) {
-            try {
-              const authStore = useAuthStore();
-              const response = await $fetch<Note>(`/api/notes/${id}`, {
-                method: 'PUT',
-                headers: {
-                  Authorization: `Bearer ${authStore.token}`
-                },
-                body: data
-              });
-
-              // Update with server response
-              const index = this.notes.findIndex(n => n.id === id);
-              if (index !== -1) {
-                this.notes[index] = response;
-              }
-
-              if (this.currentNote?.id === id) {
-                this.currentNote = response;
-              }
-
-              // Save to IndexedDB (convert to plain object)
-              const plainResponse = JSON.parse(JSON.stringify(response));
-              await saveNote(plainResponse);
-            } catch (err) {
-              // If sync fails, add to sync queue
-              await addToSyncQueue({
-                type: 'update',
-                noteId: id,
-                data
-              });
-              this.pendingChanges++;
-            }
-          } else {
-            // If offline, add to sync queue
-            await addToSyncQueue({
-              type: 'update',
-              noteId: id,
-              data
-            });
-            this.pendingChanges++;
-          }
+        if (this.currentNote?.id === id) {
+          this.currentNote = response;
         }
       } catch (err: unknown) {
         this.error = err instanceof Error ? err.message : 'Failed to update note';
@@ -415,43 +251,22 @@ export const useNotesStore = defineStore('notes', {
       this.error = null;
 
       try {
-        if (process.client) {
-          const { deleteNote: deleteLocalNote, addToSyncQueue } = await import('~/utils/db.client');
+        const authStore = useAuthStore();
+        if (!authStore.token) {
+          throw new Error('Not authenticated');
+        }
 
-          // Delete from local storage immediately
-          await deleteLocalNote(id);
-          this.notes = this.notes.filter(n => n.id !== id);
-
-          if (this.currentNote?.id === id) {
-            this.currentNote = null;
+        await $fetch(`/api/notes/${id}`, {
+          method: 'DELETE',
+          headers: {
+            Authorization: `Bearer ${authStore.token}`
           }
+        });
 
-          // If online, try to sync immediately
-          if (navigator.onLine) {
-            try {
-              const authStore = useAuthStore();
-              await $fetch(`/api/notes/${id}`, {
-                method: 'DELETE',
-                headers: {
-                  Authorization: `Bearer ${authStore.token}`
-                }
-              });
-            } catch (err) {
-              // If sync fails, add to sync queue
-              await addToSyncQueue({
-                type: 'delete',
-                noteId: id
-              });
-              this.pendingChanges++;
-            }
-          } else {
-            // If offline, add to sync queue
-            await addToSyncQueue({
-              type: 'delete',
-              noteId: id
-            });
-            this.pendingChanges++;
-          }
+        this.notes = this.notes.filter(n => n.id !== id);
+
+        if (this.currentNote?.id === id) {
+          this.currentNote = null;
         }
       } catch (err: unknown) {
         this.error = err instanceof Error ? err.message : 'Failed to delete note';
@@ -461,39 +276,6 @@ export const useNotesStore = defineStore('notes', {
       }
     },
 
-    async syncWithServer(): Promise<void> {
-      if (process.client && navigator.onLine) {
-        this.syncing = true;
-        try {
-          const authStore = useAuthStore();
-          const { syncWithServer, getPendingSyncCount } = await import('~/utils/syncManager.client');
-          
-          const status = await syncWithServer(authStore.token!);
-          
-          this.lastSyncTime = status.lastSyncTime;
-          this.pendingChanges = await getPendingSyncCount();
-          
-          // Reload notes from local storage after sync
-          const { getAllNotes } = await import('~/utils/db.client');
-          this.notes = await getAllNotes();
-        } catch (err) {
-          console.error('Sync failed:', err);
-        } finally {
-          this.syncing = false;
-        }
-      }
-    },
-
-    async updatePendingChangesCount(): Promise<void> {
-      if (process.client) {
-        try {
-          const { getPendingSyncCount } = await import('~/utils/syncManager.client');
-          this.pendingChanges = await getPendingSyncCount();
-        } catch (err) {
-          console.error('Failed to get pending changes count:', err);
-        }
-      }
-    },
 
     setFilters(filters: NoteFilters): void {
       this.filters = { ...this.filters, ...filters };
@@ -510,72 +292,45 @@ export const useNotesStore = defineStore('notes', {
 
     // Folder ordering methods
     async loadFolderOrder(): Promise<void> {
-      if (process.client) {
-        try {
-          // First, try to load from server if online
-          if (navigator.onLine) {
-            const authStore = useAuthStore();
-            if (authStore.token) {
-              try {
-                const response = await $fetch<{ folder_order: string[] | null }>('/api/user/folder-order', {
-                  headers: {
-                    Authorization: `Bearer ${authStore.token}`
-                  }
-                });
-                
-                if (response.folder_order) {
-                  this.folderOrder = response.folder_order;
-                  // Save to localStorage as cache
-                  localStorage.setItem('folder_order', JSON.stringify(this.folderOrder));
-                  return;
-                }
-              } catch (err) {
-                console.error('Failed to load folder order from server:', err);
-              }
-            }
-          }
-          
-          // Fallback to localStorage
-          const stored = localStorage.getItem('folder_order');
-          if (stored) {
-            try {
-              this.folderOrder = JSON.parse(stored);
-            } catch (err) {
-              console.error('Failed to parse folder order:', err);
-              this.folderOrder = [];
-            }
-          }
-        } catch (err) {
-          console.error('Error loading folder order:', err);
+      try {
+        const authStore = useAuthStore();
+        if (!authStore.token) {
+          return;
         }
+
+        const response = await $fetch<{ folder_order: string[] | null }>('/api/user/folder-order', {
+          headers: {
+            Authorization: `Bearer ${authStore.token}`
+          }
+        });
+        
+        if (response.folder_order) {
+          this.folderOrder = response.folder_order;
+        }
+      } catch (err) {
+        console.error('Failed to load folder order:', err);
       }
     },
 
     async saveFolderOrder(): Promise<void> {
-      if (process.client) {
-        // Always save to localStorage for offline access
-        localStorage.setItem('folder_order', JSON.stringify(this.folderOrder));
-        
-        // Try to sync with server if online
-        if (navigator.onLine) {
-          const authStore = useAuthStore();
-          if (authStore.token) {
-            try {
-              await $fetch('/api/user/folder-order', {
-                method: 'PUT',
-                headers: {
-                  Authorization: `Bearer ${authStore.token}`
-                },
-                body: {
-                  folder_order: this.folderOrder
-                }
-              });
-            } catch (err) {
-              console.error('Failed to save folder order to server:', err);
-              // Silently fail - localStorage will serve as backup
-            }
-          }
+      try {
+        const authStore = useAuthStore();
+        if (!authStore.token) {
+          throw new Error('Not authenticated');
         }
+
+        await $fetch('/api/user/folder-order', {
+          method: 'PUT',
+          headers: {
+            Authorization: `Bearer ${authStore.token}`
+          },
+          body: {
+            folder_order: this.folderOrder
+          }
+        });
+      } catch (err) {
+        console.error('Failed to save folder order:', err);
+        throw err;
       }
     },
 
@@ -619,72 +374,45 @@ export const useNotesStore = defineStore('notes', {
 
     // Note ordering methods
     async loadNoteOrder(): Promise<void> {
-      if (process.client) {
-        try {
-          // First, try to load from server if online
-          if (navigator.onLine) {
-            const authStore = useAuthStore();
-            if (authStore.token) {
-              try {
-                const response = await $fetch<{ note_order: Record<string, string[]> | null }>('/api/user/note-order', {
-                  headers: {
-                    Authorization: `Bearer ${authStore.token}`
-                  }
-                });
-                
-                if (response.note_order) {
-                  this.noteOrder = response.note_order;
-                  // Save to localStorage as cache
-                  localStorage.setItem('note_order', JSON.stringify(this.noteOrder));
-                  return;
-                }
-              } catch (err) {
-                console.error('Failed to load note order from server:', err);
-              }
-            }
-          }
-          
-          // Fallback to localStorage
-          const stored = localStorage.getItem('note_order');
-          if (stored) {
-            try {
-              this.noteOrder = JSON.parse(stored);
-            } catch (err) {
-              console.error('Failed to parse note order:', err);
-              this.noteOrder = {};
-            }
-          }
-        } catch (err) {
-          console.error('Error loading note order:', err);
+      try {
+        const authStore = useAuthStore();
+        if (!authStore.token) {
+          return;
         }
+
+        const response = await $fetch<{ note_order: Record<string, string[]> | null }>('/api/user/note-order', {
+          headers: {
+            Authorization: `Bearer ${authStore.token}`
+          }
+        });
+        
+        if (response.note_order) {
+          this.noteOrder = response.note_order;
+        }
+      } catch (err) {
+        console.error('Failed to load note order:', err);
       }
     },
 
     async saveNoteOrder(): Promise<void> {
-      if (process.client) {
-        // Always save to localStorage for offline access
-        localStorage.setItem('note_order', JSON.stringify(this.noteOrder));
-        
-        // Try to sync with server if online
-        if (navigator.onLine) {
-          const authStore = useAuthStore();
-          if (authStore.token) {
-            try {
-              await $fetch('/api/user/note-order', {
-                method: 'PUT',
-                headers: {
-                  Authorization: `Bearer ${authStore.token}`
-                },
-                body: {
-                  note_order: this.noteOrder
-                }
-              });
-            } catch (err) {
-              console.error('Failed to save note order to server:', err);
-              // Silently fail - localStorage will serve as backup
-            }
-          }
+      try {
+        const authStore = useAuthStore();
+        if (!authStore.token) {
+          throw new Error('Not authenticated');
         }
+
+        await $fetch('/api/user/note-order', {
+          method: 'PUT',
+          headers: {
+            Authorization: `Bearer ${authStore.token}`
+          },
+          body: {
+            note_order: this.noteOrder
+          }
+        });
+      } catch (err) {
+        console.error('Failed to save note order:', err);
+        throw err;
       }
     },
 
@@ -803,31 +531,19 @@ export const useNotesStore = defineStore('notes', {
         await this.saveNoteOrder();
         console.log('[NotesStore] noteOrder saved');
 
-        // Update local storage - convert to plain object to avoid DataCloneError
-        if (process.client && noteIndex !== -1) {
-          const { saveNote } = await import('~/utils/db.client');
-          // Convert reactive object to plain object for IndexedDB
-          const plainNote = JSON.parse(JSON.stringify(this.notes[noteIndex]));
-          console.log('[NotesStore] Saving note to IndexedDB', {
-            noteId: plainNote.id,
-            folder_id: plainNote.folder_id
+        // Also update currentNote if it's the one being moved
+        if (this.currentNote && this.currentNote.id === noteId) {
+          console.log('[NotesStore] Updating currentNote', {
+            before: this.currentNote.folder_id,
+            after: newFolderId
           });
-          await saveNote(plainNote);
-          
-          // Also update currentNote if it's the one being moved
-          if (this.currentNote && this.currentNote.id === noteId) {
-            console.log('[NotesStore] Updating currentNote', {
-              before: this.currentNote.folder_id,
-              after: newFolderId
-            });
-            this.currentNote.folder_id = newFolderId;
-            this.currentNote.updated_at = this.notes[noteIndex].updated_at;
-            // Force reactivity by reassigning
-            this.currentNote = { ...this.currentNote };
-            console.log('[NotesStore] currentNote updated', {
-              folder_id: this.currentNote.folder_id
-            });
-          }
+          this.currentNote.folder_id = newFolderId;
+          this.currentNote.updated_at = this.notes[noteIndex].updated_at;
+          // Force reactivity by reassigning
+          this.currentNote = { ...this.currentNote };
+          console.log('[NotesStore] currentNote updated', {
+            folder_id: this.currentNote.folder_id
+          });
         }
 
         console.log('[NotesStore] moveNote completed successfully');

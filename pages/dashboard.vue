@@ -13,8 +13,6 @@ const toast = useToast();
 const router = useRouter();
 const route = useRoute();
 
-// Network status
-const { isOnline } = useNetworkStatus();
 
 // State
 const searchQuery = ref('');
@@ -167,10 +165,9 @@ async function loadData() {
     // Fetch spaces first, then folders (which depends on current space)
     await spacesStore.fetchSpaces();
     
-    await Promise.all([
+      await Promise.all([
       foldersStore.fetchFolders(),
       notesStore.fetchNotes(),
-      notesStore.updatePendingChangesCount(),
       notesStore.loadNoteOrder(),
       sharedNotesStore.fetchSharedNotes()
     ]);
@@ -249,7 +246,7 @@ watch(() => spacesStore.currentSpaceId, async (newSpaceId, oldSpaceId) => {
         
         // Update active tab if it's no longer valid
         if (notesStore.activeTabId && !validTabs.includes(notesStore.activeTabId)) {
-          if (validTabs.length > 0) {
+          if (validTabs.length > 0 && validTabs[0]) {
             notesStore.setActiveTab(validTabs[0]);
           } else {
             notesStore.activeTabId = null;
@@ -321,8 +318,7 @@ onActivated(async () => {
     try {
       await Promise.all([
         foldersStore.fetchFolders(),
-        notesStore.fetchNotes(),
-        notesStore.updatePendingChangesCount()
+        notesStore.fetchNotes()
       ]);
     } catch (error) {
       console.error('Failed to refresh data:', error);
@@ -347,8 +343,7 @@ watch(() => route.path, async (newPath) => {
     try {
       await Promise.all([
         notesStore.fetchNotes(),
-        foldersStore.fetchFolders(),
-        notesStore.updatePendingChangesCount()
+        foldersStore.fetchFolders()
       ]);
     } catch (error) {
       console.error('Failed to refresh on navigation:', error);
@@ -356,29 +351,6 @@ watch(() => route.path, async (newPath) => {
   }
 }, { immediate: false });
 
-// Watch for network status changes
-watch(isOnline, async (online, wasOnlineValue) => {
-  if (online && wasOnlineValue === false) {
-    toast.add({
-      title: 'Back Online',
-      description: 'Syncing your notes...',
-      color: 'success'
-    });
-    
-    try {
-      await notesStore.syncWithServer();
-      await notesStore.updatePendingChangesCount();
-    } catch (error) {
-      console.error('Sync failed:', error);
-    }
-  } else if (!online) {
-    toast.add({
-      title: 'Offline Mode',
-      description: 'Changes will sync when you\'re back online',
-      color: 'warning'
-    });
-  }
-});
 
 // Active note from store - ensure reactivity for folder_id changes
 const activeNote = computed(() => {
@@ -1655,6 +1627,19 @@ async function polishNote() {
   }
 }
 
+// Helper function to extract plain text from HTML
+const getPlainText = (html: string | null | undefined): string => {
+  if (!html) return '';
+  // Create a temporary div to parse HTML and extract text
+  if (process.client) {
+    const temp = document.createElement('div');
+    temp.innerHTML = html;
+    return temp.textContent || temp.innerText || '';
+  }
+  // Fallback for SSR: basic HTML tag removal
+  return html.replace(/<[^>]*>/g, '').trim();
+};
+
 // Character and word count (use activeNote.content for collaborative notes)
 const wordCount = computed(() => {
   // For collaborative notes, read from activeNote.content (Y.Doc synced)
@@ -1662,8 +1647,9 @@ const wordCount = computed(() => {
     ? activeNote.value?.content 
     : editForm.content;
   
-  if (!content) return 0;
-  return content.trim().split(/\s+/).filter(word => word.length > 0).length;
+  const plainText = getPlainText(content);
+  if (!plainText) return 0;
+  return plainText.split(/\s+/).filter(word => word.length > 0).length;
 });
 
 const charCount = computed(() => {
@@ -1672,7 +1658,8 @@ const charCount = computed(() => {
     ? activeNote.value?.content 
     : editForm.content;
   
-  return content?.length || 0;
+  const plainText = getPlainText(content);
+  return plainText.length;
 });
 
 // Position folder dropdown
@@ -2294,33 +2281,20 @@ onMounted(() => {
               </button>
             </div>
             
-            <!-- Sync Status (always visible) -->
+            <!-- Save Status -->
             <ClientOnly>
               <div class="flex items-center gap-2 px-4 border-l border-gray-200 dark:border-gray-700">
-                <!-- Combined Save & Sync Status -->
                 <div 
                   class="flex items-center gap-1.5 text-xs"
                   :class="{
-                    'text-yellow-600 dark:text-yellow-400': !isOnline,
-                    'text-gray-500 dark:text-gray-400': isOnline && (isSaving || notesStore.syncing),
-                    'text-green-600 dark:text-green-400': isOnline && !isSaving && !notesStore.syncing && notesStore.pendingChanges === 0,
-                    'text-blue-600 dark:text-blue-400': isOnline && !isSaving && !notesStore.syncing && notesStore.pendingChanges > 0
+                    'text-gray-500 dark:text-gray-400': isSaving,
+                    'text-green-600 dark:text-green-400': !isSaving
                   }"
                 >
                   <UIcon 
-                    v-if="!isOnline"
-                    name="i-heroicons-wifi"
-                    class="w-4 h-4"
-                  />
-                  <UIcon 
-                    v-else-if="isSaving || notesStore.syncing"
+                    v-if="isSaving"
                     name="i-heroicons-arrow-path"
                     class="w-4 h-4 animate-spin"
-                  />
-                  <UIcon 
-                    v-else-if="notesStore.pendingChanges > 0"
-                    name="i-heroicons-cloud-arrow-up"
-                    class="w-4 h-4"
                   />
                   <UIcon 
                     v-else
@@ -2328,23 +2302,9 @@ onMounted(() => {
                     class="w-4 h-4"
                   />
                   <span class="hidden lg:inline">
-                    {{ !isOnline ? 'Offline' : 
-                       isSaving ? 'Saving...' : 
-                       notesStore.syncing ? 'Syncing...' : 
-                       notesStore.pendingChanges > 0 ? `${notesStore.pendingChanges} pending` : 
-                       'All saved' }}
+                    {{ isSaving ? 'Saving...' : 'Saved' }}
                   </span>
                 </div>
-                
-                <!-- Manual Sync Button (when pending) -->
-                <button
-                  v-if="isOnline && !notesStore.syncing && notesStore.pendingChanges > 0"
-                  @click="notesStore.syncWithServer()"
-                  class="p-1 rounded hover:bg-blue-50 dark:hover:bg-blue-900/20 text-blue-600 dark:text-blue-400 transition-colors"
-                  title="Sync now"
-                >
-                  <UIcon name="i-heroicons-arrow-path" class="w-3.5 h-3.5" />
-                </button>
               </div>
             </ClientOnly>
           </div>

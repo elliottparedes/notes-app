@@ -85,14 +85,29 @@ onMounted(() => {
   });
 });
 
+// Helper function to extract plain text from HTML
+const getPlainText = (html: string | null | undefined): string => {
+  if (!html) return '';
+  // Create a temporary div to parse HTML and extract text
+  if (process.client) {
+    const temp = document.createElement('div');
+    temp.innerHTML = html;
+    return temp.textContent || temp.innerText || '';
+  }
+  // Fallback for SSR: basic HTML tag removal
+  return html.replace(/<[^>]*>/g, '').trim();
+};
+
 // Character and word count
 const wordCount = computed(() => {
-  if (!editForm.content) return 0;
-  return editForm.content.trim().split(/\s+/).filter(word => word.length > 0).length;
+  const plainText = getPlainText(editForm.content);
+  if (!plainText) return 0;
+  return plainText.split(/\s+/).filter(word => word.length > 0).length;
 });
 
 const charCount = computed(() => {
-  return editForm.content?.length || 0;
+  const plainText = getPlainText(editForm.content);
+  return plainText.length;
 });
 
 // Toggle editor toolbar

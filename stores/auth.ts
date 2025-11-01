@@ -24,7 +24,9 @@ export const useAuthStore = defineStore('auth', {
 
   getters: {
     isAuthenticated: (state): boolean => {
-      return !!state.user && !!state.token;
+      // Allow authentication if we have a token, even without user data (offline mode)
+      // This enables access to locally cached notes when server is down
+      return !!state.token;
     },
     currentUser: (state): User | null => state.user
   },
@@ -44,10 +46,11 @@ export const useAuthStore = defineStore('auth', {
         this.token = response.token;
         this.initialized = true;
         
-        // Store token in localStorage with session version
+        // Store token and user in localStorage for offline access
         if (process.client) {
           localStorage.setItem('auth_token', response.token);
           localStorage.setItem('session_version', Date.now().toString());
+          localStorage.setItem('cached_user', JSON.stringify(response.user));
         }
         
         // Navigate to dashboard
@@ -92,10 +95,11 @@ export const useAuthStore = defineStore('auth', {
         this.initialized = true;
         this.needsPasswordReset = response.usedTemporaryPassword || false;
         
-        // Store token and password reset flag in localStorage with session version
+        // Store token, user, and password reset flag in localStorage for offline access
         if (process.client) {
           localStorage.setItem('auth_token', response.token);
           localStorage.setItem('session_version', Date.now().toString());
+          localStorage.setItem('cached_user', JSON.stringify(response.user));
           if (response.usedTemporaryPassword) {
             localStorage.setItem('needs_password_reset', 'true');
           }
@@ -140,7 +144,11 @@ export const useAuthStore = defineStore('auth', {
       this.needsPasswordReset = false;
       
       if (process.client) {
-        localStorage.clear();
+        // Clear auth-related items but preserve IndexedDB (notes)
+        localStorage.removeItem('auth_token');
+        localStorage.removeItem('session_version');
+        localStorage.removeItem('cached_user');
+        localStorage.removeItem('needs_password_reset');
         sessionStorage.clear();
         
         // Add timestamp to force fresh state on next login
@@ -166,6 +174,18 @@ export const useAuthStore = defineStore('auth', {
         return;
       }
 
+      // Try to load cached user first for offline access
+      if (process.client && !this.user) {
+        const cachedUser = localStorage.getItem('cached_user');
+        if (cachedUser) {
+          try {
+            this.user = JSON.parse(cachedUser);
+          } catch (e) {
+            console.error('Failed to parse cached user:', e);
+          }
+        }
+      }
+
       this.loading = true;
 
       try {
@@ -176,16 +196,32 @@ export const useAuthStore = defineStore('auth', {
         });
 
         this.user = response;
+        
+        // Update cached user
+        if (process.client) {
+          localStorage.setItem('cached_user', JSON.stringify(response));
+        }
       } catch (err: unknown) {
         console.error('Failed to fetch current user:', err);
         
-        // Clear invalid token
-        this.user = null;
-        this.token = null;
+        // Check if it's an authentication error (401/403) vs network/server error
+        const isAuthError = err && typeof err === 'object' && 'statusCode' in err 
+          && (err.statusCode === 401 || err.statusCode === 403);
         
-        if (process.client) {
-          localStorage.removeItem('auth_token');
-          localStorage.removeItem('session_version');
+        if (isAuthError) {
+          // Only clear token on actual auth errors (invalid token)
+          this.user = null;
+          this.token = null;
+          
+          if (process.client) {
+            localStorage.removeItem('auth_token');
+            localStorage.removeItem('session_version');
+            localStorage.removeItem('cached_user');
+          }
+        } else {
+          // Network/server error - keep token and cached user for offline access
+          // User can still access their local notes
+          console.warn('Server unavailable, using cached user data for offline access');
         }
       } finally {
         this.loading = false;
@@ -204,10 +240,22 @@ export const useAuthStore = defineStore('auth', {
         if (process.client) {
           const token = localStorage.getItem('auth_token');
           const needsReset = localStorage.getItem('needs_password_reset');
+          const cachedUser = localStorage.getItem('cached_user');
           
           if (token) {
             this.token = token;
             this.needsPasswordReset = needsReset === 'true';
+            
+            // Load cached user immediately for instant offline access
+            if (cachedUser) {
+              try {
+                this.user = JSON.parse(cachedUser);
+              } catch (e) {
+                console.error('Failed to parse cached user:', e);
+              }
+            }
+            
+            // Try to fetch fresh user data (will fallback to cached on server error)
             await this.fetchCurrentUser();
           } else {
             this.initialized = true;

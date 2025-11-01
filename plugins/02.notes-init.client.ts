@@ -2,36 +2,15 @@ export default defineNuxtPlugin(async (nuxtApp) => {
   const notesStore = useNotesStore();
   const authStore = useAuthStore();
 
-  // Initialize notes from local storage
-  await notesStore.initializeFromLocal();
-
-  // Enable auto-sync if authenticated
+  // Load notes from server if authenticated
   if (authStore.isAuthenticated && authStore.token) {
-    const { enableAutoSync } = await import('~/utils/syncManager.client');
-    enableAutoSync(authStore.token);
-
-    // Do initial sync if online
-    if (navigator.onLine) {
-      notesStore.syncWithServer();
+    try {
+      await notesStore.fetchNotes();
+      await notesStore.loadFolderOrder();
+      await notesStore.loadNoteOrder();
+      await notesStore.loadTabsFromStorage();
+    } catch (err) {
+      console.error('Failed to initialize notes:', err);
     }
   }
-
-  // Watch for auth changes to enable/disable sync
-  watch(
-    () => authStore.isAuthenticated,
-    async (isAuth) => {
-      if (isAuth && authStore.token) {
-        const { enableAutoSync } = await import('~/utils/syncManager.client');
-        enableAutoSync(authStore.token);
-        
-        if (navigator.onLine) {
-          await notesStore.syncWithServer();
-        }
-      } else {
-        const { disableAutoSync } = await import('~/utils/syncManager.client');
-        disableAutoSync();
-      }
-    }
-  );
 });
-
