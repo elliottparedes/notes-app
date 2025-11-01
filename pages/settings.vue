@@ -2,11 +2,22 @@
 const authStore = useAuthStore();
 const toast = useToast();
 
+// Dark mode toggle
+const colorMode = useColorMode();
+
 const newPassword = ref('');
 const confirmPassword = ref('');
 const loading = ref(false);
 
 const showTempPasswordAlert = computed(() => authStore.needsPasswordReset);
+
+// Computed for dark mode toggle state
+const isDark = computed({
+  get: () => colorMode.value === 'dark',
+  set: (value: boolean) => {
+    colorMode.preference = value ? 'dark' : 'light';
+  }
+});
 
 async function handleChangePassword() {
   // Validation
@@ -135,6 +146,48 @@ function goBack() {
               Name
             </label>
             <p class="text-gray-900 dark:text-white">{{ authStore.user?.name }}</p>
+          </div>
+        </div>
+      </UCard>
+
+      <!-- Appearance Settings -->
+      <UCard class="mb-6">
+        <template #header>
+          <h2 class="text-xl font-semibold text-gray-900 dark:text-white">Appearance</h2>
+        </template>
+
+        <div class="space-y-4">
+          <div class="flex items-center justify-between py-2">
+            <div class="flex-1">
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Dark Mode
+              </label>
+              <p class="text-sm text-gray-600 dark:text-gray-400">
+                Switch between light and dark theme
+              </p>
+            </div>
+            <!-- Custom Toggle Switch -->
+            <button
+              @click="isDark = !isDark"
+              type="button"
+              role="switch"
+              :aria-checked="isDark"
+              class="relative inline-flex h-7 w-12 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 ml-4"
+              :class="isDark ? 'bg-primary-600' : 'bg-gray-300 dark:bg-gray-600'"
+            >
+              <span
+                class="pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
+                :class="isDark ? 'translate-x-5' : 'translate-x-0'"
+              >
+                <span class="absolute inset-0 flex items-center justify-center">
+                  <UIcon 
+                    :name="isDark ? 'i-heroicons-moon' : 'i-heroicons-sun'" 
+                    class="h-4 w-4"
+                    :class="isDark ? 'text-primary-600' : 'text-gray-400'"
+                  />
+                </span>
+              </span>
+            </button>
           </div>
         </div>
       </UCard>
