@@ -1882,58 +1882,48 @@ onMounted(() => {
             </button>
 
             <!-- Shared notes list -->
-            <Transition
-              enter-active-class="transition-all duration-200 ease-out"
-              enter-from-class="opacity-0 max-h-0"
-              enter-to-class="opacity-100 max-h-[2000px]"
-              leave-active-class="transition-all duration-200 ease-in"
-              leave-from-class="opacity-100 max-h-[2000px]"
-              leave-to-class="opacity-0 max-h-0"
-            >
-              <div v-if="isSharedNotesExpanded && sharedNotesStore.groupedSharedNotes.length > 0" class="space-y-0.5 overflow-hidden">
-              <div
-                v-for="share in sharedNotesStore.groupedSharedNotes"
-                :key="`share-${share.note_id}`"
-                @click="handleOpenSharedNote(share)"
-                class="group flex items-start gap-2 px-3 py-2 rounded-lg cursor-pointer transition-colors hover:bg-purple-50 dark:hover:bg-purple-900/20"
-                :class="notesStore.activeTabId === share.note_id ? 'bg-purple-100 dark:bg-purple-900/30' : ''"
-              >
-                <UIcon 
-                  :name="share.is_owned_by_me ? 'i-heroicons-arrow-up-tray' : 'i-heroicons-arrow-down-tray'" 
-                  class="w-4 h-4 flex-shrink-0 text-purple-600 dark:text-purple-400 mt-0.5" 
-                />
-                <div class="flex-1 min-w-0">
-                  <p class="text-sm font-medium text-gray-900 dark:text-white truncate">
-                    {{ share.note_title }}
-                  </p>
-                  <p class="text-xs text-gray-500 dark:text-gray-400 truncate">
-                    {{ share.is_owned_by_me ? 
-                       (share.shareCount > 1 ? `Shared with ${share.shareCount} people` : `Shared with ${share.shared_with_name || share.shared_with_email}`) : 
-                       `From ${share.owner_name || share.owner_email}` }}
-                  </p>
+            <Transition name="expand-shared">
+              <div v-if="isSharedNotesExpanded && sharedNotesStore.groupedSharedNotes.length > 0" class="shared-notes-container">
+                <div class="shared-notes-content space-y-0.5">
+                  <div
+                    v-for="share in sharedNotesStore.groupedSharedNotes"
+                    :key="`share-${share.note_id}`"
+                    @click="handleOpenSharedNote(share)"
+                    class="group flex items-start gap-2 px-3 py-2 rounded-lg cursor-pointer transition-colors hover:bg-purple-50 dark:hover:bg-purple-900/20"
+                    :class="notesStore.activeTabId === share.note_id ? 'bg-purple-100 dark:bg-purple-900/30' : ''"
+                  >
+                    <UIcon 
+                      :name="share.is_owned_by_me ? 'i-heroicons-arrow-up-tray' : 'i-heroicons-arrow-down-tray'" 
+                      class="w-4 h-4 flex-shrink-0 text-purple-600 dark:text-purple-400 mt-0.5" 
+                    />
+                    <div class="flex-1 min-w-0">
+                      <p class="text-sm font-medium text-gray-900 dark:text-white truncate">
+                        {{ share.note_title }}
+                      </p>
+                      <p class="text-xs text-gray-500 dark:text-gray-400 truncate">
+                        {{ share.is_owned_by_me ? 
+                           (share.shareCount > 1 ? `Shared with ${share.shareCount} people` : `Shared with ${share.shared_with_name || share.shared_with_email}`) : 
+                           `From ${share.owner_name || share.owner_email}` }}
+                      </p>
+                    </div>
+                    <UBadge 
+                      :color="share.permission === 'editor' ? 'primary' : 'neutral'" 
+                      size="xs"
+                      class="flex-shrink-0"
+                    >
+                      {{ share.permission }}
+                    </UBadge>
+                  </div>
                 </div>
-                <UBadge 
-                  :color="share.permission === 'editor' ? 'primary' : 'neutral'" 
-                  size="xs"
-                  class="flex-shrink-0"
-                >
-                  {{ share.permission }}
-                </UBadge>
-              </div>
               </div>
             </Transition>
 
-            <Transition
-              enter-active-class="transition-all duration-200 ease-out"
-              enter-from-class="opacity-0 max-h-0"
-              enter-to-class="opacity-100 max-h-[200px]"
-              leave-active-class="transition-all duration-200 ease-in"
-              leave-from-class="opacity-100 max-h-[200px]"
-              leave-to-class="opacity-0 max-h-0"
-            >
-              <div v-if="isSharedNotesExpanded && sharedNotesStore.groupedSharedNotes.length === 0" class="px-3 py-6 text-center overflow-hidden">
-                <UIcon name="i-heroicons-user-group" class="w-10 h-10 mx-auto text-gray-300 dark:text-gray-600 mb-2" />
-                <p class="text-xs text-gray-500 dark:text-gray-400">No shared notes yet</p>
+            <Transition name="expand-shared">
+              <div v-if="isSharedNotesExpanded && sharedNotesStore.groupedSharedNotes.length === 0" class="shared-notes-container">
+                <div class="shared-notes-content px-3 py-6 text-center">
+                  <UIcon name="i-heroicons-user-group" class="w-10 h-10 mx-auto text-gray-300 dark:text-gray-600 mb-2" />
+                  <p class="text-xs text-gray-500 dark:text-gray-400">No shared notes yet</p>
+                </div>
               </div>
             </Transition>
           </div>
@@ -2161,58 +2151,48 @@ onMounted(() => {
                   </button>
 
                   <!-- Shared notes list -->
-                  <Transition
-                    enter-active-class="transition-all duration-200 ease-out"
-                    enter-from-class="opacity-0 max-h-0"
-                    enter-to-class="opacity-100 max-h-[2000px]"
-                    leave-active-class="transition-all duration-200 ease-in"
-                    leave-from-class="opacity-100 max-h-[2000px]"
-                    leave-to-class="opacity-0 max-h-0"
-                  >
-                    <div v-if="isSharedNotesExpanded && sharedNotesStore.groupedSharedNotes.length > 0" class="space-y-0.5 overflow-hidden">
-                    <div
-                      v-for="share in sharedNotesStore.groupedSharedNotes"
-                      :key="`share-mobile-${share.note_id}`"
-                      @click="handleOpenSharedNote(share)"
-                      class="group flex items-start gap-2 px-3 py-2 rounded-lg cursor-pointer transition-colors hover:bg-purple-50 dark:hover:bg-purple-900/20"
-                      :class="notesStore.activeTabId === share.note_id ? 'bg-purple-100 dark:bg-purple-900/30' : ''"
-                    >
-                      <UIcon 
-                        :name="share.is_owned_by_me ? 'i-heroicons-arrow-up-tray' : 'i-heroicons-arrow-down-tray'" 
-                        class="w-4 h-4 flex-shrink-0 text-purple-600 dark:text-purple-400 mt-0.5" 
-                      />
-                      <div class="flex-1 min-w-0">
-                        <p class="text-sm font-medium text-gray-900 dark:text-white truncate">
-                          {{ share.note_title }}
-                        </p>
-                        <p class="text-xs text-gray-500 dark:text-gray-400 truncate">
-                          {{ share.is_owned_by_me ? 
-                             (share.shareCount > 1 ? `Shared with ${share.shareCount} people` : `Shared with ${share.shared_with_name || share.shared_with_email}`) : 
-                             `From ${share.owner_name || share.owner_email}` }}
-                        </p>
+                  <Transition name="expand-shared">
+                    <div v-if="isSharedNotesExpanded && sharedNotesStore.groupedSharedNotes.length > 0" class="shared-notes-container">
+                      <div class="shared-notes-content space-y-0.5">
+                        <div
+                          v-for="share in sharedNotesStore.groupedSharedNotes"
+                          :key="`share-mobile-${share.note_id}`"
+                          @click="handleOpenSharedNote(share)"
+                          class="group flex items-start gap-2 px-3 py-2 rounded-lg cursor-pointer transition-colors hover:bg-purple-50 dark:hover:bg-purple-900/20"
+                          :class="notesStore.activeTabId === share.note_id ? 'bg-purple-100 dark:bg-purple-900/30' : ''"
+                        >
+                          <UIcon 
+                            :name="share.is_owned_by_me ? 'i-heroicons-arrow-up-tray' : 'i-heroicons-arrow-down-tray'" 
+                            class="w-4 h-4 flex-shrink-0 text-purple-600 dark:text-purple-400 mt-0.5" 
+                          />
+                          <div class="flex-1 min-w-0">
+                            <p class="text-sm font-medium text-gray-900 dark:text-white truncate">
+                              {{ share.note_title }}
+                            </p>
+                            <p class="text-xs text-gray-500 dark:text-gray-400 truncate">
+                              {{ share.is_owned_by_me ? 
+                                 (share.shareCount > 1 ? `Shared with ${share.shareCount} people` : `Shared with ${share.shared_with_name || share.shared_with_email}`) : 
+                                 `From ${share.owner_name || share.owner_email}` }}
+                            </p>
+                          </div>
+                          <UBadge 
+                            :color="share.permission === 'editor' ? 'primary' : 'neutral'" 
+                            size="xs"
+                            class="flex-shrink-0"
+                          >
+                            {{ share.permission }}
+                          </UBadge>
+                        </div>
                       </div>
-                      <UBadge 
-                        :color="share.permission === 'editor' ? 'primary' : 'neutral'" 
-                        size="xs"
-                        class="flex-shrink-0"
-                      >
-                        {{ share.permission }}
-                      </UBadge>
-                    </div>
                     </div>
                   </Transition>
 
-                  <Transition
-                    enter-active-class="transition-all duration-200 ease-out"
-                    enter-from-class="opacity-0 max-h-0"
-                    enter-to-class="opacity-100 max-h-[200px]"
-                    leave-active-class="transition-all duration-200 ease-in"
-                    leave-from-class="opacity-100 max-h-[200px]"
-                    leave-to-class="opacity-0 max-h-0"
-                  >
-                    <div v-if="isSharedNotesExpanded && sharedNotesStore.groupedSharedNotes.length === 0" class="px-3 py-6 text-center overflow-hidden">
-                      <UIcon name="i-heroicons-user-group" class="w-10 h-10 mx-auto text-gray-300 dark:text-gray-600 mb-2" />
-                      <p class="text-xs text-gray-500 dark:text-gray-400">No shared notes yet</p>
+                  <Transition name="expand-shared">
+                    <div v-if="isSharedNotesExpanded && sharedNotesStore.groupedSharedNotes.length === 0" class="shared-notes-container">
+                      <div class="shared-notes-content px-3 py-6 text-center">
+                        <UIcon name="i-heroicons-user-group" class="w-10 h-10 mx-auto text-gray-300 dark:text-gray-600 mb-2" />
+                        <p class="text-xs text-gray-500 dark:text-gray-400">No shared notes yet</p>
+                      </div>
                     </div>
                   </Transition>
                 </div>
@@ -3257,6 +3237,50 @@ onMounted(() => {
 .fab-menu-leave-from {
   opacity: 1;
   transform: scale(1) translateY(0);
+}
+
+/* Expand transition for shared notes - Notion-style smooth animation */
+.shared-notes-container {
+  display: grid;
+  grid-template-rows: 1fr;
+  overflow: hidden;
+}
+
+.shared-notes-content {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.expand-shared-enter-active {
+  transition: grid-template-rows 0.28s cubic-bezier(0.4, 0, 0.2, 1),
+              opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  /* Matches folder animation timing */
+}
+
+.expand-shared-leave-active {
+  transition: grid-template-rows 0.22s cubic-bezier(0.4, 0, 0.2, 1),
+              opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  /* Faster leave for snappy feel */
+}
+
+.expand-shared-enter-from {
+  grid-template-rows: 0fr;
+  opacity: 0;
+}
+
+.expand-shared-enter-to {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+
+.expand-shared-leave-from {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+
+.expand-shared-leave-to {
+  grid-template-rows: 0fr;
+  opacity: 0;
 }
 </style>
 

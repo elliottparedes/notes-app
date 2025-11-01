@@ -838,14 +838,15 @@ onMounted(() => {
     <!-- Children (Notes and Subfolders) -->
     <Transition name="expand">
       <!-- Always render when expanded to allow drops into empty folders -->
-      <div v-if="isExpanded" class="overflow-hidden" :data-folder-id="folder.id">
-        <!-- Notes in this folder - always render container, even if empty -->
-        <div
-          ref="notesContainerRef"
-          class="notes-container"
-          :data-folder-id="folder.id"
-          :class="{ 'empty-folder': folderNotes.length === 0 && !hasChildren }"
-        >
+      <div v-if="isExpanded" class="expand-container" :data-folder-id="folder.id">
+        <div class="expand-content">
+          <!-- Notes in this folder - always render container, even if empty -->
+          <div
+            ref="notesContainerRef"
+            class="notes-container"
+            :data-folder-id="folder.id"
+            :class="{ 'empty-folder': folderNotes.length === 0 && !hasChildren }"
+          >
         <div
           v-for="note in folderNotes"
           :key="`note-${note.id}`"
@@ -915,6 +916,7 @@ onMounted(() => {
           @delete-note="emit('delete-note', $event)"
         />
         </div>
+        </div>
       </div>
     </Transition>
 </template>
@@ -932,22 +934,48 @@ onMounted(() => {
   transform: scale(0.95) translateY(-4px);
 }
 
-/* Expand transition for children */
-.expand-enter-active,
+/* Expand transition for children - Notion-style smooth animation */
+.expand-container {
+  display: grid;
+  grid-template-rows: 1fr;
+  overflow: hidden;
+}
+
+.expand-content {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.expand-enter-active {
+  transition: grid-template-rows 0.28s cubic-bezier(0.4, 0, 0.2, 1),
+              opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  /* Slightly longer than SortableJS (150ms) to avoid conflicts */
+}
+
 .expand-leave-active {
-  transition: all 0.2s ease;
+  transition: grid-template-rows 0.22s cubic-bezier(0.4, 0, 0.2, 1),
+              opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  /* Faster leave for snappy feel */
 }
 
-.expand-enter-from,
-.expand-leave-to {
+.expand-enter-from {
+  grid-template-rows: 0fr;
   opacity: 0;
-  max-height: 0;
 }
 
-.expand-enter-to,
-.expand-leave-from {
+.expand-enter-to {
+  grid-template-rows: 1fr;
   opacity: 1;
-  max-height: 1000px;
+}
+
+.expand-leave-from {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+
+.expand-leave-to {
+  grid-template-rows: 0fr;
+  opacity: 0;
 }
 
 /* SortableJS drag states */
