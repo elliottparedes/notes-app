@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { Note, CreateNoteDto, UpdateNoteDto } from '~/models';
+import type { Note, CreateNoteDto, UpdateNoteDto, Folder } from '~/models';
 import type { NoteTemplate } from '~/types/noteTemplate';
 import { noteTemplates } from '~/utils/noteTemplates';
 
@@ -1701,16 +1701,41 @@ async function handleDailyNote() {
 async function handleNoteSelected(note: Note) {
   // Check if note belongs to a different space
   if (note.folder_id !== null) {
-    const folder = foldersStore.getFolderById(note.folder_id);
+    let folder = foldersStore.getFolderById(note.folder_id);
+    let noteSpaceId: number | null = null;
     
-    if (folder && folder.space_id !== spacesStore.currentSpaceId) {
+    // If folder not found in current store, it might be in a different space
+    // Fetch it from the API to get its space_id
+    if (!folder) {
+      try {
+        if (authStore.token) {
+          const fetchedFolder = await $fetch<Folder>(`/api/folders/${note.folder_id}`, {
+            headers: {
+              Authorization: `Bearer ${authStore.token}`
+            }
+          });
+          if (fetchedFolder) {
+            folder = fetchedFolder;
+            noteSpaceId = folder.space_id;
+          }
+        }
+      } catch (error) {
+        console.error('[Dashboard] Failed to fetch folder:', error);
+        // If folder fetch fails, try to proceed anyway
+      }
+    } else {
+      noteSpaceId = folder.space_id;
+    }
+    
+    // Switch to the note's space if it's different from current space
+    if (noteSpaceId && noteSpaceId !== spacesStore.currentSpaceId) {
       // Switch to the note's space
-      console.log('[Dashboard] Switching to space', folder.space_id, 'for note', note.id);
-      spacesStore.setCurrentSpace(folder.space_id);
+      console.log('[Dashboard] Switching to space', noteSpaceId, 'for note', note.id);
+      spacesStore.setCurrentSpace(noteSpaceId);
       
       // Wait for folders to be refetched for the new space
       // This ensures the folder structure is loaded before opening the note
-      await foldersStore.fetchFolders(folder.space_id);
+      await foldersStore.fetchFolders(noteSpaceId);
       await sharedNotesStore.fetchSharedNotes();
       
       // Wait for next tick to ensure space change has propagated
