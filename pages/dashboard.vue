@@ -94,6 +94,28 @@ watch(isDesktopSidebarVisible, (newValue) => {
   }
 });
 
+// Made with Love section visibility - persist to localStorage
+const showMadeWithLove = ref(true);
+
+// Load saved state from localStorage on mount
+if (process.client) {
+  const savedMadeWithLove = localStorage.getItem('showMadeWithLove');
+  if (savedMadeWithLove !== null) {
+    showMadeWithLove.value = savedMadeWithLove === 'true';
+  }
+}
+
+// Save state to localStorage when it changes
+watch(showMadeWithLove, (newValue) => {
+  if (process.client) {
+    localStorage.setItem('showMadeWithLove', String(newValue));
+  }
+});
+
+function dismissMadeWithLove() {
+  showMadeWithLove.value = false;
+}
+
 // Delete confirmation modal
 const showDeleteModal = ref(false);
 const noteToDelete = ref<Note | null>(null);
@@ -2346,6 +2368,32 @@ onMounted(() => {
               </div>
             </Transition>
           </div>
+          
+          <!-- Made with Love & Support -->
+          <Transition
+            enter-active-class="transition-all duration-200 ease-out"
+            enter-from-class="opacity-0 max-h-0"
+            enter-to-class="opacity-100 max-h-32"
+            leave-active-class="transition-all duration-200 ease-in"
+            leave-from-class="opacity-100 max-h-32"
+            leave-to-class="opacity-0 max-h-0"
+          >
+            <div v-if="showMadeWithLove" class="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700 relative">
+              <button
+                @click="dismissMadeWithLove"
+                class="absolute top-2 right-0 p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                aria-label="Dismiss"
+              >
+                <UIcon name="i-heroicons-x-mark" class="w-3.5 h-3.5" />
+              </button>
+              <div class="flex flex-col items-center gap-1.5">
+                <p class="text-xs text-gray-500 dark:text-gray-400">
+                  Made with ❤️ by Elliott
+                </p>
+                <BuyMeACoffee variant="subtle" size="sm" />
+              </div>
+            </div>
+          </Transition>
         </div>
         </div>
       </aside>

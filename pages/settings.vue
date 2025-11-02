@@ -252,6 +252,30 @@ function goBack() {
           </UButton>
         </form>
       </UCard>
+
+      <!-- Support Unfold -->
+      <UCard class="mb-6">
+        <template #header>
+          <h2 class="text-xl font-semibold text-gray-900 dark:text-white">Support Unfold</h2>
+        </template>
+
+        <div class="space-y-4">
+          <p class="text-sm text-gray-600 dark:text-gray-400">
+            Unfold is built and maintained by a small indie developer. Server costs, AI API calls, and infrastructure add up. 
+            If you find Unfold useful, consider buying me a coffee to help keep it running! ☕️
+          </p>
+          
+          <div class="flex items-center justify-center pt-2">
+            <BuyMeACoffee variant="button" size="lg" />
+          </div>
+
+          <div class="pt-4 border-t border-gray-200 dark:border-gray-700 text-center">
+            <p class="text-xs text-gray-500 dark:text-gray-400">
+              Made with ❤️ by Elliott
+            </p>
+          </div>
+        </div>
+      </UCard>
     </div>
   </div>
 </template>
