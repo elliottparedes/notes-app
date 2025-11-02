@@ -46,13 +46,28 @@ export default defineEventHandler(async (event) => {
     const descendantIds = await getDescendants(folderId);
     const allFolderIds = [folderId, ...descendantIds];
 
-    // Update all notes in these folders to have no folder
+    // Delete all notes in these folders
     if (allFolderIds.length > 0) {
+      // Get note IDs that will be deleted (for cleaning up shared_notes)
+      const notesInFolders = await executeQuery<{ id: string }[]>(`
+        SELECT id FROM notes 
+        WHERE folder_id IN (${allFolderIds.map(() => '?').join(',')}) AND user_id = ?
+      `, [...allFolderIds, userId]);
+
+      // Delete notes in these folders
       await executeQuery(`
-        UPDATE notes 
-        SET folder_id = NULL, folder = NULL
-        WHERE folder_id IN (${allFolderIds.map(() => '?').join(',')})
-      `, allFolderIds);
+        DELETE FROM notes 
+        WHERE folder_id IN (${allFolderIds.map(() => '?').join(',')}) AND user_id = ?
+      `, [...allFolderIds, userId]);
+
+      // Delete shared note entries for these notes (if any)
+      if (notesInFolders.length > 0) {
+        const noteIds = notesInFolders.map(n => n.id);
+        await executeQuery(`
+          DELETE FROM shared_notes 
+          WHERE note_id IN (${noteIds.map(() => '?').join(',')})
+        `, noteIds);
+      }
 
       // Delete all folders (cascade)
       await executeQuery(`

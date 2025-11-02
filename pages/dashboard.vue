@@ -52,6 +52,9 @@ const prevFolderId = ref<number | null>(null);
 // FAB menu state
 const showFabMenu = ref(false);
 
+// Note creation submenu state (in sidebar)
+const showNoteCreationMenu = ref(false);
+
 // User menu state
 const showUserMenu = ref(false);
 
@@ -164,6 +167,8 @@ if (process.client) {
     const isUserDropdown = target.closest('[data-user-menu-dropdown]');
     const isFabButton = target.closest('[data-fab-button]');
     const isFabMenu = target.closest('[data-fab-menu]');
+    const isNoteCreationButton = target.closest('[data-note-creation-button]');
+    const isNoteCreationMenu = target.closest('[data-note-creation-menu]');
     
     if (!isUserButton && !isUserDropdown) {
       showUserMenu.value = false;
@@ -171,6 +176,10 @@ if (process.client) {
     
     if (!isFabButton && !isFabMenu) {
       showFabMenu.value = false;
+    }
+    
+    if (!isNoteCreationButton && !isNoteCreationMenu) {
+      showNoteCreationMenu.value = false;
     }
   });
 }
@@ -675,6 +684,150 @@ async function handleCreateNoteInFolder(folderId: number) {
   }
 }
 
+async function handleQuickNoteInFolder(folderId: number) {
+  if (isCreating.value) return;
+  
+  isCreating.value = true;
+  
+  try {
+    // Create a note with timestamp
+    const now = new Date();
+    const timestamp = now.toLocaleString('en-US', { 
+      weekday: 'short',
+      year: 'numeric', 
+      month: 'short', 
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
+    });
+    
+    const noteData: CreateNoteDto = {
+      title: timestamp,
+      content: `<p></p>`,
+      folder_id: folderId
+    };
+    
+    const note = await notesStore.createNote(noteData);
+    await notesStore.fetchNotes();
+    await notesStore.openTab(note.id);
+    
+    toast.add({
+      title: 'Success',
+      description: 'Quick note created',
+      color: 'success'
+    });
+  } catch (error) {
+    toast.add({
+      title: 'Error',
+      description: 'Failed to create quick note',
+      color: 'error'
+    });
+  } finally {
+    isCreating.value = false;
+  }
+}
+
+async function handleListNoteInFolder(folderId: number) {
+  if (isCreating.value) return;
+  
+  isCreating.value = true;
+  
+  try {
+    const noteData: CreateNoteDto = {
+      title: 'New List',
+      content: '<ul data-type="taskList"><li data-type="taskItem" data-checked="false"><p></p></li></ul>',
+      folder_id: folderId
+    };
+    
+    const note = await notesStore.createNote(noteData);
+    await notesStore.fetchNotes();
+    await notesStore.openTab(note.id);
+    
+    toast.add({
+      title: 'Success',
+      description: 'List note created in folder',
+      color: 'success'
+    });
+  } catch (error) {
+    toast.add({
+      title: 'Error',
+      description: 'Failed to create list note',
+      color: 'error'
+    });
+  } finally {
+    isCreating.value = false;
+  }
+}
+
+async function handleDailyNoteInFolder(folderId: number) {
+  if (isCreating.value) return;
+  
+  isCreating.value = true;
+  
+  try {
+    // Find the Daily Journal template
+    const dailyJournalTemplate = noteTemplates.find(t => t.id === 'daily-journal');
+    
+    if (!dailyJournalTemplate) {
+      toast.add({
+        title: 'Error',
+        description: 'Daily Journal template not found',
+        color: 'error'
+      });
+      return;
+    }
+    
+    const noteData: CreateNoteDto = {
+      title: `Daily Journal - ${new Date().toLocaleDateString()}`,
+      content: dailyJournalTemplate.content,
+      folder_id: folderId
+    };
+    
+    const note = await notesStore.createNote(noteData);
+    
+    toast.add({
+      title: 'Success',
+      description: 'Daily journal created successfully',
+      color: 'success'
+    });
+    
+    await notesStore.fetchNotes();
+    await notesStore.openTab(note.id);
+  } catch (error) {
+    toast.add({
+      title: 'Error',
+      description: 'Failed to create daily note',
+      color: 'error'
+    });
+  } finally {
+    isCreating.value = false;
+  }
+}
+
+function handleTemplateNoteInFolder(folderId: number) {
+  // Store folder ID to use when template is selected
+  selectedFolderIdForTemplate.value = folderId;
+  showTemplateModal.value = true;
+}
+
+function handleAiGenerateInFolder(folderId: number) {
+  // Store folder ID to use when AI note is generated
+  selectedFolderIdForAi.value = folderId;
+  openAiGenerateModal();
+}
+
+function handleRecipeImportInFolder(folderId: number) {
+  // Store folder ID to use when recipe is imported
+  selectedFolderIdForRecipe.value = folderId;
+  openRecipeImportModal();
+}
+
+// Store folder IDs for template, AI, and recipe actions
+const selectedFolderIdForTemplate = ref<number | null>(null);
+const selectedFolderIdForAi = ref<number | null>(null);
+const selectedFolderIdForRecipe = ref<number | null>(null);
+
 function handleRenameFolder(folderId: number) {
   const folder = foldersStore.getFolderById(folderId);
   if (folder) {
@@ -1141,6 +1294,7 @@ async function handleCreateNote() {
   if (isCreating.value) return;
   
   showFabMenu.value = false;
+  showNoteCreationMenu.value = false;
   isCreating.value = true;
   
   try {
@@ -1169,6 +1323,7 @@ async function handleListNote() {
   if (isCreating.value) return;
   
   showFabMenu.value = false;
+  showNoteCreationMenu.value = false;
   isCreating.value = true;
   
   try {
@@ -1194,6 +1349,7 @@ async function handleListNote() {
 
 function handleAiGenerate() {
   showFabMenu.value = false;
+  showNoteCreationMenu.value = false;
   openAiGenerateModal();
 }
 
@@ -1204,20 +1360,23 @@ function openAiGenerateModal() {
 
 function handleTemplateNote() {
   showFabMenu.value = false;
+  showNoteCreationMenu.value = false;
   showTemplateModal.value = true;
 }
 
 async function createNoteFromTemplate(template: NoteTemplate) {
   if (isCreating.value) return;
   
+  const folderId = selectedFolderIdForTemplate.value;
   showTemplateModal.value = false;
   isCreating.value = true;
+  selectedFolderIdForTemplate.value = null;
   
   try {
     const noteData: CreateNoteDto = {
       title: template.title,
       content: template.content,
-      folder_id: null
+      folder_id: folderId ?? null
     };
     
     const note = await notesStore.createNote(noteData);
@@ -1252,7 +1411,9 @@ async function generateAiNote() {
     return;
   }
 
+  const folderId = selectedFolderIdForAi.value;
   isGeneratingAi.value = true;
+  // Don't clear folderId yet - we need it for the API call
 
   try {
     const response = await $fetch<Note>('/api/notes/generate', {
@@ -1262,7 +1423,7 @@ async function generateAiNote() {
       },
       body: {
         prompt: prompt,
-        folder_id: null
+        folder_id: folderId ?? null
       }
     });
 
@@ -1273,6 +1434,7 @@ async function generateAiNote() {
     });
 
     showAiGenerateModal.value = false;
+    selectedFolderIdForAi.value = null;
     await notesStore.fetchNotes();
     await notesStore.openTab(response.id);
   } catch (error) {
@@ -1282,6 +1444,8 @@ async function generateAiNote() {
       description: 'Failed to generate note with AI. Please try again.',
       color: 'error'
     });
+    // Reset folder ID on error so user can try again
+    selectedFolderIdForAi.value = null;
   } finally {
     isGeneratingAi.value = false;
   }
@@ -1289,6 +1453,7 @@ async function generateAiNote() {
 
 function handleRecipeImport() {
   showFabMenu.value = false;
+  showNoteCreationMenu.value = false;
   openRecipeImportModal();
 }
 
@@ -1320,7 +1485,9 @@ async function importRecipe() {
     return;
   }
 
+  const folderId = selectedFolderIdForRecipe.value;
   isImportingRecipe.value = true;
+  // Don't clear folderId yet - we need it for the API call
 
   try {
     const response = await $fetch<Note>('/api/notes/import-recipe', {
@@ -1330,7 +1497,7 @@ async function importRecipe() {
       },
       body: {
         url: url,
-        folder_id: null
+        folder_id: folderId ?? null
       }
     });
 
@@ -1341,6 +1508,7 @@ async function importRecipe() {
     });
 
     showRecipeImportModal.value = false;
+    selectedFolderIdForRecipe.value = null;
     await notesStore.fetchNotes();
     await notesStore.openTab(response.id);
   } catch (error: any) {
@@ -1350,6 +1518,8 @@ async function importRecipe() {
       description: error.data?.message || 'Failed to import recipe. Please try again.',
       color: 'error'
     });
+    // Reset folder ID on error so user can try again
+    selectedFolderIdForRecipe.value = null;
   } finally {
     isImportingRecipe.value = false;
   }
@@ -1453,9 +1623,80 @@ function toggleFabMenu() {
   showFabMenu.value = !showFabMenu.value;
 }
 
+function toggleNoteCreationMenu() {
+  showNoteCreationMenu.value = !showNoteCreationMenu.value;
+}
+
+// Handler for Daily Note (creates from Daily Journal template)
+async function handleDailyNote() {
+  if (isCreating.value) return;
+  
+  showNoteCreationMenu.value = false;
+  isCreating.value = true;
+  
+  try {
+    // Find the Daily Journal template
+    const dailyJournalTemplate = noteTemplates.find(t => t.id === 'daily-journal');
+    
+    if (!dailyJournalTemplate) {
+      toast.add({
+        title: 'Error',
+        description: 'Daily Journal template not found',
+        color: 'error'
+      });
+      return;
+    }
+    
+    const noteData: CreateNoteDto = {
+      title: `Daily Journal - ${new Date().toLocaleDateString()}`,
+      content: dailyJournalTemplate.content,
+      folder_id: null
+    };
+    
+    const note = await notesStore.createNote(noteData);
+    
+    toast.add({
+      title: 'Success',
+      description: 'Daily journal created successfully',
+      color: 'success'
+    });
+    
+    await notesStore.fetchNotes();
+    await notesStore.openTab(note.id);
+  } catch (error) {
+    toast.add({
+      title: 'Error',
+      description: 'Failed to create daily note',
+      color: 'error'
+    });
+  } finally {
+    isCreating.value = false;
+  }
+}
+
 // Note opening and tab management
 // Handle note selection from search modal
 async function handleNoteSelected(note: Note) {
+  // Check if note belongs to a different space
+  if (note.folder_id !== null) {
+    const folder = foldersStore.getFolderById(note.folder_id);
+    
+    if (folder && folder.space_id !== spacesStore.currentSpaceId) {
+      // Switch to the note's space
+      console.log('[Dashboard] Switching to space', folder.space_id, 'for note', note.id);
+      spacesStore.setCurrentSpace(folder.space_id);
+      
+      // Wait for folders to be refetched for the new space
+      // This ensures the folder structure is loaded before opening the note
+      await foldersStore.fetchFolders(folder.space_id);
+      await sharedNotesStore.fetchSharedNotes();
+      
+      // Wait for next tick to ensure space change has propagated
+      await nextTick();
+    }
+  }
+  
+  // Now open the note (it will be in the correct space)
   await notesStore.openTab(note.id);
 }
 
@@ -1767,50 +2008,172 @@ onMounted(() => {
           <!-- Space Selector -->
           <SpaceSelector />
           
-          <!-- Quick Notes Section -->
-          <div class="mb-4">
-            <div class="w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300">
-              <UIcon name="i-heroicons-bolt" class="w-5 h-5" />
-              <span class="flex-1 text-left">Quick Notes</span>
-              <span class="text-xs px-2 py-0.5 rounded-full bg-gray-200 dark:bg-gray-600">
-                {{ notesWithoutFolder.length }}
-              </span>
-            </div>
-            
-            <!-- Notes without folders -->
-            <div v-if="notesWithoutFolder.length > 0" class="mt-1 space-y-0.5">
+          <!-- New Note Button with Submenu - Commented Out -->
+          <template v-if="false">
+          <div class="mb-4 mt-4">
+            <button
+              data-note-creation-button
+              @click="toggleNoteCreationMenu"
+              class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors hover:bg-gray-100 dark:hover:bg-gray-700/50 text-left"
+              :class="{ 'bg-primary-50 dark:bg-primary-900/20': showNoteCreationMenu }"
+            >
+              <div class="w-8 h-8 bg-gradient-to-br from-primary-500 to-primary-600 rounded-lg flex items-center justify-center shadow-sm flex-shrink-0">
+                <UIcon name="i-heroicons-plus" class="w-4 h-4 text-white" />
+              </div>
+              <span class="flex-1 text-sm font-medium text-gray-700 dark:text-gray-300">New Note</span>
+              <UIcon 
+                name="i-heroicons-chevron-down" 
+                class="w-4 h-4 text-gray-400 transition-transform flex-shrink-0"
+                :class="{ 'rotate-180': showNoteCreationMenu }"
+              />
+            </button>
+
+            <!-- Note Creation Submenu -->
+            <Transition name="slide-down">
               <div
-                v-for="note in notesWithoutFolder"
-                :key="`note-${note.id}`"
-                class="group/note flex items-center gap-2 rounded-lg transition-colors hover:bg-gray-100 dark:hover:bg-gray-700/50 px-3 py-2"
-                :class="notesStore.activeTabId === note.id ? 'bg-primary-50 dark:bg-primary-900/20' : ''"
+                v-if="showNoteCreationMenu"
+                data-note-creation-menu
+                class="mt-2 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden"
               >
-                <div @click="handleOpenNote(note.id)" class="flex items-center gap-2 flex-1 min-w-0 cursor-pointer">
-                  <UIcon 
-                    name="i-heroicons-document-text" 
-                    class="w-4 h-4 flex-shrink-0"
-                    :class="notesStore.activeTabId === note.id ? 'text-primary-600 dark:text-primary-400' : 'text-gray-400'"
-                  />
-                  <span 
-                    class="flex-1 text-sm truncate"
-                    :class="notesStore.activeTabId === note.id ? 'text-primary-700 dark:text-primary-300 font-medium' : 'text-gray-700 dark:text-gray-300'"
-                    :title="note.title"
+                <div class="py-1.5">
+                  <!-- New Note -->
+                  <button
+                    @click="handleCreateNote"
+                    :disabled="isCreating"
+                    class="w-full text-left px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-primary-50 dark:hover:bg-primary-900/20 flex items-center gap-3 transition-colors disabled:opacity-50"
                   >
-                    {{ note.title }}
-                  </span>
+                    <div class="w-8 h-8 bg-gradient-to-br from-primary-500 to-primary-600 rounded-lg flex items-center justify-center shadow-sm flex-shrink-0">
+                      <UIcon name="i-heroicons-document-plus" class="w-4 h-4 text-white" />
+                    </div>
+                    <div class="flex-1 min-w-0">
+                      <div class="font-semibold text-gray-900 dark:text-white text-sm">New Note</div>
+                      <div class="text-xs text-gray-500 dark:text-gray-400">Create a blank note</div>
+                    </div>
+                  </button>
+
+                  <!-- New List -->
+                  <button
+                    @click="handleListNote"
+                    :disabled="isCreating"
+                    class="w-full text-left px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-orange-50 dark:hover:bg-orange-900/20 flex items-center gap-3 transition-colors disabled:opacity-50"
+                  >
+                    <div class="w-8 h-8 bg-gradient-to-br from-orange-500 to-orange-600 rounded-lg flex items-center justify-center shadow-sm flex-shrink-0">
+                      <UIcon name="i-heroicons-list-bullet" class="w-4 h-4 text-white" />
+                    </div>
+                    <div class="flex-1 min-w-0">
+                      <div class="font-semibold text-gray-900 dark:text-white text-sm">New List</div>
+                      <div class="text-xs text-gray-500 dark:text-gray-400">With checkbox ready</div>
+                    </div>
+                  </button>
+
+                  <!-- Daily Note -->
+                  <button
+                    @click="handleDailyNote"
+                    :disabled="isCreating"
+                    class="w-full text-left px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-purple-50 dark:hover:bg-purple-900/20 flex items-center gap-3 transition-colors disabled:opacity-50"
+                  >
+                    <div class="w-8 h-8 bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg flex items-center justify-center shadow-sm flex-shrink-0">
+                      <UIcon name="i-heroicons-calendar-days" class="w-4 h-4 text-white" />
+                    </div>
+                    <div class="flex-1 min-w-0">
+                      <div class="font-semibold text-gray-900 dark:text-white text-sm">Daily Note</div>
+                      <div class="text-xs text-gray-500 dark:text-gray-400">Daily journal template</div>
+                    </div>
+                  </button>
+
+                  <!-- From Template -->
+                  <button
+                    @click="handleTemplateNote"
+                    class="w-full text-left px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 flex items-center gap-3 transition-colors"
+                  >
+                    <div class="w-8 h-8 bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-lg flex items-center justify-center shadow-sm flex-shrink-0">
+                      <UIcon name="i-heroicons-document-duplicate" class="w-4 h-4 text-white" />
+                    </div>
+                    <div class="flex-1 min-w-0">
+                      <div class="font-semibold text-gray-900 dark:text-white text-sm">From Template</div>
+                      <div class="text-xs text-gray-500 dark:text-gray-400">Use a pre-made template</div>
+                    </div>
+                  </button>
+
+                  <!-- AI Generate Note -->
+                  <button
+                    @click="handleAiGenerate"
+                    class="w-full text-left px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 flex items-center gap-3 transition-colors"
+                  >
+                    <div class="w-8 h-8 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-lg flex items-center justify-center shadow-sm flex-shrink-0">
+                      <UIcon name="i-heroicons-sparkles" class="w-4 h-4 text-white" />
+                    </div>
+                    <div class="flex-1 min-w-0">
+                      <div class="font-semibold text-gray-900 dark:text-white text-sm">AI Generate</div>
+                      <div class="text-xs text-gray-500 dark:text-gray-400">Create with AI</div>
+                    </div>
+                  </button>
+
+                  <!-- Import Recipe -->
+                  <button
+                    @click="handleRecipeImport"
+                    class="w-full text-left px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-rose-50 dark:hover:bg-rose-900/20 flex items-center gap-3 transition-colors"
+                  >
+                    <div class="w-8 h-8 bg-gradient-to-br from-rose-500 to-rose-600 rounded-lg flex items-center justify-center shadow-sm flex-shrink-0">
+                      <UIcon name="i-heroicons-cake" class="w-4 h-4 text-white" />
+                    </div>
+                    <div class="flex-1 min-w-0">
+                      <div class="font-semibold text-gray-900 dark:text-white text-sm">Import Recipe</div>
+                      <div class="text-xs text-gray-500 dark:text-gray-400">From URL</div>
+                    </div>
+                  </button>
                 </div>
-                
-                <!-- Note Options Button -->
-                <button
-                  @click.stop="handleDeleteNote(note)"
-                  class="flex-shrink-0 p-1.5 rounded-md opacity-0 group-hover/note:opacity-100 hover:bg-red-100 dark:hover:bg-red-900/20 transition-all"
-                  title="Delete note"
+              </div>
+            </Transition>
+          </div>
+          </template>
+          
+          <!-- Quick Notes Section - Commented Out -->
+          <!--
+          <template v-if="false">
+            <div class="mb-4">
+              <div class="w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300">
+                <UIcon name="i-heroicons-bolt" class="w-5 h-5" />
+                <span class="flex-1 text-left">Quick Notes</span>
+                <span class="text-xs px-2 py-0.5 rounded-full bg-gray-200 dark:bg-gray-600">
+                  {{ notesWithoutFolder.length }}
+                </span>
+              </div>
+              
+              <div v-if="notesWithoutFolder.length > 0" class="mt-1 space-y-0.5">
+                <div
+                  v-for="note in notesWithoutFolder"
+                  :key="`note-${note.id}`"
+                  class="group/note flex items-center gap-2 rounded-lg transition-colors hover:bg-gray-100 dark:hover:bg-gray-700/50 px-3 py-2"
+                  :class="notesStore.activeTabId === note.id ? 'bg-primary-50 dark:bg-primary-900/20' : ''"
                 >
-                  <UIcon name="i-heroicons-trash" class="w-3.5 h-3.5 text-red-600 dark:text-red-400" />
-                </button>
+                  <div @click="handleOpenNote(note.id)" class="flex items-center gap-2 flex-1 min-w-0 cursor-pointer">
+                    <UIcon 
+                      name="i-heroicons-document-text" 
+                      class="w-4 h-4 flex-shrink-0"
+                      :class="notesStore.activeTabId === note.id ? 'text-primary-600 dark:text-primary-400' : 'text-gray-400'"
+                    />
+                    <span 
+                      class="flex-1 text-sm truncate"
+                      :class="notesStore.activeTabId === note.id ? 'text-primary-700 dark:text-primary-300 font-medium' : 'text-gray-700 dark:text-gray-300'"
+                      :title="note.title"
+                    >
+                      {{ note.title }}
+                    </span>
+                  </div>
+                  
+                  <button
+                    @click.stop="handleDeleteNote(note)"
+                    class="flex-shrink-0 p-1.5 rounded-md opacity-0 group-hover/note:opacity-100 hover:bg-red-100 dark:hover:bg-red-900/20 transition-all"
+                    title="Delete note"
+                  >
+                    <UIcon name="i-heroicons-trash" class="w-3.5 h-3.5 text-red-600 dark:text-red-400" />
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
+          </template>
+          -->
 
           <!-- Folders Section -->
           <div class="mt-4">
@@ -1850,6 +2213,11 @@ onMounted(() => {
                 @toggle="handleToggleFolder"
                 @create-subfolder="handleCreateSubfolder"
                 @create-note="handleCreateNoteInFolder"
+                @create-quick-note="handleQuickNoteInFolder"
+                @create-list-note="handleListNoteInFolder"
+                @create-template-note="handleTemplateNoteInFolder"
+                @create-ai-note="handleAiGenerateInFolder"
+                @import-recipe="handleRecipeImportInFolder"
                 @rename="handleRenameFolder"
                 @delete="handleDeleteFolder"
                 @move-up="handleMoveUp"
@@ -2036,50 +2404,172 @@ onMounted(() => {
                 <!-- Space Selector -->
                 <SpaceSelector />
                 
-                <!-- Quick Notes Section -->
-                <div class="mb-4">
-                  <div class="w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300">
-                    <UIcon name="i-heroicons-bolt" class="w-5 h-5" />
-                    <span class="flex-1 text-left">Quick Notes</span>
-                    <span class="text-xs px-2 py-0.5 rounded-full bg-gray-200 dark:bg-gray-600">
-                      {{ notesWithoutFolder.length }}
-                    </span>
-                  </div>
-                  
-                  <!-- Notes without folders -->
-                  <div v-if="notesWithoutFolder.length > 0" class="mt-1 space-y-0.5">
+                <!-- New Note Button with Submenu - Commented Out -->
+                <template v-if="false">
+                <div class="mb-4 mt-4">
+                  <button
+                    data-note-creation-button
+                    @click="toggleNoteCreationMenu"
+                    class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors hover:bg-gray-100 dark:hover:bg-gray-700/50 text-left"
+                    :class="{ 'bg-primary-50 dark:bg-primary-900/20': showNoteCreationMenu }"
+                  >
+                    <div class="w-8 h-8 bg-gradient-to-br from-primary-500 to-primary-600 rounded-lg flex items-center justify-center shadow-sm flex-shrink-0">
+                      <UIcon name="i-heroicons-plus" class="w-4 h-4 text-white" />
+                    </div>
+                    <span class="flex-1 text-sm font-medium text-gray-700 dark:text-gray-300">New Note</span>
+                    <UIcon 
+                      name="i-heroicons-chevron-down" 
+                      class="w-4 h-4 text-gray-400 transition-transform flex-shrink-0"
+                      :class="{ 'rotate-180': showNoteCreationMenu }"
+                    />
+                  </button>
+
+                  <!-- Note Creation Submenu -->
+                  <Transition name="slide-down">
                     <div
-                      v-for="note in notesWithoutFolder"
-                      :key="`note-${note.id}`"
-                      class="group/note flex items-center gap-2 rounded-lg transition-colors hover:bg-gray-100 dark:hover:bg-gray-700/50 px-3 py-2"
-                      :class="notesStore.activeTabId === note.id ? 'bg-primary-50 dark:bg-primary-900/20' : ''"
+                      v-if="showNoteCreationMenu"
+                      data-note-creation-menu
+                      class="mt-2 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden"
                     >
-                      <div @click="handleOpenNote(note.id)" class="flex items-center gap-2 flex-1 min-w-0 cursor-pointer">
-                        <UIcon 
-                          name="i-heroicons-document-text" 
-                          class="w-4 h-4 flex-shrink-0"
-                          :class="notesStore.activeTabId === note.id ? 'text-primary-600 dark:text-primary-400' : 'text-gray-400'"
-                        />
-                        <span 
-                          class="flex-1 text-sm truncate"
-                          :class="notesStore.activeTabId === note.id ? 'text-primary-700 dark:text-primary-300 font-medium' : 'text-gray-700 dark:text-gray-300'"
-                          :title="note.title"
+                      <div class="py-1.5">
+                        <!-- New Note -->
+                        <button
+                          @click="handleCreateNote"
+                          :disabled="isCreating"
+                          class="w-full text-left px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-primary-50 dark:hover:bg-primary-900/20 flex items-center gap-3 transition-colors disabled:opacity-50"
                         >
-                          {{ note.title }}
-                        </span>
+                          <div class="w-8 h-8 bg-gradient-to-br from-primary-500 to-primary-600 rounded-lg flex items-center justify-center shadow-sm flex-shrink-0">
+                            <UIcon name="i-heroicons-document-plus" class="w-4 h-4 text-white" />
+                          </div>
+                          <div class="flex-1 min-w-0">
+                            <div class="font-semibold text-gray-900 dark:text-white text-sm">New Note</div>
+                            <div class="text-xs text-gray-500 dark:text-gray-400">Create a blank note</div>
+                          </div>
+                        </button>
+
+                        <!-- New List -->
+                        <button
+                          @click="handleListNote"
+                          :disabled="isCreating"
+                          class="w-full text-left px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-orange-50 dark:hover:bg-orange-900/20 flex items-center gap-3 transition-colors disabled:opacity-50"
+                        >
+                          <div class="w-8 h-8 bg-gradient-to-br from-orange-500 to-orange-600 rounded-lg flex items-center justify-center shadow-sm flex-shrink-0">
+                            <UIcon name="i-heroicons-list-bullet" class="w-4 h-4 text-white" />
+                          </div>
+                          <div class="flex-1 min-w-0">
+                            <div class="font-semibold text-gray-900 dark:text-white text-sm">New List</div>
+                            <div class="text-xs text-gray-500 dark:text-gray-400">With checkbox ready</div>
+                          </div>
+                        </button>
+
+                        <!-- Daily Note -->
+                        <button
+                          @click="handleDailyNote"
+                          :disabled="isCreating"
+                          class="w-full text-left px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-purple-50 dark:hover:bg-purple-900/20 flex items-center gap-3 transition-colors disabled:opacity-50"
+                        >
+                          <div class="w-8 h-8 bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg flex items-center justify-center shadow-sm flex-shrink-0">
+                            <UIcon name="i-heroicons-calendar-days" class="w-4 h-4 text-white" />
+                          </div>
+                          <div class="flex-1 min-w-0">
+                            <div class="font-semibold text-gray-900 dark:text-white text-sm">Daily Note</div>
+                            <div class="text-xs text-gray-500 dark:text-gray-400">Daily journal template</div>
+                          </div>
+                        </button>
+
+                        <!-- From Template -->
+                        <button
+                          @click="handleTemplateNote"
+                          class="w-full text-left px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 flex items-center gap-3 transition-colors"
+                        >
+                          <div class="w-8 h-8 bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-lg flex items-center justify-center shadow-sm flex-shrink-0">
+                            <UIcon name="i-heroicons-document-duplicate" class="w-4 h-4 text-white" />
+                          </div>
+                          <div class="flex-1 min-w-0">
+                            <div class="font-semibold text-gray-900 dark:text-white text-sm">From Template</div>
+                            <div class="text-xs text-gray-500 dark:text-gray-400">Use a pre-made template</div>
+                          </div>
+                        </button>
+
+                        <!-- AI Generate Note -->
+                        <button
+                          @click="handleAiGenerate"
+                          class="w-full text-left px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 flex items-center gap-3 transition-colors"
+                        >
+                          <div class="w-8 h-8 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-lg flex items-center justify-center shadow-sm flex-shrink-0">
+                            <UIcon name="i-heroicons-sparkles" class="w-4 h-4 text-white" />
+                          </div>
+                          <div class="flex-1 min-w-0">
+                            <div class="font-semibold text-gray-900 dark:text-white text-sm">AI Generate</div>
+                            <div class="text-xs text-gray-500 dark:text-gray-400">Create with AI</div>
+                          </div>
+                        </button>
+
+                        <!-- Import Recipe -->
+                        <button
+                          @click="handleRecipeImport"
+                          class="w-full text-left px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-rose-50 dark:hover:bg-rose-900/20 flex items-center gap-3 transition-colors"
+                        >
+                          <div class="w-8 h-8 bg-gradient-to-br from-rose-500 to-rose-600 rounded-lg flex items-center justify-center shadow-sm flex-shrink-0">
+                            <UIcon name="i-heroicons-cake" class="w-4 h-4 text-white" />
+                          </div>
+                          <div class="flex-1 min-w-0">
+                            <div class="font-semibold text-gray-900 dark:text-white text-sm">Import Recipe</div>
+                            <div class="text-xs text-gray-500 dark:text-gray-400">From URL</div>
+                          </div>
+                        </button>
                       </div>
-                      
-                      <!-- Note Options Button -->
-                      <button
-                        @click.stop="handleDeleteNote(note)"
-                        class="flex-shrink-0 p-1.5 rounded-md opacity-100 hover:bg-red-100 dark:hover:bg-red-900/20 transition-all"
-                        title="Delete note"
+                    </div>
+                  </Transition>
+                </div>
+                </template>
+                
+                <!-- Quick Notes Section - Commented Out -->
+                <!--
+                <template v-if="false">
+                  <div class="mb-4">
+                    <div class="w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300">
+                      <UIcon name="i-heroicons-bolt" class="w-5 h-5" />
+                      <span class="flex-1 text-left">Quick Notes</span>
+                      <span class="text-xs px-2 py-0.5 rounded-full bg-gray-200 dark:bg-gray-600">
+                        {{ notesWithoutFolder.length }}
+                      </span>
+                    </div>
+                    
+                    <div v-if="notesWithoutFolder.length > 0" class="mt-1 space-y-0.5">
+                      <div
+                        v-for="note in notesWithoutFolder"
+                        :key="`note-${note.id}`"
+                        class="group/note flex items-center gap-2 rounded-lg transition-colors hover:bg-gray-100 dark:hover:bg-gray-700/50 px-3 py-2"
+                        :class="notesStore.activeTabId === note.id ? 'bg-primary-50 dark:bg-primary-900/20' : ''"
                       >
-                        <UIcon name="i-heroicons-trash" class="w-3.5 h-3.5 text-red-600 dark:text-red-400" />
-                      </button>
+                        <div @click="handleOpenNote(note.id)" class="flex items-center gap-2 flex-1 min-w-0 cursor-pointer">
+                          <UIcon 
+                            name="i-heroicons-document-text" 
+                            class="w-4 h-4 flex-shrink-0"
+                            :class="notesStore.activeTabId === note.id ? 'text-primary-600 dark:text-primary-400' : 'text-gray-400'"
+                          />
+                          <span 
+                            class="flex-1 text-sm truncate"
+                            :class="notesStore.activeTabId === note.id ? 'text-primary-700 dark:text-primary-300 font-medium' : 'text-gray-700 dark:text-gray-300'"
+                            :title="note.title"
+                          >
+                            {{ note.title }}
+                          </span>
+                        </div>
+                        
+                        <button
+                          @click.stop="handleDeleteNote(note)"
+                          class="flex-shrink-0 p-1.5 rounded-md opacity-100 hover:bg-red-100 dark:hover:bg-red-900/20 transition-all"
+                          title="Delete note"
+                        >
+                          <UIcon name="i-heroicons-trash" class="w-3.5 h-3.5 text-red-600 dark:text-red-400" />
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
+                </template>
+                -->
 
                 <!-- Folders Section -->
                 <div class="mt-4">
@@ -2118,14 +2608,18 @@ onMounted(() => {
                       @select="selectFolder"
                       @toggle="handleToggleFolder"
                       @create-subfolder="handleCreateSubfolder"
-                      @create-note="handleCreateNoteInFolder"
-                      @rename="handleRenameFolder"
-                      @delete="handleDeleteFolder"
-                      @move-up="handleMoveUp"
-                      @move-down="handleMoveDown"
-                      @reorder-folder="handleFolderReorder"
-                      @open-note="handleFolderNoteClick"
-                      @delete-note="(noteId) => handleDeleteNote(notesStore.notes.find(n => n.id === noteId)!)"
+                @create-note="handleCreateNoteInFolder"
+                @create-list-note="handleListNoteInFolder"
+                @create-template-note="handleTemplateNoteInFolder"
+                @create-ai-note="handleAiGenerateInFolder"
+                @import-recipe="handleRecipeImportInFolder"
+                @rename="handleRenameFolder"
+                @delete="handleDeleteFolder"
+                @move-up="handleMoveUp"
+                @move-down="handleMoveDown"
+                @reorder-folder="handleFolderReorder"
+                @open-note="handleFolderNoteClick"
+                @delete-note="(noteId) => handleDeleteNote(notesStore.notes.find(n => n.id === noteId)!)"
                     />
                   </div>
                 </div>
@@ -2355,15 +2849,15 @@ onMounted(() => {
             <div class="text-center">
               <UIcon name="i-heroicons-document-text" class="w-20 h-20 mx-auto text-gray-300 dark:text-gray-600 mb-4" />
               <h3 class="text-xl font-semibold text-gray-900 dark:text-white mb-2">No note selected</h3>
-              <p class="text-gray-500 dark:text-gray-400 mb-6">Select a note from the sidebar or create a new one</p>
-              <UButton 
+              <p class="text-gray-500 dark:text-gray-400 mb-6">Select a note from the sidebar or create a new one by right-clicking on a folder</p>
+              <!-- <UButton 
                 @click="handleCreateNote" 
                 icon="i-heroicons-plus"
                 :loading="isCreating"
                 :disabled="isCreating"
               >
                 Create Note
-              </UButton>
+              </UButton> -->
             </div>
           </div>
 
@@ -2516,7 +3010,7 @@ onMounted(() => {
               <CollaborativeEditor
                 v-if="activeNote.is_shared || activeNote.share_permission"
                 ref="collaborativeEditorRef"
-                :key="`collab-${activeNote.id}`"
+                :key="`collab-${activeNote.id}-${authStore.currentUser?.id || 'anon'}`"
                 :note-id="activeNote.id"
                 :editable="!isLocked && (activeNote.share_permission === 'editor' || activeNote.user_id === authStore.currentUser?.id)"
                 :user-name="authStore.currentUser?.name || authStore.currentUser?.email || 'Anonymous'"
@@ -2539,106 +3033,103 @@ onMounted(() => {
           </div>
         </div>
 
-        <!-- Floating Action Button with Menu -->
-        <div class="fixed bottom-8 right-8 z-50">
-          <!-- FAB Menu -->
-          <Transition name="fab-menu">
-            <div
-              v-if="showFabMenu"
-              data-fab-menu
-              class="absolute bottom-20 right-0 w-56 bg-white/95 dark:bg-gray-800/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden"
-            >
-              <div class="py-2">
-                <!-- New Note -->
-                <button
-                  @click="handleCreateNote"
-                  :disabled="isCreating"
-                  class="w-full text-left px-4 py-3.5 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-primary-50 dark:hover:bg-primary-900/20 flex items-center gap-3 transition-colors disabled:opacity-50"
-                >
-                  <div class="w-10 h-10 bg-gradient-to-br from-primary-500 to-primary-600 rounded-xl flex items-center justify-center shadow-sm">
-                    <UIcon name="i-heroicons-document-plus" class="w-5 h-5 text-white" />
-                  </div>
-                  <div class="flex-1">
-                    <div class="font-semibold text-gray-900 dark:text-white">New Note</div>
-                    <div class="text-xs text-gray-500 dark:text-gray-400">Create a blank note</div>
-                  </div>
-                </button>
+        <!-- Floating Action Button with Menu - Commented Out -->
+        <!--
+        <template v-if="false">
+          <div class="fixed bottom-8 right-8 z-50">
+            <Transition name="fab-menu">
+              <div
+                v-if="showFabMenu"
+                data-fab-menu
+                class="absolute bottom-20 right-0 w-56 bg-white/95 dark:bg-gray-800/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden"
+              >
+                <div class="py-2">
+                  <button
+                    @click="handleCreateNote"
+                    :disabled="isCreating"
+                    class="w-full text-left px-4 py-3.5 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-primary-50 dark:hover:bg-primary-900/20 flex items-center gap-3 transition-colors disabled:opacity-50"
+                  >
+                    <div class="w-10 h-10 bg-gradient-to-br from-primary-500 to-primary-600 rounded-xl flex items-center justify-center shadow-sm">
+                      <UIcon name="i-heroicons-document-plus" class="w-5 h-5 text-white" />
+                    </div>
+                    <div class="flex-1">
+                      <div class="font-semibold text-gray-900 dark:text-white">New Note</div>
+                      <div class="text-xs text-gray-500 dark:text-gray-400">Create a blank note</div>
+                    </div>
+                  </button>
 
-                <!-- List Note -->
-                <button
-                  @click="handleListNote"
-                  :disabled="isCreating"
-                  class="w-full text-left px-4 py-3.5 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-orange-50 dark:hover:bg-orange-900/20 flex items-center gap-3 transition-colors disabled:opacity-50"
-                >
-                  <div class="w-10 h-10 bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl flex items-center justify-center shadow-sm">
-                    <UIcon name="i-heroicons-list-bullet" class="w-5 h-5 text-white" />
-                  </div>
-                  <div class="flex-1">
-                    <div class="font-semibold text-gray-900 dark:text-white">New List</div>
-                    <div class="text-xs text-gray-500 dark:text-gray-400">With checkbox ready</div>
-                  </div>
-                </button>
+                  <button
+                    @click="handleListNote"
+                    :disabled="isCreating"
+                    class="w-full text-left px-4 py-3.5 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-orange-50 dark:hover:bg-orange-900/20 flex items-center gap-3 transition-colors disabled:opacity-50"
+                  >
+                    <div class="w-10 h-10 bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl flex items-center justify-center shadow-sm">
+                      <UIcon name="i-heroicons-list-bullet" class="w-5 h-5 text-white" />
+                    </div>
+                    <div class="flex-1">
+                      <div class="font-semibold text-gray-900 dark:text-white">New List</div>
+                      <div class="text-xs text-gray-500 dark:text-gray-400">With checkbox ready</div>
+                    </div>
+                  </button>
 
-                <!-- From Template -->
-                <button
-                  @click="handleTemplateNote"
-                  class="w-full text-left px-4 py-3.5 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 flex items-center gap-3 transition-colors"
-                >
-                  <div class="w-10 h-10 bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-sm">
-                    <UIcon name="i-heroicons-document-duplicate" class="w-5 h-5 text-white" />
-                  </div>
-                  <div class="flex-1">
-                    <div class="font-semibold text-gray-900 dark:text-white">From Template</div>
-                    <div class="text-xs text-gray-500 dark:text-gray-400">Use a pre-made template</div>
-                  </div>
-                </button>
+                  <button
+                    @click="handleTemplateNote"
+                    class="w-full text-left px-4 py-3.5 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 flex items-center gap-3 transition-colors"
+                  >
+                    <div class="w-10 h-10 bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-sm">
+                      <UIcon name="i-heroicons-document-duplicate" class="w-5 h-5 text-white" />
+                    </div>
+                    <div class="flex-1">
+                      <div class="font-semibold text-gray-900 dark:text-white">From Template</div>
+                      <div class="text-xs text-gray-500 dark:text-gray-400">Use a pre-made template</div>
+                    </div>
+                  </button>
 
-                <!-- AI Generate Note -->
-                <button
-                  @click="handleAiGenerate"
-                  class="w-full text-left px-4 py-3.5 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 flex items-center gap-3 transition-colors"
-                >
-                  <div class="w-10 h-10 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-xl flex items-center justify-center shadow-sm">
-                    <UIcon name="i-heroicons-sparkles" class="w-5 h-5 text-white" />
-                  </div>
-                  <div class="flex-1">
-                    <div class="font-semibold text-gray-900 dark:text-white">AI Generate</div>
-                    <div class="text-xs text-gray-500 dark:text-gray-400">Create with AI</div>
-                  </div>
-                </button>
+                  <button
+                    @click="handleAiGenerate"
+                    class="w-full text-left px-4 py-3.5 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 flex items-center gap-3 transition-colors"
+                  >
+                    <div class="w-10 h-10 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-xl flex items-center justify-center shadow-sm">
+                      <UIcon name="i-heroicons-sparkles" class="w-5 h-5 text-white" />
+                    </div>
+                    <div class="flex-1">
+                      <div class="font-semibold text-gray-900 dark:text-white">AI Generate</div>
+                      <div class="text-xs text-gray-500 dark:text-gray-400">Create with AI</div>
+                    </div>
+                  </button>
 
-                <!-- Import Recipe -->
-                <button
-                  @click="handleRecipeImport"
-                  class="w-full text-left px-4 py-3.5 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-rose-50 dark:hover:bg-rose-900/20 flex items-center gap-3 transition-colors"
-                >
-                  <div class="w-10 h-10 bg-gradient-to-br from-rose-500 to-rose-600 rounded-xl flex items-center justify-center shadow-sm">
-                    <UIcon name="i-heroicons-cake" class="w-5 h-5 text-white" />
-                  </div>
-                  <div class="flex-1">
-                    <div class="font-semibold text-gray-900 dark:text-white">Import Recipe</div>
-                    <div class="text-xs text-gray-500 dark:text-gray-400">From URL</div>
-                  </div>
-                </button>
+                  <button
+                    @click="handleRecipeImport"
+                    class="w-full text-left px-4 py-3.5 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-rose-50 dark:hover:bg-rose-900/20 flex items-center gap-3 transition-colors"
+                  >
+                    <div class="w-10 h-10 bg-gradient-to-br from-rose-500 to-rose-600 rounded-xl flex items-center justify-center shadow-sm">
+                      <UIcon name="i-heroicons-cake" class="w-5 h-5 text-white" />
+                    </div>
+                    <div class="flex-1">
+                      <div class="font-semibold text-gray-900 dark:text-white">Import Recipe</div>
+                      <div class="text-xs text-gray-500 dark:text-gray-400">From URL</div>
+                    </div>
+                  </button>
+                </div>
               </div>
-            </div>
-          </Transition>
+            </Transition>
 
-          <!-- FAB Button -->
-          <button
-            data-fab-button
-            @click="toggleFabMenu"
-            :disabled="isCreating"
-            class="w-16 h-16 bg-gradient-to-br from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 text-white rounded-full shadow-lg hover:shadow-xl transition-all duration-200 flex items-center justify-center group disabled:opacity-50 disabled:cursor-not-allowed"
-            :class="{ 'rotate-45': showFabMenu, 'scale-95': isCreating }"
-          >
-            <UIcon 
-              :name="isCreating ? 'i-heroicons-arrow-path' : 'i-heroicons-plus'" 
-              class="w-8 h-8 transition-transform"
-              :class="{ 'animate-spin': isCreating }"
-            />
-          </button>
-        </div>
+            <button
+              data-fab-button
+              @click="toggleFabMenu"
+              :disabled="isCreating"
+              class="w-16 h-16 bg-gradient-to-br from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 text-white rounded-full shadow-lg hover:shadow-xl transition-all duration-200 flex items-center justify-center group disabled:opacity-50 disabled:cursor-not-allowed"
+              :class="{ 'rotate-45': showFabMenu, 'scale-95': isCreating }"
+            >
+              <UIcon 
+                :name="isCreating ? 'i-heroicons-arrow-path' : 'i-heroicons-plus'" 
+                class="w-8 h-8 transition-transform"
+                :class="{ 'animate-spin': isCreating }"
+              />
+            </button>
+          </div>
+        </template>
+        -->
       </div>
     </div>
 
@@ -2734,7 +3225,7 @@ onMounted(() => {
             </div>
             <h3 class="text-lg font-semibold text-gray-900 dark:text-white text-center mb-2">Delete Folder?</h3>
             <p class="text-sm text-gray-600 dark:text-gray-400 text-center mb-6">
-              Are you sure you want to delete <span class="font-semibold text-gray-900 dark:text-white">"{{ folderToManage !== null ? foldersStore.getFolderById(folderToManage)?.name : '' }}"</span>? Notes in this folder will be moved to notes without folders. This action cannot be undone.
+              Are you sure you want to delete <span class="font-semibold text-gray-900 dark:text-white">"{{ folderToManage !== null ? foldersStore.getFolderById(folderToManage)?.name : '' }}"</span>? All notes in this folder and its subfolders will be permanently deleted. This action cannot be undone.
             </p>
             <div class="flex gap-3">
               <UButton color="neutral" variant="soft" block @click="showDeleteFolderModal = false" :disabled="isFolderActionLoading">Cancel</UButton>
@@ -3237,6 +3728,31 @@ onMounted(() => {
 .fab-menu-leave-from {
   opacity: 1;
   transform: scale(1) translateY(0);
+}
+
+/* Slide down animation for note creation menu */
+.slide-down-enter-active,
+.slide-down-leave-active {
+  transition: all 0.2s ease-out;
+}
+
+.slide-down-enter-from {
+  opacity: 0;
+  transform: translateY(-10px);
+  max-height: 0;
+}
+
+.slide-down-leave-to {
+  opacity: 0;
+  transform: translateY(-10px);
+  max-height: 0;
+}
+
+.slide-down-enter-to,
+.slide-down-leave-from {
+  opacity: 1;
+  transform: translateY(0);
+  max-height: 600px;
 }
 
 /* Expand transition for shared notes - Notion-style smooth animation */

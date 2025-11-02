@@ -16,6 +16,10 @@ interface Emits {
   (e: 'toggle', folderId: number): void;
   (e: 'create-subfolder', parentId: number): void;
   (e: 'create-note', folderId: number): void;
+  (e: 'create-list-note', folderId: number): void;
+  (e: 'create-template-note', folderId: number): void;
+  (e: 'create-ai-note', folderId: number): void;
+  (e: 'import-recipe', folderId: number): void;
   (e: 'rename', folderId: number): void;
   (e: 'delete', folderId: number): void;
   (e: 'move-up', folderId: number): void;
@@ -109,7 +113,14 @@ const canMoveDown = computed(() => {
 
 const showContextMenu = ref(false);
 const contextMenuButtonRef = ref<HTMLElement | null>(null);
-const menuPosition = ref({ top: 0, left: 0 });
+const menuPosition = ref({ top: 0, left: 0, bottom: 0 });
+const menuOpensUpward = ref(false);
+const showNewNoteSubmenu = ref(false);
+const newNoteSubmenuPosition = ref({ top: 0, left: 0 });
+const newNoteSubmenuButtonRef = ref<HTMLElement | null>(null);
+const submenuOpensUpward = ref(false);
+const contextMenuJustOpened = ref(false);
+const lastMousePosition = ref<{ x: number; y: number } | null>(null);
 
 // SortableJS instances
 const notesContainerRef = ref<HTMLElement | null>(null);
@@ -148,23 +159,134 @@ function toggleContextMenu(event: MouseEvent) {
     const rect = contextMenuButtonRef.value.getBoundingClientRect();
     const menuWidth = 192; // 192px = w-48
     const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
     
-    // Calculate left position, ensuring menu doesn't overflow viewport
-    let left = rect.right - menuWidth;
-    if (left < 8) {
-      left = 8; // 8px minimum padding from left edge
-    }
+    // Estimate menu height - approximately 400px for full menu with all options
+    const menuEstimatedHeight = 400;
+    const spaceBelow = viewportHeight - rect.bottom;
+    const spaceAbove = rect.top;
+    
+    // Calculate left position - prefer opening to the right, fallback to left if not enough space
+    let left = rect.right + 4; // Position to the right with 4px gap
+    // If menu would overflow on the right, position it to the left instead
     if (left + menuWidth > viewportWidth - 8) {
-      left = viewportWidth - menuWidth - 8; // 8px minimum padding from right edge
+      // Not enough space on the right - position to the left
+      left = rect.left - menuWidth - 4; // Position to the left with 4px gap
+      // If still doesn't fit on the left, adjust to fit within viewport
+      if (left < 8) {
+        left = 8; // 8px minimum padding from left edge
+      }
+    }
+    
+    // Determine if menu should open upward
+    let top = 0;
+    let bottom = 0;
+    if (spaceBelow < menuEstimatedHeight && spaceAbove >= menuEstimatedHeight) {
+      // Not enough space below but enough above - open upward
+      menuOpensUpward.value = true;
+      // Calculate bottom position (distance from bottom of viewport to bottom of button + menu height)
+      // We want the bottom of the menu to align with or be above the top of the button
+      bottom = viewportHeight - rect.top + 4; // Distance from viewport bottom to button top + gap
+      top = 0; // Not used when opening upward
+      // Ensure menu doesn't go above viewport (bottom should not exceed viewport height - menu height)
+      const maxBottom = viewportHeight - 8;
+      if (bottom > maxBottom) {
+        bottom = maxBottom;
+      }
+    } else {
+      // Default: open downward
+      menuOpensUpward.value = false;
+      top = rect.bottom + 4;
+      bottom = 0; // Not used when opening downward
+      // Ensure menu doesn't go below viewport
+      if (top + menuEstimatedHeight > viewportHeight - 8) {
+        top = viewportHeight - menuEstimatedHeight - 8;
+        // If we adjusted top, ensure it doesn't go above button
+        if (top < rect.top) {
+          top = Math.max(8, viewportHeight - menuEstimatedHeight - 8);
+        }
+      }
     }
     
     menuPosition.value = {
-      top: rect.bottom + 4,
-      left: left
+      top: top,
+      left: left,
+      bottom: bottom
     };
   }
   
+  // Always close submenu when context menu opens/closes
+  showNewNoteSubmenu.value = false;
+  
+  // Prevent submenu from auto-opening when menu first opens
+  const wasClosed = !showContextMenu.value;
   showContextMenu.value = !showContextMenu.value;
+  
+  if (wasClosed && showContextMenu.value) {
+    // Menu just opened - prevent submenu from auto-opening
+    contextMenuJustOpened.value = true;
+    lastMousePosition.value = null; // Reset mouse position tracking
+    // Reset the flag after a longer delay to allow hover to work
+    setTimeout(() => {
+      contextMenuJustOpened.value = false;
+      lastMousePosition.value = null; // Reset after delay too
+    }, 500); // 500ms delay before submenu can open
+  }
+}
+
+function showNewNoteSubmenuHandler(event?: MouseEvent) {
+  // Prevent submenu from opening immediately after context menu opens
+  if (contextMenuJustOpened.value) {
+    return;
+  }
+  
+  // Also check if context menu is actually open
+  if (!showContextMenu.value) {
+    return;
+  }
+  
+  // If we have mouse event, check if mouse actually moved (not just hovering)
+  if (event) {
+    const currentPos = { x: event.clientX, y: event.clientY };
+    if (lastMousePosition.value) {
+      const dx = Math.abs(currentPos.x - lastMousePosition.value.x);
+      const dy = Math.abs(currentPos.y - lastMousePosition.value.y);
+      // If mouse hasn't moved much (less than 5px), it might be already hovering
+      // But allow it if context menu just opened flag is cleared
+      if (dx < 5 && dy < 5) {
+        // Mouse hasn't moved - this might be an initial hover when menu opens
+        // Only allow if enough time has passed
+        return;
+      }
+    }
+    lastMousePosition.value = currentPos;
+  }
+  
+  if (newNoteSubmenuButtonRef.value) {
+    const buttonRect = newNoteSubmenuButtonRef.value.getBoundingClientRect();
+    const viewportHeight = window.innerHeight;
+    const submenuEstimatedHeight = 320; // Approximate height for 5 menu items
+    const spaceBelow = viewportHeight - buttonRect.bottom;
+    const spaceAbove = buttonRect.top;
+    
+    // If not enough space below but enough space above, open upward
+    if (spaceBelow < submenuEstimatedHeight && spaceAbove >= submenuEstimatedHeight) {
+      submenuOpensUpward.value = true;
+    } else {
+      // Default: open downward
+      submenuOpensUpward.value = false;
+    }
+  }
+  showNewNoteSubmenu.value = true;
+}
+
+function hideNewNoteSubmenuHandler() {
+  // Small delay to allow moving to submenu
+  setTimeout(() => {
+    if (!document.querySelector('[data-new-note-submenu-hover]')) {
+      showNewNoteSubmenu.value = false;
+    }
+  }, 100);
 }
 
 // Folder colors based on depth for visual hierarchy
@@ -777,7 +899,11 @@ onMounted(() => {
           v-if="showContextMenu"
           @click.stop
           class="fixed w-48 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-xl py-2 z-[9999]"
-          :style="{ top: `${menuPosition.top}px`, left: `${menuPosition.left}px` }"
+          :style="{ 
+            top: menuOpensUpward ? 'auto' : `${menuPosition.top}px`, 
+            bottom: menuOpensUpward ? `${menuPosition.bottom}px` : 'auto',
+            left: `${menuPosition.left}px` 
+          }"
         >
           <button
             v-if="canMoveUp"
@@ -806,14 +932,98 @@ onMounted(() => {
             <UIcon name="i-heroicons-folder-plus" class="w-5 h-5 text-blue-500" />
             <span>New Subfolder</span>
           </button>
-          <button
-            type="button"
-            @click="emit('create-note', folder.id); showContextMenu = false"
-            class="w-full text-left px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-3"
-          >
-            <UIcon name="i-heroicons-document-plus" class="w-5 h-5 text-green-500" />
-            <span>New Note</span>
-          </button>
+          <div class="relative">
+              <button
+              ref="newNoteSubmenuButtonRef"
+              type="button"
+              @mouseenter="(e) => showNewNoteSubmenuHandler(e as MouseEvent)"
+              @mouseleave="hideNewNoteSubmenuHandler"
+              class="w-full text-left px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center justify-between gap-3"
+            >
+              <div class="flex items-center gap-3">
+                <UIcon name="i-heroicons-document-plus" class="w-5 h-5 text-green-500" />
+                <span>New Note</span>
+              </div>
+              <UIcon name="i-heroicons-chevron-right" class="w-4 h-4 text-gray-400" />
+            </button>
+            
+            <!-- New Note Submenu -->
+            <Transition name="submenu">
+              <div
+                v-if="showNewNoteSubmenu"
+                data-new-note-submenu-hover
+                @mouseenter="(e) => showNewNoteSubmenuHandler(e as MouseEvent)"
+                @mouseleave="hideNewNoteSubmenuHandler"
+                class="absolute left-full ml-1 w-56 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-xl py-2 z-[10000]"
+                :class="submenuOpensUpward ? 'bottom-0' : 'top-0'"
+              >
+                <!-- New Note (Blank) -->
+                <button
+                  type="button"
+                  @click="emit('create-note', folder.id); showContextMenu = false; showNewNoteSubmenu = false"
+                  class="w-full text-left px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-primary-50 dark:hover:bg-primary-900/20 flex items-center gap-3"
+                >
+                  <UIcon name="i-heroicons-document-plus" class="w-5 h-5 text-primary-500" />
+                  <div class="flex-1">
+                    <div class="font-medium text-gray-900 dark:text-white">New Note</div>
+                    <div class="text-xs text-gray-500 dark:text-gray-400">Create a blank note</div>
+                  </div>
+                </button>
+
+                <!-- New List -->
+                <button
+                  type="button"
+                  @click="emit('create-list-note', folder.id); showContextMenu = false; showNewNoteSubmenu = false"
+                  class="w-full text-left px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-orange-50 dark:hover:bg-orange-900/20 flex items-center gap-3"
+                >
+                  <UIcon name="i-heroicons-list-bullet" class="w-5 h-5 text-orange-500" />
+                  <div class="flex-1">
+                    <div class="font-medium text-gray-900 dark:text-white">New List</div>
+                    <div class="text-xs text-gray-500 dark:text-gray-400">With checkbox ready</div>
+                  </div>
+                </button>
+
+                <!-- From Template -->
+                <button
+                  type="button"
+                  @click="emit('create-template-note', folder.id); showContextMenu = false; showNewNoteSubmenu = false"
+                  class="w-full text-left px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 flex items-center gap-3"
+                >
+                  <UIcon name="i-heroicons-document-duplicate" class="w-5 h-5 text-indigo-500" />
+                  <div class="flex-1">
+                    <div class="font-medium text-gray-900 dark:text-white">From Template</div>
+                    <div class="text-xs text-gray-500 dark:text-gray-400">Use a pre-made template</div>
+                  </div>
+                </button>
+
+                <!-- AI Generate -->
+                <button
+                  type="button"
+                  @click="emit('create-ai-note', folder.id); showContextMenu = false; showNewNoteSubmenu = false"
+                  class="w-full text-left px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 flex items-center gap-3"
+                >
+                  <UIcon name="i-heroicons-sparkles" class="w-5 h-5 text-emerald-500" />
+                  <div class="flex-1">
+                    <div class="font-medium text-gray-900 dark:text-white">AI Generate</div>
+                    <div class="text-xs text-gray-500 dark:text-gray-400">Create with AI</div>
+                  </div>
+                </button>
+
+                <!-- Import Recipe -->
+                <button
+                  type="button"
+                  @click="emit('import-recipe', folder.id); showContextMenu = false; showNewNoteSubmenu = false"
+                  class="w-full text-left px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-rose-50 dark:hover:bg-rose-900/20 flex items-center gap-3"
+                >
+                  <UIcon name="i-heroicons-cake" class="w-5 h-5 text-rose-500" />
+                  <div class="flex-1">
+                    <div class="font-medium text-gray-900 dark:text-white">Import Recipe</div>
+                    <div class="text-xs text-gray-500 dark:text-gray-400">From URL</div>
+                  </div>
+                </button>
+              </div>
+            </Transition>
+          </div>
           <div class="my-1 border-t border-gray-200 dark:border-gray-700"></div>
           <button
             type="button"
@@ -932,6 +1142,24 @@ onMounted(() => {
 .fade-leave-to {
   opacity: 0;
   transform: scale(0.95) translateY(-4px);
+}
+
+/* Submenu transition */
+.submenu-enter-active,
+.submenu-leave-active {
+  transition: all 0.15s ease;
+}
+
+.submenu-enter-from,
+.submenu-leave-to {
+  opacity: 0;
+  transform: translateX(-8px);
+}
+
+.submenu-enter-to,
+.submenu-leave-from {
+  opacity: 1;
+  transform: translateX(0);
 }
 
 /* Expand transition for children - Notion-style smooth animation */

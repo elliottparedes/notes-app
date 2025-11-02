@@ -849,13 +849,24 @@ onMounted(() => {
   // Set up awareness for user presence
   if (provider.value.awareness) {
     // Broadcast our user info to other clients
-    provider.value.awareness.setLocalStateField('user', {
-      name: props.userName,
-      color: props.userColor,
-      clientId: provider.value.awareness.clientID
-    })
+    const updateUserAwareness = () => {
+      if (provider.value?.awareness && !isDestroying.value) {
+        provider.value.awareness.setLocalStateField('user', {
+          name: props.userName,
+          color: props.userColor,
+          clientId: provider.value.awareness.clientID
+        })
+        console.log(`[CollabEditor ${props.noteId}] 📡 Broadcasting user presence: ${props.userName}`)
+      }
+    }
     
-    console.log(`[CollabEditor ${props.noteId}] 📡 Broadcasting user presence: ${props.userName}`)
+    // Set initial user awareness
+    updateUserAwareness()
+    
+    // Watch for prop changes and update awareness (important when switching spaces/users)
+    watch([() => props.userName, () => props.userColor], () => {
+      updateUserAwareness()
+    }, { immediate: false })
     
     // Track connected users via awareness
     awarenessChangeHandler = () => {
@@ -875,44 +886,50 @@ onMounted(() => {
           position?: number;
         }> = []
         
-        // Update user map
+        // Clear user map and rebuild from current states to avoid stale entries
+        userMap.value.clear()
+        
+        // Update user map and build other users list
         states.forEach((state: any, clientId: number) => {
-          if (state.user) {
+          // Only process states that have valid user information
+          if (state.user && state.user.name && state.user.color) {
+            // Update user map for all users (including self for reference)
             userMap.value.set(clientId, {
               name: state.user.name,
               color: state.user.color
             })
-          }
-          
-          if (clientId !== myClientId && state.user) {
-            const docPosition = state.cursor?.position
-            let screenX = state.cursor?.x
-            let screenY = state.cursor?.y
             
-            // If we have document position but not screen position, calculate it
-            if (docPosition !== undefined && editor.value) {
-              try {
-                const coords = editor.value.view.coordsAtPos(docPosition)
-                const editorEl = editorContainer.value
-                
-                if (editorEl && coords) {
-                  const editorRect = editorEl.getBoundingClientRect()
-                  screenX = coords.left - editorRect.left + editorEl.scrollLeft
-                  screenY = coords.top - editorRect.top + editorEl.scrollTop
+            // Only add other users (not self) to collaborator cursors
+            if (clientId !== myClientId) {
+              const docPosition = state.cursor?.position
+              let screenX = state.cursor?.x
+              let screenY = state.cursor?.y
+              
+              // If we have document position but not screen position, calculate it
+              if (docPosition !== undefined && editor.value) {
+                try {
+                  const coords = editor.value.view.coordsAtPos(docPosition)
+                  const editorEl = editorContainer.value
+                  
+                  if (editorEl && coords) {
+                    const editorRect = editorEl.getBoundingClientRect()
+                    screenX = coords.left - editorRect.left + editorEl.scrollLeft
+                    screenY = coords.top - editorRect.top + editorEl.scrollTop
+                  }
+                } catch (err) {
+                  // Use provided screen position or undefined
                 }
-              } catch (err) {
-                // Use provided screen position or undefined
               }
+              
+              otherUsers.push({
+                name: state.user.name,
+                color: state.user.color,
+                clientId,
+                x: screenX,
+                y: screenY,
+                position: docPosition
+              })
             }
-            
-            otherUsers.push({
-              name: state.user.name,
-              color: state.user.color,
-              clientId,
-              x: screenX,
-              y: screenY,
-              position: docPosition
-            })
           }
         })
         
