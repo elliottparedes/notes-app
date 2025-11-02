@@ -15,6 +15,7 @@ import Gapcursor from '@tiptap/extension-gapcursor'
 import { Extension } from '@tiptap/core'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 import type { Level } from '@tiptap/extension-heading'
+import { YouTube } from './YouTubeExtension'
 
 // Custom extension to handle table exit
 const TableExit = Extension.create({
@@ -160,8 +161,10 @@ const emit = defineEmits<{
 // Modal states
 const showLinkModal = ref(false)
 const showImageModal = ref(false)
+const showYouTubeModal = ref(false)
 const linkUrl = ref('')
 const imageUrl = ref('')
+const youtubeUrl = ref('')
 
 // Context menu state
 const showContextMenu = ref(false)
@@ -235,6 +238,11 @@ const editor = useEditor({
     Image.configure({
       HTMLAttributes: {
         class: 'max-w-full h-auto rounded-lg my-4'
+      }
+    }),
+    YouTube.configure({
+      HTMLAttributes: {
+        class: 'youtube-embed'
       }
     }),
     Gapcursor,
@@ -392,6 +400,24 @@ function confirmImage() {
 function cancelImage() {
   showImageModal.value = false
   imageUrl.value = ''
+}
+
+function addYouTube() {
+  youtubeUrl.value = ''
+  showYouTubeModal.value = true
+}
+
+function confirmYouTube() {
+  if (youtubeUrl.value.trim()) {
+    editor.value?.chain().focus().setYouTube({ src: youtubeUrl.value.trim() }).run()
+  }
+  showYouTubeModal.value = false
+  youtubeUrl.value = ''
+}
+
+function cancelYouTube() {
+  showYouTubeModal.value = false
+  youtubeUrl.value = ''
 }
 
 function setHorizontalRule() {
@@ -642,6 +668,13 @@ onBeforeUnmount(() => {
           title="Add Image"
         >
           <UIcon name="i-heroicons-photo" class="w-5 h-5" />
+        </button>
+        <button
+          @click="addYouTube"
+          class="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+          title="Add YouTube Video"
+        >
+          <UIcon name="i-heroicons-video-camera" class="w-5 h-5" />
         </button>
         <button
           @click="insertTable"
@@ -1120,6 +1153,13 @@ onBeforeUnmount(() => {
             <span class="flex-1 text-left">Image</span>
           </button>
           <button
+            @click="addYouTube(); closeContextMenu()"
+            class="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300"
+          >
+            <UIcon name="i-heroicons-video-camera" class="w-4 h-4" />
+            <span class="flex-1 text-left">YouTube Video</span>
+          </button>
+          <button
             @click="insertTable(); closeContextMenu()"
             class="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300"
           >
@@ -1197,6 +1237,71 @@ onBeforeUnmount(() => {
             <UIcon name="i-heroicons-trash" class="w-4 h-4" />
             <span class="flex-1 text-left">Delete Table</span>
           </button>
+        </div>
+      </Transition>
+    </Teleport>
+
+    <!-- YouTube Modal -->
+    <Teleport to="body">
+      <Transition name="modal">
+        <div
+          v-if="showYouTubeModal"
+          class="fixed inset-0 z-50 flex items-center justify-center p-4"
+          @click.self="cancelYouTube"
+        >
+          <!-- Backdrop -->
+          <div
+            class="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            @click="cancelYouTube"
+          />
+          
+          <!-- Modal -->
+          <div class="relative bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-lg w-full p-6 border border-gray-200 dark:border-gray-700">
+            <!-- Icon -->
+            <div class="flex items-center justify-center w-12 h-12 mx-auto mb-4 bg-red-100 dark:bg-red-900/30 rounded-full">
+              <UIcon name="i-heroicons-video-camera" class="w-6 h-6 text-red-600 dark:text-red-400" />
+            </div>
+
+            <!-- Title -->
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white text-center mb-2">
+              Insert YouTube Video
+            </h3>
+
+            <!-- Description -->
+            <p class="text-sm text-gray-600 dark:text-gray-400 text-center mb-6">
+              Enter the YouTube video URL or embed URL
+            </p>
+
+            <!-- Input -->
+            <input
+              v-model="youtubeUrl"
+              type="url"
+              placeholder="https://www.youtube.com/watch?v=..."
+              class="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent mb-6"
+              @keyup.enter="confirmYouTube"
+              autofocus
+            />
+
+            <!-- Actions -->
+            <div class="flex gap-3">
+              <UButton
+                color="neutral"
+                variant="soft"
+                block
+                @click="cancelYouTube"
+              >
+                Cancel
+              </UButton>
+              <UButton
+                color="primary"
+                block
+                @click="confirmYouTube"
+                :disabled="!youtubeUrl.trim()"
+              >
+                Insert Video
+              </UButton>
+            </div>
+          </div>
         </div>
       </Transition>
     </Teleport>
@@ -1512,6 +1617,27 @@ onBeforeUnmount(() => {
 /* Ensure proper spacing in read-only mode */
 .tiptap-editor .ProseMirror[contenteditable="false"] {
   cursor: default;
+}
+
+/* YouTube embed styles */
+.tiptap-editor .ProseMirror .youtube-wrapper {
+  position: relative;
+  padding-bottom: 56.25%; /* 16:9 aspect ratio */
+  height: 0;
+  overflow: hidden;
+  max-width: 100%;
+  margin: 1.5rem 0;
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+
+.tiptap-editor .ProseMirror .youtube-wrapper iframe {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
 }
 
 /* Toolbar transition */

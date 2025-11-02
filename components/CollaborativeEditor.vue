@@ -33,6 +33,7 @@ import { Plugin, PluginKey } from '@tiptap/pm/state'
 import { WebsocketProvider } from 'y-websocket'
 import * as Y from 'yjs'
 import ydocManager from '~/utils/ydocManager.client'
+import { YouTube } from './YouTubeExtension'
 
 // Custom mark for highlighting text with user colors that fade to normal
 const UserHighlight = Mark.create({
@@ -275,8 +276,10 @@ const editorContainer = ref<HTMLElement | null>(null)
 // Modal states
 const showLinkModal = ref(false)
 const showImageModal = ref(false)
+const showYouTubeModal = ref(false)
 const linkUrl = ref('')
 const imageUrl = ref('')
+const youtubeUrl = ref('')
 
 const props = withDefaults(defineProps<{
   noteId: string
@@ -368,6 +371,11 @@ const editor = useEditor({
     Image.configure({
       HTMLAttributes: {
         class: 'max-w-full h-auto rounded-lg my-4'
+      }
+    }),
+    YouTube.configure({
+      HTMLAttributes: {
+        class: 'youtube-embed'
       }
     }),
     // Tables
@@ -716,6 +724,25 @@ function confirmImage() {
 function cancelImage() {
   showImageModal.value = false
   imageUrl.value = ''
+}
+
+function addYouTube() {
+  youtubeUrl.value = ''
+  showYouTubeModal.value = true
+  closeContextMenu()
+}
+
+function confirmYouTube() {
+  if (youtubeUrl.value.trim()) {
+    editor.value?.chain().focus().setYouTube({ src: youtubeUrl.value.trim() }).run()
+  }
+  showYouTubeModal.value = false
+  youtubeUrl.value = ''
+}
+
+function cancelYouTube() {
+  showYouTubeModal.value = false
+  youtubeUrl.value = ''
 }
 
 onMounted(() => {
@@ -1352,6 +1379,10 @@ defineExpose({
             <span class="text-sm w-5">🖼️</span>
             <span class="flex-1 text-left">Image</span>
           </button>
+          <button @click="addYouTube()" class="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300">
+            <span class="text-sm w-5">📹</span>
+            <span class="flex-1 text-left">YouTube Video</span>
+          </button>
           <button @click="() => {
             // Insert table
             editor?.chain().focus().insertTable({ rows: 3, cols: 3 }).run();
@@ -1497,6 +1528,50 @@ defineExpose({
                 :disabled="!imageUrl.trim()"
               >
                 Insert Image
+              </UButton>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+
+    <!-- YouTube Modal -->
+    <Teleport to="body">
+      <Transition name="modal">
+        <div
+          v-if="showYouTubeModal"
+          class="fixed inset-0 bg-black/50 flex items-center justify-center z-[10000]"
+          @click="cancelYouTube"
+        >
+          <div
+            @click.stop
+            class="bg-white dark:bg-gray-800 rounded-2xl p-8 max-w-md w-full mx-4 shadow-2xl"
+          >
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white text-center mb-2">
+              Insert YouTube Video
+            </h3>
+            <p class="text-sm text-gray-600 dark:text-gray-400 text-center mb-6">
+              Enter the YouTube video URL or embed URL
+            </p>
+            <input
+              v-model="youtubeUrl"
+              type="url"
+              placeholder="https://www.youtube.com/watch?v=..."
+              class="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent mb-6"
+              @keyup.enter="confirmYouTube"
+              autofocus
+            />
+            <div class="flex gap-3">
+              <UButton color="neutral" variant="soft" block @click="cancelYouTube">
+                Cancel
+              </UButton>
+              <UButton
+                color="primary"
+                block
+                @click="confirmYouTube"
+                :disabled="!youtubeUrl.trim()"
+              >
+                Insert Video
               </UButton>
             </div>
           </div>
@@ -1735,6 +1810,27 @@ defineExpose({
   to {
     color: #e5e7eb !important; /* Default dark mode text color */
   }
+}
+
+/* YouTube embed styles */
+.collaborative-editor :deep(.ProseMirror .youtube-wrapper) {
+  position: relative;
+  padding-bottom: 56.25%; /* 16:9 aspect ratio */
+  height: 0;
+  overflow: hidden;
+  max-width: 100%;
+  margin: 1.5rem 0;
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+
+.collaborative-editor :deep(.ProseMirror .youtube-wrapper iframe) {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
 }
 </style>
 
