@@ -137,7 +137,10 @@ const currentSpace = computed(() => spacesStore.currentSpace);
     >
       <div class="flex items-center gap-2 flex-1 min-w-0">
         <div class="relative">
-          <UIcon name="i-heroicons-building-office-2" class="w-4 h-4 flex-shrink-0 text-primary-600 dark:text-primary-400" />
+          <UIcon 
+            :name="currentSpace?.icon ? `i-lucide-${currentSpace.icon}` : 'i-heroicons-building-office-2'" 
+            class="w-4 h-4 flex-shrink-0 text-primary-600 dark:text-primary-400" 
+          />
           <!-- Current Space Indicator Dot -->
           <span 
             v-if="currentSpace"
@@ -181,7 +184,7 @@ const currentSpace = computed(() => spacesStore.currentSpace);
             <div class="flex items-center gap-2 flex-1 min-w-0">
               <div class="relative">
                 <UIcon 
-                  name="i-heroicons-building-office-2" 
+                  :name="space.icon ? `i-lucide-${space.icon}` : 'i-heroicons-building-office-2'" 
                   class="w-4 h-4 flex-shrink-0"
                   :class="space.id === spacesStore.currentSpaceId ? 'text-primary-600 dark:text-primary-400' : 'text-gray-500 dark:text-gray-400'"
                 />

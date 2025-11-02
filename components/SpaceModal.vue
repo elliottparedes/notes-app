@@ -17,6 +17,7 @@ const spacesStore = useSpacesStore();
 const toast = useToast();
 
 const spaceName = ref('');
+const spaceIcon = ref<string | null>(null);
 const loading = ref(false);
 
 // Reset form when modal opens/closes or space changes
@@ -24,8 +25,10 @@ watch([() => props.isOpen, () => props.space], () => {
   if (props.isOpen) {
     if (props.space) {
       spaceName.value = props.space.name;
+      spaceIcon.value = props.space.icon;
     } else {
       spaceName.value = '';
+      spaceIcon.value = null;
     }
   }
 }, { immediate: true });
@@ -35,6 +38,7 @@ function closeModal() {
   // Reset form after closing
   setTimeout(() => {
     spaceName.value = '';
+    spaceIcon.value = null;
   }, 300);
 }
 
@@ -54,7 +58,8 @@ async function handleSubmit() {
     if (props.space) {
       // Update existing space
       const updatedSpace = await spacesStore.updateSpace(props.space.id, {
-        name: spaceName.value.trim()
+        name: spaceName.value.trim(),
+        icon: spaceIcon.value
       });
       
       toast.add({
@@ -67,7 +72,8 @@ async function handleSubmit() {
     } else {
       // Create new space
       const newSpace = await spacesStore.createSpace({
-        name: spaceName.value.trim()
+        name: spaceName.value.trim(),
+        icon: spaceIcon.value
       });
       
       toast.add({
@@ -155,6 +161,13 @@ onMounted(() => {
                 
                 <!-- Content -->
                 <form @submit.prevent="handleSubmit" class="space-y-4">
+                  <!-- Icon Selection -->
+                  <IconPicker
+                    v-model="spaceIcon"
+                    search-placeholder="Search icons..."
+                  />
+
+                  <!-- Space Name -->
                   <div>
                     <label class="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">
                       Space Name
