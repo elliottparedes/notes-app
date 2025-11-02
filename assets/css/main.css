@@ -1,3 +1,71 @@
 @import "tailwindcss";
 @import "@nuxt/ui";
 
+/* Move toast notifications further down to avoid blocking UI elements */
+/* Set CSS variables for Notivue positioning - these should be used by Notivue internally */
+:root {
+  --nv-root-top: 80px;
+  --nv-root-right: 1.25rem;
+}
+
+/* Direct targeting of Notivue container that's teleported to body */
+/* Notivue uses [data-notivue-align] attribute on the root container */
+body > div[data-notivue-align="top"],
+body > div[data-notivue-align="top-right"],
+body > div[data-notivue-align="top-left"],
+body > div[data-notivue-align] {
+  top: 80px !important;
+}
+
+/* Fallback: target any div that's a direct child of body with positioning that might be Notivue */
+body > div[style*="position"]:has([data-notivue-container]) {
+  top: 80px !important;
+}
+
+/* Override Notivue animations to slide from right instead of from top */
+/* For top-right position, override the default vertical slide to horizontal slide from right */
+body > div[data-notivue-align="top"] .Notivue__enter,
+body > div[data-notivue-align="top-right"] .Notivue__enter,
+body > div[data-notivue-align="top-left"] .Notivue__enter,
+[data-notivue-align="top"] .Notivue__enter,
+[data-notivue-align="top-right"] .Notivue__enter,
+[data-notivue-align="top-left"] .Notivue__enter {
+  --notivue-ty: 0 !important; /* Disable vertical movement */
+  --notivue-tx: 200%; /* Slide from right */
+  animation: notivue-slide-right-in 0.35s cubic-bezier(0.5, 1, 0.25, 1) !important;
+}
+
+body > div[data-notivue-align="top"] .Notivue__leave,
+body > div[data-notivue-align="top-right"] .Notivue__leave,
+body > div[data-notivue-align="top-left"] .Notivue__leave,
+[data-notivue-align="top"] .Notivue__leave,
+[data-notivue-align="top-right"] .Notivue__leave,
+[data-notivue-align="top-left"] .Notivue__leave {
+  --notivue-ty: 0 !important; /* Disable vertical movement */
+  --notivue-tx: 200%; /* Slide out to right */
+  animation: notivue-slide-right-out 0.35s ease !important;
+}
+
+/* Custom keyframe animations for sliding from right */
+@keyframes notivue-slide-right-in {
+  0% {
+    transform: translate3d(var(--notivue-tx, 200%), 0, 0) scale(0.25);
+    opacity: 0;
+  }
+  to {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes notivue-slide-right-out {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 0.7;
+  }
+  to {
+    transform: translate3d(var(--notivue-tx, 200%), 0, 0) scale(0);
+    opacity: 0;
+  }
+}
+
