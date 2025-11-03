@@ -87,14 +87,13 @@ export default defineEventHandler(async (event): Promise<Note> => {
     // Auto-publish note if parent folder or space is published
     if (body.folder_id) {
       // Check if folder is published
-      const [publishedFolder] = await executeQuery<Array<{ share_id: string }>>(
+      const publishedFolderResults = await executeQuery<Array<{ share_id: string }>>(
         'SELECT share_id FROM published_folders WHERE folder_id = ? AND owner_id = ? AND is_active = TRUE',
         [body.folder_id, userId]
       );
 
-      if (publishedFolder.length > 0) {
+      if (publishedFolderResults.length > 0) {
         // Auto-publish the note
-        const { randomUUID } = await import('crypto');
         const noteShareId = randomUUID();
         await executeQuery(
           'INSERT INTO published_notes (note_id, share_id, owner_id, is_active) VALUES (?, ?, ?, TRUE)',
@@ -102,20 +101,19 @@ export default defineEventHandler(async (event): Promise<Note> => {
         );
       } else {
         // Check if parent space is published
-        const [folder] = await executeQuery<Array<{ space_id: number }>>(
+        const folderResults = await executeQuery<Array<{ space_id: number }>>(
           'SELECT space_id FROM folders WHERE id = ?',
           [body.folder_id]
         );
 
-        if (folder && folder.space_id) {
-          const [publishedSpace] = await executeQuery<Array<{ share_id: string }>>(
+        if (folderResults.length > 0 && folderResults[0].space_id) {
+          const publishedSpaceResults = await executeQuery<Array<{ share_id: string }>>(
             'SELECT share_id FROM published_spaces WHERE space_id = ? AND owner_id = ? AND is_active = TRUE',
-            [folder.space_id, userId]
+            [folderResults[0].space_id, userId]
           );
 
-          if (publishedSpace.length > 0) {
+          if (publishedSpaceResults.length > 0) {
             // Auto-publish the note
-            const { randomUUID } = await import('crypto');
             const noteShareId = randomUUID();
             await executeQuery(
               'INSERT INTO published_notes (note_id, share_id, owner_id, is_active) VALUES (?, ?, ?, TRUE)',
@@ -126,10 +124,27 @@ export default defineEventHandler(async (event): Promise<Note> => {
       }
     } else {
       // Note without folder - check if current space is published
-      const spacesStore = await import('~/stores/spaces').then(m => m.useSpacesStore());
-      // We can't easily access store here, so we'll check via user's current space
-      // For now, skip auto-publish for root notes without folders
-      // This can be enhanced if needed
+      // We need to get the user's current space first
+      const userSpaces = await executeQuery<Array<{ id: number }>>(
+        'SELECT id FROM spaces WHERE user_id = ? ORDER BY created_at ASC LIMIT 1',
+        [userId]
+      );
+      
+      if (userSpaces.length > 0) {
+        const publishedSpaceResults = await executeQuery<Array<{ share_id: string }>>(
+          'SELECT share_id FROM published_spaces WHERE space_id = ? AND owner_id = ? AND is_active = TRUE',
+          [userSpaces[0].id, userId]
+        );
+
+        if (publishedSpaceResults.length > 0) {
+          // Auto-publish the note
+          const noteShareId = randomUUID();
+          await executeQuery(
+            'INSERT INTO published_notes (note_id, share_id, owner_id, is_active) VALUES (?, ?, ?, TRUE)',
+            [noteId, noteShareId, userId]
+          );
+        }
+      }
     }
 
     return note;

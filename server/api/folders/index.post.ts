@@ -116,12 +116,12 @@ export default defineEventHandler(async (event) => {
     const folder = folders[0];
 
     // Auto-publish folder if parent space is published
-    const [publishedSpace] = await executeQuery<Array<{ share_id: string }>>(
+    const publishedSpaceResults = await executeQuery<Array<{ share_id: string }>>(
       'SELECT share_id FROM published_spaces WHERE space_id = ? AND owner_id = ? AND is_active = TRUE',
       [spaceId, userId]
     );
 
-    if (publishedSpace.length > 0) {
+    if (publishedSpaceResults.length > 0) {
       // Auto-publish the new folder
       const { randomUUID } = await import('crypto');
       const folderShareId = randomUUID();

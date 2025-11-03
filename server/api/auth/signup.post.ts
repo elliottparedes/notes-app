@@ -72,6 +72,17 @@ export default defineEventHandler(async (event): Promise<AuthResponse> => {
     // Ensure folder_order is null for new users
     user.folder_order = null;
 
+    // Create a default "Personal" space for the new user
+    try {
+      await executeQuery(
+        'INSERT INTO spaces (user_id, name, color, icon, created_at, updated_at) VALUES (?, ?, ?, ?, NOW(), NOW())',
+        [user.id, 'Personal', null, 'user']
+      );
+    } catch (spaceError) {
+      // Log error but don't fail signup if space creation fails
+      console.error('Failed to create default space for user:', spaceError);
+    }
+
     // Generate JWT token
     const token = generateToken(user);
 
