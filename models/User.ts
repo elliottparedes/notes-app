@@ -3,6 +3,7 @@ export interface User {
   email: string;
   name: string | null;
   folder_order: string[] | null;
+  storage_used: number;
   created_at: Date;
   updated_at: Date;
 }

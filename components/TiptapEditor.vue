@@ -148,9 +148,11 @@ const props = withDefaults(defineProps<{
   placeholder?: string
   editable?: boolean
   showToolbar?: boolean
+  noteId?: string // Note ID for file uploads
 }>(), {
   editable: true,
-  showToolbar: true
+  showToolbar: true,
+  noteId: undefined
 })
 
 const emit = defineEmits<{
@@ -171,6 +173,11 @@ const showContextMenu = ref(false)
 const contextMenuPos = ref({ x: 0, y: 0 })
 const contextMenuSubmenu = ref<string | null>(null)
 const submenuButtonRefs = ref<{ [key: string]: HTMLElement | null }>({})
+
+// File upload state
+const isDragOver = ref(false)
+const fileInputRef = ref<HTMLInputElement | null>(null)
+const isUploadingFile = ref(false)
 
 // Toolbar visibility - controlled by parent now
 const showToolbar = computed(() => props.showToolbar ?? true)
@@ -420,6 +427,94 @@ function cancelYouTube() {
   youtubeUrl.value = ''
 }
 
+// File upload functions
+function openFileDialog() {
+  if (!props.noteId) {
+    console.warn('Note ID is required for file uploads')
+    return
+  }
+  fileInputRef.value?.click()
+}
+
+async function handleFileSelect(event: Event) {
+  const target = event.target as HTMLInputElement
+  const files = target.files
+  
+  if (!files || files.length === 0 || !props.noteId) return
+  
+  await uploadFiles(Array.from(files))
+  
+  // Reset input
+  if (fileInputRef.value) {
+    fileInputRef.value.value = ''
+  }
+}
+
+async function uploadFiles(files: File[]) {
+  if (isUploadingFile.value || !props.noteId) return
+  
+  const authStore = useAuthStore()
+  if (!authStore.token) {
+    console.error('Not authenticated')
+    return
+  }
+  
+  isUploadingFile.value = true
+  
+  try {
+    for (const file of files) {
+      const formData = new FormData()
+      formData.append('file', file)
+      
+      const attachment = await $fetch<{
+        id: number;
+        file_name: string;
+        file_path: string;
+        mime_type: string | null;
+        presigned_url?: string;
+      }>(`/api/notes/${props.noteId}/attachments`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${authStore.token}`,
+        },
+        body: formData,
+      })
+      
+      // Don't auto-insert images - they'll be shown as links at the top of the note
+      // Images can still be inserted manually via the image button if needed
+    }
+  } catch (error: any) {
+    console.error('Upload error:', error)
+  } finally {
+    isUploadingFile.value = false
+  }
+}
+
+function handleDragOver(event: DragEvent) {
+  if (!props.editable || !props.noteId) return
+  event.preventDefault()
+  event.stopPropagation()
+  isDragOver.value = true
+}
+
+function handleDragLeave(event: DragEvent) {
+  event.preventDefault()
+  event.stopPropagation()
+  isDragOver.value = false
+}
+
+function handleDrop(event: DragEvent) {
+  if (!props.editable || !props.noteId) return
+  event.preventDefault()
+  event.stopPropagation()
+  isDragOver.value = false
+  
+  const files = event.dataTransfer?.files
+  if (files && files.length > 0) {
+    uploadFiles(Array.from(files))
+  }
+}
+
 function setHorizontalRule() {
   editor.value?.chain().focus().setHorizontalRule().run()
 }
@@ -528,7 +623,13 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="tiptap-editor w-full relative">
+  <div 
+    class="tiptap-editor w-full relative"
+    :class="{ 'drag-over': isDragOver }"
+    @dragover="handleDragOver"
+    @dragleave="handleDragLeave"
+    @drop="handleDrop"
+  >
     <!-- Toolbar (only show when editable) -->
     <Transition name="toolbar">
       <div v-if="editable && showToolbar" class="toolbar sticky top-0 z-10 flex flex-wrap gap-1 p-2 bg-gray-100 dark:bg-gray-800 border-b border-gray-300 dark:border-gray-600 rounded-t-lg">
@@ -670,6 +771,15 @@ onBeforeUnmount(() => {
           <UIcon name="i-heroicons-photo" class="w-5 h-5" />
         </button>
         <button
+          v-if="noteId"
+          @click="openFileDialog"
+          :disabled="isUploadingFile"
+          class="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors disabled:opacity-50"
+          title="Upload File"
+        >
+          <UIcon name="i-heroicons-paper-clip" class="w-5 h-5" />
+        </button>
+        <button
           @click="addYouTube"
           class="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
           title="Add YouTube Video"
@@ -771,6 +881,30 @@ onBeforeUnmount(() => {
     </div>
     </Transition>
 
+    <!-- Hidden File Input -->
+    <input
+      v-if="noteId"
+      ref="fileInputRef"
+      type="file"
+      class="hidden"
+      multiple
+      @change="handleFileSelect"
+    />
+    
+    
+    <!-- Drag Overlay -->
+    <Transition name="drag-overlay">
+      <div
+        v-if="isDragOver && editable && noteId"
+        class="absolute inset-0 z-50 bg-primary-500/10 dark:bg-primary-400/10 border-2 border-dashed border-primary-500 dark:border-primary-400 rounded-lg flex items-center justify-center pointer-events-none"
+      >
+        <div class="text-center">
+          <UIcon name="i-heroicons-paper-clip" class="w-12 h-12 text-primary-500 dark:text-primary-400 mx-auto mb-2" />
+          <p class="text-primary-700 dark:text-primary-300 font-medium">Drop files here to upload</p>
+        </div>
+      </div>
+    </Transition>
+    
     <!-- Editor Content -->
     <div @contextmenu="handleContextMenu">
       <EditorContent 
@@ -1699,5 +1833,28 @@ onBeforeUnmount(() => {
 .context-menu-leave-from {
   opacity: 1;
   transform: scale(1) translateY(0);
+}
+
+/* Drag overlay transition */
+.drag-overlay-enter-active,
+.drag-overlay-leave-active {
+  transition: all 0.2s ease;
+}
+
+.drag-overlay-enter-from,
+.drag-overlay-leave-to {
+  opacity: 0;
+  transform: scale(0.95);
+}
+
+/* Fade transition for floating button */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
 }
 </style>

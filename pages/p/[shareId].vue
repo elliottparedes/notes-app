@@ -6,6 +6,8 @@ const shareId = computed(() => route.params.shareId as string);
 const publishedNote = ref<PublishedNoteWithDetails | null>(null);
 const isLoading = ref(true);
 const error = ref<string | null>(null);
+const attachments = ref<Array<import('~/models').Attachment>>([]);
+const isLoadingAttachments = ref(false);
 
 // Client-side checks
 const isClient = ref(false);
@@ -18,6 +20,9 @@ onMounted(async () => {
   try {
     const data = await $fetch<PublishedNoteWithDetails>(`/api/publish/note/${shareId.value}`);
     publishedNote.value = data;
+    
+    // Load attachments for published note
+    await loadAttachments();
   } catch (err: any) {
     error.value = err.data?.message || 'Failed to load published note';
     console.error('Error loading published note:', err);
@@ -25,6 +30,22 @@ onMounted(async () => {
     isLoading.value = false;
   }
 });
+
+// Load attachments for published note
+async function loadAttachments() {
+  try {
+    isLoadingAttachments.value = true;
+    const atts = await $fetch<Array<import('~/models').Attachment>>(
+      `/api/publish/note/${shareId.value}/attachments`
+    );
+    attachments.value = atts;
+  } catch (err: any) {
+    console.error('Error loading attachments:', err);
+    attachments.value = [];
+  } finally {
+    isLoadingAttachments.value = false;
+  }
+}
 
 // Copy link function
 function copyLink() {
@@ -121,6 +142,35 @@ useHead({
 
     <!-- Note Content -->
     <main v-else-if="publishedNote" class="max-w-4xl mx-auto px-4 py-8">
+      <!-- Attachments Section -->
+      <div v-if="attachments.length > 0" class="mb-8 pb-6 border-b border-gray-200 dark:border-gray-700">
+        <div v-if="isLoadingAttachments" class="text-center py-2">
+          <UIcon name="i-heroicons-arrow-path" class="w-4 h-4 animate-spin mx-auto text-gray-400" />
+        </div>
+        <div v-else class="flex flex-wrap items-center gap-3">
+          <span class="text-xs font-medium text-gray-500 dark:text-gray-400 flex items-center gap-1">
+            <UIcon name="i-heroicons-paper-clip" class="w-3.5 h-3.5" />
+            Attachments:
+          </span>
+          <div
+            v-for="attachment in attachments"
+            :key="attachment.id"
+            class="flex items-center gap-2 px-3 py-1.5 bg-gray-100 dark:bg-gray-700 rounded-lg group hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+          >
+            <a
+              :href="attachment.presigned_url || `/api/publish/note/${shareId}/attachments/${attachment.id}`"
+              target="_blank"
+              download
+              class="text-sm text-gray-700 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400 flex items-center gap-1.5"
+              :title="`Download ${attachment.file_name}`"
+            >
+              <UIcon name="i-heroicons-arrow-down-tray" class="w-3.5 h-3.5" />
+              <span>{{ attachment.file_name }}</span>
+            </a>
+          </div>
+        </div>
+      </div>
+      
       <article class="prose prose-lg dark:prose-invert max-w-none">
         <div v-if="publishedNote.note_content" class="note-content" v-html="publishedNote.note_content"></div>
         <div v-else class="text-gray-500 dark:text-gray-400 italic">

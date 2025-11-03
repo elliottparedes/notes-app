@@ -46,6 +46,10 @@ const isPolishing = ref(false);
 const isPublishing = ref(false);
 const publishStatus = ref<{ is_published: boolean; share_url?: string } | null>(null);
 const showPublishModal = ref(false);
+const attachments = ref<Array<import('~/models').Attachment>>([]);
+const isLoadingAttachments = ref(false);
+const isExportingPdf = ref(false);
+const fileUploadInputRef = ref<HTMLInputElement | null>(null);
 
 // Folder publish status
 const folderPublishStatuses = ref<Map<number, { is_published: boolean; share_url?: string }>>(new Map());
@@ -469,6 +473,14 @@ watch(
   { immediate: false }
 );
 
+// Clear attachments when active note becomes null
+watch(() => activeNote.value?.id, (newId, oldId) => {
+  if (!newId && oldId) {
+    // Note was closed, clear attachments
+    attachments.value = [];
+  }
+});
+
 // Watch for active note changes and load it
 watch(activeNote, (note, oldNote) => {
   // Skip if note hasn't actually changed (prevent duplicate updates)
@@ -508,6 +520,10 @@ watch(activeNote, (note, oldNote) => {
     
     // Check publish status
     checkPublishStatus();
+    
+    // Clear and load attachments for the active note
+    attachments.value = [];
+    loadAttachments(note.id);
     
     // If note doesn't have content or seems incomplete, try to fetch it
     if ((!note.content || note.content === '') && process.client) {
@@ -2077,6 +2093,208 @@ async function checkPublishStatus() {
   }
 }
 
+// Load attachments for a note
+async function loadAttachments(noteId: string) {
+  try {
+    isLoadingAttachments.value = true;
+    if (!authStore.token) {
+      console.log('[Dashboard] No auth token for loading attachments');
+      return;
+    }
+    
+    console.log('[Dashboard] Loading attachments for note:', noteId);
+    const atts = await $fetch<Array<import('~/models').Attachment>>(
+      `/api/notes/${noteId}/attachments`,
+      {
+        headers: {
+          Authorization: `Bearer ${authStore.token}`,
+        },
+      }
+    );
+    
+    console.log('[Dashboard] Loaded attachments:', atts.length, atts);
+    attachments.value = atts;
+  } catch (error: any) {
+    console.error('[Dashboard] Failed to load attachments:', error);
+    attachments.value = [];
+  } finally {
+    isLoadingAttachments.value = false;
+  }
+}
+
+// Handle attachment upload
+function handleAttachmentUploaded(attachment: import('~/models').Attachment) {
+  attachments.value = [attachment, ...attachments.value];
+}
+
+// Handle attachment deletion
+function handleAttachmentDeleted(attachmentId: number) {
+  attachments.value = attachments.value.filter((a) => a.id !== attachmentId);
+}
+
+// Delete attachment
+async function deleteAttachment(attachmentId: number) {
+  if (!activeNote.value) return;
+  
+  try {
+    const authStore = useAuthStore();
+    if (!authStore.token) {
+      toast.add({
+        title: 'Error',
+        description: 'Not authenticated',
+        color: 'error',
+      });
+      return;
+    }
+    
+    await $fetch(`/api/notes/${activeNote.value.id}/attachments/${attachmentId}`, {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${authStore.token}`,
+      },
+    });
+    
+    handleAttachmentDeleted(attachmentId);
+    toast.add({
+      title: 'Success',
+      description: 'File deleted successfully',
+      color: 'success',
+    });
+  } catch (error: any) {
+    console.error('Delete error:', error);
+    toast.add({
+      title: 'Error',
+      description: error.data?.message || 'Failed to delete file',
+      color: 'error',
+    });
+  }
+}
+
+// Trigger file upload from header button
+function triggerFileUpload() {
+  fileUploadInputRef.value?.click();
+}
+
+// Handle file selection from header button
+async function handleFileUpload(event: Event) {
+  if (!activeNote.value) return;
+  
+  const target = event.target as HTMLInputElement;
+  const files = target.files;
+  
+  if (!files || files.length === 0) return;
+  
+  const authStore = useAuthStore();
+  if (!authStore.token) {
+    toast.add({
+      title: 'Error',
+      description: 'Not authenticated',
+      color: 'error',
+    });
+    return;
+  }
+  
+  try {
+    for (const file of files) {
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      const attachment = await $fetch<import('~/models').Attachment>(
+        `/api/notes/${activeNote.value.id}/attachments`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${authStore.token}`,
+          },
+          body: formData,
+        }
+      );
+      
+      handleAttachmentUploaded(attachment);
+      toast.add({
+        title: 'File Uploaded',
+        description: `${file.name} uploaded successfully`,
+        color: 'success',
+      });
+    }
+    
+    // Reload attachments list to get fresh presigned URLs
+    await loadAttachments(activeNote.value.id);
+    
+    // Reset input
+    if (fileUploadInputRef.value) {
+      fileUploadInputRef.value.value = '';
+    }
+  } catch (error: any) {
+    console.error('Upload error:', error);
+    toast.add({
+      title: 'Upload Failed',
+      description: error.data?.message || 'Failed to upload file',
+      color: 'error',
+    });
+  }
+}
+
+// Export note as PDF
+async function exportAsPdf() {
+  if (!activeNote.value || isExportingPdf.value) return;
+  
+  try {
+    isExportingPdf.value = true;
+    const authStore = useAuthStore();
+    if (!authStore.token) {
+      toast.add({
+        title: 'Error',
+        description: 'Not authenticated',
+        color: 'error',
+      });
+      return;
+    }
+    
+    // Fetch PDF with auth header
+    const response = await fetch(`/api/notes/${activeNote.value.id}/export.pdf`, {
+      headers: {
+        Authorization: `Bearer ${authStore.token}`,
+      },
+    });
+    
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ message: 'Failed to generate PDF' }));
+      throw new Error(error.message || 'Failed to generate PDF');
+    }
+    
+    // Get PDF blob
+    const blob = await response.blob();
+    
+    // Create download link
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${activeNote.value.title || 'note'}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    
+    // Cleanup
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+    
+    toast.add({
+      title: 'PDF Export Complete',
+      description: 'Your PDF has been downloaded',
+      color: 'success',
+    });
+  } catch (error: any) {
+    console.error('PDF export error:', error);
+    toast.add({
+      title: 'Error',
+      description: error.message || 'Failed to export PDF',
+      color: 'error',
+    });
+  } finally {
+    isExportingPdf.value = false;
+  }
+}
+
 // Handle publish button click
 async function handlePublishButtonClick() {
   if (!activeNote.value) return;
@@ -3218,6 +3436,31 @@ onMounted(() => {
                 />
               </button>
               
+              <!-- File Upload Button (show for owners or editors with permission) -->
+              <button
+                v-if="!isLocked && (activeNote.user_id === authStore.currentUser?.id || activeNote.share_permission === 'editor')"
+                @click="triggerFileUpload"
+                class="p-2 rounded-lg transition-colors hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400"
+                title="Upload File"
+              >
+                <UIcon name="i-heroicons-paper-clip" class="w-4 h-4" />
+              </button>
+              
+              <!-- PDF Export Button -->
+              <button
+                v-if="activeNote.user_id === authStore.currentUser?.id"
+                @click="exportAsPdf"
+                :disabled="isExportingPdf"
+                class="p-2 rounded-lg transition-colors hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 disabled:opacity-50"
+                title="Export as PDF"
+              >
+                <UIcon 
+                  name="i-heroicons-document-arrow-down" 
+                  :class="isExportingPdf ? 'animate-spin' : ''"
+                  class="w-4 h-4" 
+                />
+              </button>
+              
               <!-- Keyboard Shortcuts Info -->
               <!-- <button
                 @click="showShortcutsModal = true"
@@ -3432,6 +3675,52 @@ onMounted(() => {
 
             <!-- Editor Section - Editable Content -->
             <div class="max-w-5xl xl:max-w-7xl 2xl:max-w-[1600px] mx-auto px-4 md:px-6 py-6 pb-16">
+              <!-- Attachments Links at Top -->
+              <div v-if="attachments.length > 0" class="mb-6 pb-4 border-b border-gray-200 dark:border-gray-700">
+                <div v-if="isLoadingAttachments" class="text-center py-2">
+                  <UIcon name="i-heroicons-arrow-path" class="w-4 h-4 animate-spin mx-auto text-gray-400" />
+                </div>
+                <div v-else class="flex flex-wrap items-center gap-3">
+                  <span class="text-xs font-medium text-gray-500 dark:text-gray-400 flex items-center gap-1">
+                    <UIcon name="i-heroicons-paper-clip" class="w-3.5 h-3.5" />
+                    Attachments:
+                  </span>
+                  <div
+                    v-for="attachment in attachments"
+                    :key="attachment.id"
+                    class="flex items-center gap-2 px-3 py-1.5 bg-gray-100 dark:bg-gray-700 rounded-lg group hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                  >
+                    <a
+                      :href="attachment.presigned_url || `/api/notes/${activeNote.id}/attachments/${attachment.id}`"
+                      target="_blank"
+                      download
+                      class="text-sm text-gray-700 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400 flex items-center gap-1.5"
+                      :title="`Download ${attachment.file_name}`"
+                    >
+                      <UIcon name="i-heroicons-arrow-down-tray" class="w-3.5 h-3.5" />
+                      <span>{{ attachment.file_name }}</span>
+                    </a>
+                    <button
+                      v-if="!isLocked && (activeNote.user_id === authStore.currentUser?.id || activeNote.share_permission === 'editor')"
+                      @click="deleteAttachment(attachment.id)"
+                      class="opacity-0 group-hover:opacity-100 transition-opacity text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300"
+                      :title="`Delete ${attachment.file_name}`"
+                    >
+                      <UIcon name="i-heroicons-x-mark" class="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Hidden file input for header button -->
+              <input
+                ref="fileUploadInputRef"
+                type="file"
+                multiple
+                class="hidden"
+                @change="handleFileUpload"
+              />
+              
               <!-- Use CollaborativeEditor for shared notes -->
               <CollaborativeEditor
                 v-if="activeNote.is_shared || activeNote.share_permission"
@@ -3453,6 +3742,7 @@ onMounted(() => {
                   placeholder="Start writing... Right-click for options or press ? for keyboard shortcuts"
                   :editable="!isLocked"
                   :showToolbar="false"
+                  :noteId="activeNote?.id"
                 />
               </ClientOnly>
             </div>
