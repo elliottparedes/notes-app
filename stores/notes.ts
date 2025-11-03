@@ -632,6 +632,12 @@ export const useNotesStore = defineStore('notes', {
         }
       }
       
+      // On mobile, close all other tabs before opening the new one
+      if (process.client && this.isMobile()) {
+        // Close all tabs except the one we're about to open
+        this.openTabs = this.openTabs.filter(id => id === stringId);
+      }
+      
       // Add to tabs if not already open
       if (!this.openTabs.includes(stringId)) {
         this.openTabs.push(stringId);
@@ -694,6 +700,12 @@ export const useNotesStore = defineStore('notes', {
       this.openTabs = [];
       this.activeTabId = null;
       this.saveTabsToStorage();
+    },
+
+    // Helper to detect mobile devices (viewport width < 768px)
+    isMobile(): boolean {
+      if (!process.client) return false;
+      return window.innerWidth < 768;
     }
   }
 });

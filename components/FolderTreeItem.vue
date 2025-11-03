@@ -17,6 +17,7 @@ interface Emits {
   (e: 'toggle', folderId: number): void;
   (e: 'create-subfolder', parentId: number): void;
   (e: 'create-note', folderId: number): void;
+  (e: 'create-quick-note', folderId: number): void;
   (e: 'create-list-note', folderId: number): void;
   (e: 'create-template-note', folderId: number): void;
   (e: 'create-ai-note', folderId: number): void;
@@ -124,8 +125,15 @@ const showNewNoteSubmenu = ref(false);
 const newNoteSubmenuPosition = ref({ top: 0, left: 0 });
 const newNoteSubmenuButtonRef = ref<HTMLElement | null>(null);
 const submenuOpensUpward = ref(false);
+const submenuOpensLeft = ref(false); // Track if submenu should open to the left (for mobile)
 const contextMenuJustOpened = ref(false);
 const lastMousePosition = ref<{ x: number; y: number } | null>(null);
+
+// Helper to detect mobile devices (viewport width < 768px)
+function isMobile(): boolean {
+  if (!process.client) return false;
+  return window.innerWidth < 768;
+}
 
 // SortableJS instances
 const notesContainerRef = ref<HTMLElement | null>(null);
@@ -277,9 +285,24 @@ function showNewNoteSubmenuHandler(event?: MouseEvent) {
   if (newNoteSubmenuButtonRef.value) {
     const buttonRect = newNoteSubmenuButtonRef.value.getBoundingClientRect();
     const viewportHeight = window.innerHeight;
+    const viewportWidth = window.innerWidth;
     const submenuEstimatedHeight = 320; // Approximate height for 5 menu items
+    const submenuWidth = 224; // w-56 = 224px
     const spaceBelow = viewportHeight - buttonRect.bottom;
     const spaceAbove = buttonRect.top;
+    const spaceRight = viewportWidth - buttonRect.right;
+    const spaceLeft = buttonRect.left;
+    
+    // Determine if submenu should open to the left (mobile/small screens)
+    // Check if there's enough space on the right (context menu + submenu + padding)
+    // On mobile (viewport < 768px), prefer opening to the left if context menu is near right edge
+    if (viewportWidth < 768 || spaceRight < submenuWidth + 8) {
+      // Not enough space on right - open to the left
+      submenuOpensLeft.value = true;
+    } else {
+      // Enough space on right - open to the right (default)
+      submenuOpensLeft.value = false;
+    }
     
     // If not enough space below but enough space above, open upward
     if (spaceBelow < submenuEstimatedHeight && spaceAbove >= submenuEstimatedHeight) {
@@ -311,6 +334,24 @@ function hideNewNoteSubmenuHandler() {
     }
     submenuTimeout = null;
   }, 150);
+}
+
+// Handle new note click - mobile: direct create, desktop: show submenu
+function handleNewNoteClick(event: MouseEvent) {
+  if (isMobile()) {
+    // On mobile, directly create a note
+    event.stopPropagation();
+    event.preventDefault();
+    // Close context menu
+    showContextMenu.value = false;
+    // Emit the create-note event
+    // The handler (handleCreateNoteInFolder) will:
+    // 1. Create the note in the folder
+    // 2. Open it as a tab (notesStore.openTab)
+    // 3. Close the mobile sidebar (isMobileSidebarOpen = false)
+    emit('create-note', props.folder.id);
+  }
+  // On desktop, don't prevent default - let hover handler work
 }
 
 // Folder colors based on depth for visual hierarchy
@@ -362,7 +403,8 @@ async function initializeNotesSortable() {
         put: true
       },
       forceFallback: false,
-      delay: 0,
+      // Longer delay on mobile to prevent conflicts with scrolling
+      delay: 300, // 300ms delay for touch devices (only applies when delayOnTouchOnly is true)
       delayOnTouchOnly: true,
       touchStartThreshold: 3,
       filter: '.no-drag',
@@ -703,7 +745,8 @@ async function initializeFoldersSortable() {
       dragClass: 'sortable-drag',
       draggable: '.folder-item',
       forceFallback: false,
-      delay: 0,
+      // Longer delay on mobile to prevent conflicts with scrolling
+      delay: 300, // 300ms delay for touch devices (only applies when delayOnTouchOnly is true)
       delayOnTouchOnly: true,
       touchStartThreshold: 3,
       filter: '.no-drag',
@@ -872,28 +915,28 @@ onMounted(() => {
         v-if="hasContent"
         @click.stop="handleToggle"
         @mousedown.stop
-        class="no-drag flex-shrink-0 p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+        class="no-drag flex-shrink-0 p-2 md:p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
         :class="{ 'rotate-90': isExpanded }"
       >
-        <UIcon name="i-heroicons-chevron-right" class="w-4 h-4 text-gray-500 transition-transform" />
+        <UIcon name="i-heroicons-chevron-right" class="w-6 h-6 md:w-4 md:h-4 text-gray-500 transition-transform" />
       </button>
-      <div v-else class="w-6" />
+      <div v-else class="w-8 md:w-6" />
 
       <!-- Folder Button -->
       <button
         @click.stop="handleSelect"
         @mousedown.stop
-        class="no-drag flex-1 flex items-center gap-2 py-2.5 pr-2 text-sm font-medium transition-colors rounded-lg min-w-0 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700/30"
+        class="no-drag flex-1 flex items-center gap-3 md:gap-2 py-3 md:py-2.5 pr-2 text-lg md:text-sm font-medium transition-colors rounded-lg min-w-0 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700/30"
       >
         <UIcon 
           name="i-heroicons-folder" 
-          class="w-4 h-4 flex-shrink-0"
+          class="w-6 h-6 md:w-4 md:h-4 flex-shrink-0"
           :class="folderColor"
         />
         <span class="truncate flex-1 text-left">{{ folder.name }}</span>
         <span 
           v-if="noteCount > 0"
-          class="text-xs px-1.5 py-0.5 rounded-full bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-300 flex-shrink-0"
+          class="text-base md:text-xs px-2.5 md:px-1.5 py-1 md:py-0.5 rounded-full bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-300 flex-shrink-0"
         >
           {{ noteCount }}
         </span>
@@ -905,10 +948,10 @@ onMounted(() => {
         type="button"
         @click.stop="toggleContextMenu"
         @mousedown.stop
-        class="no-drag flex-shrink-0 p-1.5 rounded-md opacity-100 md:opacity-0 md:group-hover/folder:opacity-100 hover:bg-gray-200 dark:hover:bg-gray-600 transition-all"
+        class="no-drag flex-shrink-0 p-2 md:p-1.5 rounded-md opacity-100 md:opacity-0 md:group-hover/folder:opacity-100 hover:bg-gray-200 dark:hover:bg-gray-600 transition-all"
         :class="showContextMenu ? 'bg-gray-200 dark:bg-gray-600' : ''"
       >
-        <svg class="w-3.5 h-3.5 text-gray-600 dark:text-gray-400" fill="currentColor" viewBox="0 0 16 16">
+        <svg class="w-4 h-4 md:w-3.5 md:h-3.5 text-gray-600 dark:text-gray-400" fill="currentColor" viewBox="0 0 16 16">
           <circle cx="8" cy="2" r="1.5"/>
           <circle cx="8" cy="8" r="1.5"/>
           <circle cx="8" cy="14" r="1.5"/>
@@ -957,29 +1000,35 @@ onMounted(() => {
             <span>New Subfolder</span>
           </button>
           <div class="relative">
+              <!-- Mobile: Direct create note, Desktop: Show submenu -->
               <button
               ref="newNoteSubmenuButtonRef"
               type="button"
-              @mouseenter="(e) => showNewNoteSubmenuHandler(e as MouseEvent)"
-              @mouseleave="hideNewNoteSubmenuHandler"
+              @click="handleNewNoteClick"
+              @mouseenter="(e) => !isMobile() && showNewNoteSubmenuHandler(e as MouseEvent)"
+              @mouseleave="!isMobile() && hideNewNoteSubmenuHandler()"
               class="w-full text-left px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center justify-between gap-3"
             >
               <div class="flex items-center gap-3">
                 <UIcon name="i-heroicons-document-plus" class="w-5 h-5 text-green-500" />
                 <span>New Note</span>
               </div>
-              <UIcon name="i-heroicons-chevron-right" class="w-4 h-4 text-gray-400" />
+              <!-- Only show chevron on desktop where submenu exists -->
+              <UIcon v-if="!isMobile()" name="i-heroicons-chevron-right" class="w-4 h-4 text-gray-400" />
             </button>
             
-            <!-- New Note Submenu -->
+            <!-- New Note Submenu (Desktop only) -->
             <Transition name="submenu">
               <div
-                v-if="showNewNoteSubmenu"
+                v-if="!isMobile() && showNewNoteSubmenu"
                 data-new-note-submenu-hover
                 @mouseenter="(e) => showNewNoteSubmenuHandler(e as MouseEvent)"
                 @mouseleave="hideNewNoteSubmenuHandler"
-                class="absolute left-full ml-1 w-56 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-xl py-2 z-[10000]"
-                :class="submenuOpensUpward ? 'bottom-0' : 'top-0'"
+                class="absolute w-56 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-xl py-2 z-[10000]"
+                :class="[
+                  submenuOpensLeft ? 'right-full mr-1' : 'left-full ml-1',
+                  submenuOpensUpward ? 'bottom-0' : 'top-0'
+                ]"
               >
                 <!-- New Note (Blank) -->
                 <button
@@ -1121,17 +1170,17 @@ onMounted(() => {
         >
           <div class="w-6 flex-shrink-0" />
           
-          <div @click="handleNoteClick(note.id)" class="flex items-center gap-2 flex-1 min-w-0 cursor-pointer py-2">
+          <div @click="handleNoteClick(note.id)" class="flex items-center gap-3 md:gap-2 flex-1 min-w-0 cursor-pointer py-2.5 md:py-2">
             <!-- Note Icon -->
             <UIcon 
               name="i-heroicons-document-text" 
-              class="w-4 h-4 flex-shrink-0"
+              class="w-6 h-6 md:w-4 md:h-4 flex-shrink-0"
               :class="notesStore.activeTabId === note.id ? 'text-primary-600 dark:text-primary-400' : 'text-gray-400'"
             />
             
             <!-- Note Title -->
             <span 
-              class="flex-1 text-sm pr-2 truncate"
+              class="flex-1 text-lg md:text-sm pr-2 truncate"
               :class="notesStore.activeTabId === note.id ? 'text-primary-700 dark:text-primary-300 font-medium' : 'text-gray-700 dark:text-gray-300'"
               :title="note.title"
             >
@@ -1142,10 +1191,10 @@ onMounted(() => {
           <!-- Note Delete Button -->
           <button
             @click.stop="$emit('delete-note', note.id)"
-              class="no-drag flex-shrink-0 p-1.5 mr-2 rounded-md opacity-0 group-hover/note:opacity-100 hover:bg-red-100 dark:hover:bg-red-900/20 transition-all"
+              class="no-drag flex-shrink-0 p-2.5 md:p-1.5 mr-2 rounded-md opacity-0 group-hover/note:opacity-100 hover:bg-red-100 dark:hover:bg-red-900/20 transition-all"
             title="Delete note"
           >
-            <UIcon name="i-heroicons-trash" class="w-3.5 h-3.5 text-red-600 dark:text-red-400" />
+            <UIcon name="i-heroicons-trash" class="w-5 h-5 md:w-3.5 md:h-3.5 text-red-600 dark:text-red-400" />
           </button>
           </div>
         </div>

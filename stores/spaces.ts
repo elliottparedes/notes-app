@@ -46,7 +46,21 @@ export const useSpacesStore = defineStore('spaces', {
           }
         });
 
-        this.spaces = spaces;
+        // Update spaces array while preserving reactivity
+        // If space already exists, merge properties to keep reactivity
+        spaces.forEach((newSpace) => {
+          const existingIndex = this.spaces.findIndex(s => s.id === newSpace.id);
+          if (existingIndex !== -1) {
+            // Update existing space in place to preserve reactivity
+            Object.assign(this.spaces[existingIndex], newSpace);
+          } else {
+            // Add new space
+            this.spaces.push(newSpace);
+          }
+        });
+        
+        // Remove spaces that no longer exist
+        this.spaces = this.spaces.filter(s => spaces.some(ns => ns.id === s.id));
 
         // Load current space from localStorage or set to first space
         if (process.client) {
@@ -138,10 +152,11 @@ export const useSpacesStore = defineStore('spaces', {
           body: data
         });
 
-        // Update in local state
+        // Update in local state - preserve reactivity by updating the object in place
         const index = this.spaces.findIndex(s => s.id === id);
         if (index !== -1) {
-          this.spaces[index] = space;
+          // Update properties in place to preserve reactivity
+          Object.assign(this.spaces[index], space);
         }
 
         return space;

@@ -135,7 +135,7 @@ function truncateTitle(title: string, maxLength: number = 25): string {
 
 <template>
   <div 
-    class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 overflow-x-auto min-h-[48px]"
+    class="hidden md:block bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 overflow-x-auto min-h-[48px]"
   >
     <div ref="tabsContainer" class="flex items-center min-w-max h-full min-h-[48px]">
       <div

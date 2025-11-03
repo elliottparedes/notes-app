@@ -483,6 +483,11 @@ watch(() => activeNote.value?.id, (newId, oldId) => {
 
 // Watch for active note changes and load it
 watch(activeNote, (note, oldNote) => {
+  // Close mobile sidebar when a note becomes active
+  if (note && (!oldNote || oldNote.id !== note.id)) {
+    isMobileSidebarOpen.value = false;
+  }
+  
   // Skip if note hasn't actually changed (prevent duplicate updates)
   // But ALWAYS update if folder_id changed (even if same note)
   // OR if sharing status changed (e.g., after unsharing)
@@ -676,7 +681,8 @@ const folderBreadcrumb = computed(() => {
 // Folder selection
 function selectFolder(folderId: number) {
   selectedFolderId.value = folderId;
-  isMobileSidebarOpen.value = false;
+  // Don't close mobile sidebar - user may want to browse folders
+  // Sidebar only closes when note is opened, settings/logout clicked, or X button clicked
   // Persist selected folder to sessionStorage
   if (process.client) {
     sessionStorage.setItem('selected_folder_id', String(folderId));
@@ -685,7 +691,8 @@ function selectFolder(folderId: number) {
 
 function selectAllNotes() {
   selectedFolderId.value = null;
-  isMobileSidebarOpen.value = false;
+  // Don't close mobile sidebar - user may want to browse folders
+  // Sidebar only closes when note is opened, settings/logout clicked, or X button clicked
   // Clear persisted folder selection
   if (process.client) {
     sessionStorage.removeItem('selected_folder_id');
@@ -718,6 +725,8 @@ async function handleCreateNoteInFolder(folderId: number) {
     // Refresh notes and open in a new tab
     await notesStore.fetchNotes();
     await notesStore.openTab(note.id);
+    // Close mobile sidebar when note is opened
+    isMobileSidebarOpen.value = false;
     
     toast.add({
       title: 'Success',
@@ -794,6 +803,8 @@ async function handleListNoteInFolder(folderId: number) {
     const note = await notesStore.createNote(noteData);
     await notesStore.fetchNotes();
     await notesStore.openTab(note.id);
+    // Close mobile sidebar when note is opened
+    isMobileSidebarOpen.value = false;
     
     toast.add({
       title: 'Success',
@@ -3026,23 +3037,23 @@ onMounted(() => {
             />
             
             <!-- Drawer -->
-            <div class="absolute left-0 top-0 bottom-0 w-64 bg-white dark:bg-gray-800 shadow-xl flex flex-col">
+            <div class="absolute left-0 top-0 bottom-0 w-full bg-white dark:bg-gray-800 shadow-xl flex flex-col">
               <!-- Drawer Header -->
-              <div class="flex items-center justify-between px-3 py-4 border-b border-gray-200 dark:border-gray-700">
-                <div class="flex items-center gap-1">
-                  <img src="/folder.png" alt="Unfold" class="w-16 h-16" />
-                  <h1 class="text-lg font-extrabold text-gray-900 dark:text-white tracking-wide">Unfold</h1>
+              <div class="flex items-center justify-between px-6 py-5 border-b border-gray-200 dark:border-gray-700">
+                <div class="flex items-center gap-2">
+                  <img src="/folder.png" alt="Unfold" class="w-20 h-20" />
+                  <h1 class="text-2xl font-extrabold text-gray-900 dark:text-white tracking-wide">Unfold</h1>
                 </div>
                 <button
                   @click="isMobileSidebarOpen = false"
-                  class="p-2 -mr-2 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                  class="p-2.5 -mr-2 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                 >
-                  <UIcon name="i-heroicons-x-mark" class="w-6 h-6" />
+                  <UIcon name="i-heroicons-x-mark" class="w-7 h-7" />
                 </button>
               </div>
 
               <!-- Drawer Content (Same as Desktop Sidebar) -->
-              <div class="flex-1 overflow-y-auto p-3">
+              <div class="flex-1 overflow-y-auto p-4 md:p-3">
                 <!-- Space Selector -->
                 <SpaceSelector />
                 
@@ -3215,25 +3226,25 @@ onMounted(() => {
 
                 <!-- Folders Section -->
                 <div class="mt-4">
-                  <div class="flex items-center justify-between px-3 mb-2">
-                    <h3 class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  <div class="flex items-center justify-between px-1 mb-3">
+                    <h3 class="text-base md:text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                       Folders
                     </h3>
                     <button
                       @click="openCreateFolderModal"
-                      class="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                      class="p-2 md:p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
                       title="New Folder"
                     >
-                      <UIcon name="i-heroicons-plus" class="w-4 h-4 text-gray-600 dark:text-gray-400" />
+                      <UIcon name="i-heroicons-plus" class="w-6 h-6 md:w-4 md:h-4 text-gray-600 dark:text-gray-400" />
                     </button>
                   </div>
 
                   <div v-if="foldersStore.folderTree.length === 0" class="px-3 py-6 text-center">
                     <UIcon name="i-heroicons-folder-open" class="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-2" />
-                    <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">No folders yet</p>
+                    <p class="text-base md:text-sm text-gray-500 dark:text-gray-400 mb-3">No folders yet</p>
                     <button
                       @click="openCreateFolderModal"
-                      class="text-sm text-primary-600 dark:text-primary-400 hover:underline"
+                      class="text-base md:text-sm text-primary-600 dark:text-primary-400 hover:underline"
                     >
                       Create your first folder
                     </button>
@@ -3275,15 +3286,15 @@ onMounted(() => {
                 <div class="mt-6">
                   <button 
                     @click="isSharedNotesExpanded = !isSharedNotesExpanded"
-                    class="w-full flex items-center justify-between px-3 py-1.5 mb-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors group"
+                    class="w-full flex items-center justify-between px-1 py-2 mb-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors group"
                   >
-                    <h3 class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider flex items-center gap-2">
+                    <h3 class="text-base md:text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider flex items-center gap-2">
                       <UIcon 
                         name="i-heroicons-chevron-right" 
-                        class="w-3.5 h-3.5 transition-transform duration-200"
+                        class="w-5 h-5 md:w-3.5 md:h-3.5 transition-transform duration-200"
                         :class="isSharedNotesExpanded ? 'rotate-90' : ''"
                       />
-                      <UIcon name="i-heroicons-user-group" class="w-3.5 h-3.5" />
+                      <UIcon name="i-heroicons-user-group" class="w-5 h-5 md:w-3.5 md:h-3.5" />
                       Shared
                     </h3>
                     <span class="text-xs px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 group-hover:bg-purple-200 dark:group-hover:bg-purple-900/50 transition-colors">
@@ -3299,18 +3310,18 @@ onMounted(() => {
                           v-for="share in sharedNotesStore.groupedSharedNotes"
                           :key="`share-mobile-${share.note_id}`"
                           @click="handleOpenSharedNote(share)"
-                          class="group flex items-start gap-2 px-3 py-2 rounded-lg cursor-pointer transition-colors hover:bg-purple-50 dark:hover:bg-purple-900/20"
+                          class="group flex items-start gap-3 md:gap-2 px-1 md:px-3 py-3 md:py-2 rounded-lg cursor-pointer transition-colors hover:bg-purple-50 dark:hover:bg-purple-900/20"
                           :class="notesStore.activeTabId === share.note_id ? 'bg-purple-100 dark:bg-purple-900/30' : ''"
                         >
                           <UIcon 
                             :name="share.is_owned_by_me ? 'i-heroicons-arrow-up-tray' : 'i-heroicons-arrow-down-tray'" 
-                            class="w-4 h-4 flex-shrink-0 text-purple-600 dark:text-purple-400 mt-0.5" 
+                            class="w-6 h-6 md:w-4 md:h-4 flex-shrink-0 text-purple-600 dark:text-purple-400 mt-0.5" 
                           />
                           <div class="flex-1 min-w-0">
-                            <p class="text-sm font-medium text-gray-900 dark:text-white truncate">
+                            <p class="text-lg md:text-sm font-medium text-gray-900 dark:text-white truncate">
                               {{ share.note_title }}
                             </p>
-                            <p class="text-xs text-gray-500 dark:text-gray-400 truncate">
+                            <p class="text-base md:text-xs text-gray-500 dark:text-gray-400 truncate">
                               {{ share.is_owned_by_me ? 
                                  (share.shareCount > 1 ? `Shared with ${share.shareCount} people` : `Shared with ${share.shared_with_name || share.shared_with_email}`) : 
                                  `From ${share.owner_name || share.owner_email}` }}
@@ -3332,7 +3343,7 @@ onMounted(() => {
                     <div v-if="isSharedNotesExpanded && sharedNotesStore.groupedSharedNotes.length === 0" class="shared-notes-container">
                       <div class="shared-notes-content px-3 py-6 text-center">
                         <UIcon name="i-heroicons-user-group" class="w-10 h-10 mx-auto text-gray-300 dark:text-gray-600 mb-2" />
-                        <p class="text-xs text-gray-500 dark:text-gray-400">No shared notes yet</p>
+                        <p class="text-sm md:text-xs text-gray-500 dark:text-gray-400">No shared notes yet</p>
                       </div>
                     </div>
                   </Transition>
@@ -3340,16 +3351,16 @@ onMounted(() => {
               </div>
 
               <!-- Drawer Footer -->
-              <div class="p-3 border-t border-gray-200 dark:border-gray-700">
-                <div class="flex items-center gap-3 p-2 mb-2">
-                  <div class="w-8 h-8 bg-gradient-to-br from-primary-400 to-primary-600 rounded-full flex items-center justify-center text-white text-sm font-semibold">
+              <div class="p-4 md:p-3 border-t border-gray-200 dark:border-gray-700">
+                <div class="flex items-center gap-4 md:gap-3 p-2 mb-3 md:mb-2">
+                  <div class="w-12 h-12 md:w-8 md:h-8 bg-gradient-to-br from-primary-400 to-primary-600 rounded-full flex items-center justify-center text-white text-lg md:text-sm font-semibold">
                     {{ userInitial }}
                   </div>
                   <div class="flex-1 min-w-0">
-                    <p class="text-sm font-medium text-gray-900 dark:text-white truncate">
+                    <p class="text-lg md:text-sm font-medium text-gray-900 dark:text-white truncate">
                       {{ authStore.currentUser?.name || 'User' }}
                     </p>
-                    <p class="text-xs text-gray-500 dark:text-gray-400 truncate">
+                    <p class="text-base md:text-xs text-gray-500 dark:text-gray-400 truncate">
                       {{ authStore.currentUser?.email }}
                     </p>
                   </div>
@@ -3369,7 +3380,7 @@ onMounted(() => {
                     color="error"
                     variant="soft"
                     block
-                    @click="authStore.logout()"
+                    @click="isMobileSidebarOpen = false; authStore.logout()"
                   >
                     Logout
                   </UButton>
@@ -3382,18 +3393,9 @@ onMounted(() => {
 
       <!-- Main Content Area -->
       <div class="flex-1 flex flex-col overflow-hidden transition-all duration-300 ease-in-out">
-        <!-- Mobile Menu Button (Floating on Mobile) -->
-        <button
-          @click="isMobileSidebarOpen = true"
-          class="md:hidden fixed top-4 left-4 z-40 p-2 rounded-lg text-gray-600 dark:text-gray-400 bg-white dark:bg-gray-800 shadow-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-          aria-label="Open menu"
-        >
-          <UIcon name="i-heroicons-bars-3" class="w-6 h-6" />
-        </button>
-
         <!-- Tab Bar with Actions -->
-        <div class="flex-shrink-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-          <div class="flex items-center justify-between">
+        <div class="hidden md:flex flex-shrink-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+          <div class="flex items-center justify-between w-full">
             <!-- Tabs -->
             <div class="flex-1 overflow-x-auto">
               <TabBar />
@@ -3530,6 +3532,97 @@ onMounted(() => {
               </div>
             </ClientOnly>
           </div>
+        </div>
+
+        <!-- Mobile Action Bar (only on mobile) - Always visible to show hamburger menu -->
+        <div class="md:hidden flex items-center justify-between gap-2 px-4 py-2 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+          <!-- Hamburger Menu Button (Left) - Always visible -->
+          <button
+            @click="isMobileSidebarOpen = true"
+            class="p-2 rounded-lg transition-colors hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400"
+            aria-label="Open menu"
+          >
+            <UIcon name="i-heroicons-bars-3" class="w-5 h-5" />
+          </button>
+          
+          <!-- Action Buttons Group (Right) - Only show when note is active -->
+          <div v-if="activeNote" class="flex items-center gap-2">
+                <!-- Lock/Unlock Button -->
+                <button
+                  v-if="!activeNote.is_shared && !activeNote.share_permission"
+                  @click="toggleLock"
+                  :title="isLocked ? 'Unlock Note' : 'Lock Note'"
+                  class="p-2 rounded-lg transition-colors hover:bg-gray-100 dark:hover:bg-gray-700"
+                  :class="isLocked ? 'text-amber-600 dark:text-amber-400' : 'text-gray-500 dark:text-gray-400'"
+                >
+                  <UIcon :name="isLocked ? 'i-heroicons-lock-closed' : 'i-heroicons-lock-open'" class="w-5 h-5" />
+                </button>
+                
+                <!-- Polish with AI -->
+                <button
+                  v-if="!isLocked && !activeNote.is_shared && !activeNote.share_permission"
+                  @click="polishNote"
+                  :disabled="isPolishing"
+                  class="p-2 rounded-lg transition-colors hover:bg-purple-50 dark:hover:bg-purple-900/20 disabled:opacity-50"
+                  :class="isPolishing ? 'text-purple-600 dark:text-purple-400' : 'text-purple-500 dark:text-purple-400'"
+                  title="Polish with AI"
+                >
+                  <UIcon 
+                    name="i-heroicons-sparkles" 
+                    :class="isPolishing ? 'animate-spin' : ''" 
+                    class="w-5 h-5" 
+                  />
+                </button>
+                
+                <!-- Share Note Button -->
+                <button
+                  v-if="activeNote.user_id === authStore.currentUser?.id"
+                  @click="openShareModal"
+                  class="p-2 rounded-lg transition-colors hover:bg-blue-50 dark:hover:bg-blue-900/20 text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400"
+                  title="Share Note"
+                >
+                  <UIcon name="i-heroicons-user-plus" class="w-5 h-5" />
+                </button>
+                
+                <!-- Publish/Unpublish Note Button -->
+                <button
+                  v-if="activeNote.user_id === authStore.currentUser?.id && !activeNote.is_shared && !activeNote.share_permission"
+                  @click="handlePublishButtonClick"
+                  :disabled="isPublishing"
+                  class="p-2 rounded-lg transition-colors"
+                  :class="publishStatus?.is_published 
+                    ? 'hover:bg-primary-50 dark:hover:bg-primary-900/20 text-primary-600 dark:text-primary-400' 
+                    : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400'"
+                  :title="publishStatus?.is_published ? 'View/Copy Share Link' : 'Publish Note'"
+                >
+                  <UIcon 
+                    :name="publishStatus?.is_published ? 'i-heroicons-globe-alt' : 'i-heroicons-link'"
+                    :class="isPublishing ? 'animate-spin' : ''"
+                    class="w-5 h-5" 
+                  />
+                </button>
+                
+                <!-- File Upload Button -->
+                <button
+                  v-if="!isLocked && (activeNote.user_id === authStore.currentUser?.id || activeNote.share_permission === 'editor')"
+                  @click="triggerFileUpload"
+                  class="p-2 rounded-lg transition-colors hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400"
+                  title="Upload File"
+                >
+                  <UIcon name="i-heroicons-paper-clip" class="w-5 h-5" />
+                </button>
+                
+                <!-- PDF Export Button -->
+                <button
+                  v-if="activeNote.user_id === authStore.currentUser?.id"
+                  @click="exportAsPdf"
+                  :disabled="isExportingPdf"
+                  class="p-2 rounded-lg transition-colors hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 disabled:opacity-50"
+                  title="Export as PDF"
+                >
+                  <UIcon :name="isExportingPdf ? 'i-heroicons-arrow-path' : 'i-heroicons-document-arrow-down'" :class="isExportingPdf ? 'animate-spin' : ''" class="w-5 h-5" />
+                </button>
+              </div>
         </div>
 
         <!-- Note Editor Area - Fully Scrollable -->
@@ -4658,25 +4751,42 @@ onMounted(() => {
   width: 0;
 }
 
-/* Drawer animation */
-.drawer-enter-active,
+/* Drawer animation - Smooth slide-in from left */
+.drawer-enter-active {
+  transition: opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
 .drawer-leave-active {
-  transition: all 0.3s ease;
+  transition: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.drawer-enter-active .absolute.left-0,
+.drawer-enter-active .absolute.left-0 {
+  transition: transform 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
 .drawer-leave-active .absolute.left-0 {
-  transition: transform 0.3s ease;
+  transition: transform 0.3s cubic-bezier(0.55, 0.055, 0.675, 0.19);
 }
 
-.drawer-enter-from .absolute.left-0,
+.drawer-enter-from .absolute.left-0 {
+  transform: translateX(-100%);
+}
+
 .drawer-leave-to .absolute.left-0 {
   transform: translateX(-100%);
 }
 
-.drawer-enter-from .absolute.inset-0.bg-black\/50,
+.drawer-enter-from .absolute.inset-0.bg-black\/50 {
+  opacity: 0;
+}
+
 .drawer-leave-to .absolute.inset-0.bg-black\/50 {
   opacity: 0;
+  transition: opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.drawer-enter-active .absolute.inset-0.bg-black\/50 {
+  transition: opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* Fade animation */

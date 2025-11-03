@@ -124,7 +124,14 @@ function handleSpaceUpdated(space: any) {
 }
 
 
-const currentSpace = computed(() => spacesStore.currentSpace);
+// Ensure reactivity by watching both currentSpaceId and spaces array
+const currentSpace = computed(() => {
+  const spaceId = spacesStore.currentSpaceId;
+  const spaces = spacesStore.spaces;
+  if (!spaceId) return null;
+  const space = spaces.find(s => s.id === spaceId);
+  return space || null;
+});
 </script>
 
 <template>
@@ -132,29 +139,29 @@ const currentSpace = computed(() => spacesStore.currentSpace);
     <!-- Space Selector Button -->
     <button
       @click="isDropdownOpen = !isDropdownOpen"
-      class="w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors text-left border border-gray-200 dark:border-gray-700"
+      class="w-full flex items-center justify-between gap-3 md:gap-2 px-4 md:px-3 py-3 md:py-2.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors text-left border border-gray-200 dark:border-gray-700"
       :class="isDropdownOpen ? 'bg-gray-100 dark:bg-gray-700/50 border-primary-300 dark:border-primary-700' : 'border-transparent'"
     >
-      <div class="flex items-center gap-2 flex-1 min-w-0">
+      <div class="flex items-center gap-3 md:gap-2 flex-1 min-w-0">
         <div class="relative">
           <UIcon 
-            :name="currentSpace?.icon ? `i-lucide-${currentSpace.icon}` : 'i-heroicons-building-office-2'" 
-            class="w-4 h-4 flex-shrink-0 text-primary-600 dark:text-primary-400" 
+            :name="(currentSpace?.icon && currentSpace.icon.trim() !== '') ? `i-lucide-${currentSpace.icon}` : 'i-heroicons-building-office-2'" 
+            class="w-6 h-6 md:w-4 md:h-4 flex-shrink-0 text-primary-600 dark:text-primary-400" 
           />
           <!-- Current Space Indicator Dot -->
           <span 
             v-if="currentSpace"
-            class="absolute -top-0.5 -right-0.5 w-2 h-2 bg-primary-500 rounded-full border-2 border-white dark:border-gray-800"
+            class="absolute -top-0.5 -right-0.5 w-2.5 md:w-2 h-2.5 md:h-2 bg-primary-500 rounded-full border-2 border-white dark:border-gray-800"
             title="Current Space"
           ></span>
         </div>
-        <span class="text-sm font-semibold text-gray-900 dark:text-white truncate flex-1">
+        <span class="text-lg md:text-sm font-semibold text-gray-900 dark:text-white truncate flex-1">
           {{ currentSpace?.name || 'Select Space' }}
         </span>
       </div>
       <UIcon 
         name="i-heroicons-chevron-down" 
-        class="w-4 h-4 flex-shrink-0 text-gray-500 dark:text-gray-400 transition-transform duration-200"
+        class="w-5 h-5 md:w-4 md:h-4 flex-shrink-0 text-gray-500 dark:text-gray-400 transition-transform duration-200"
         :class="isDropdownOpen ? 'rotate-180' : ''"
       />
     </button>
@@ -177,27 +184,27 @@ const currentSpace = computed(() => spacesStore.currentSpace);
           <div
             v-for="space in spacesStore.spaces"
             :key="space.id"
-            class="group flex items-center justify-between px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700/50 cursor-pointer transition-colors"
+            class="group flex items-center justify-between px-4 md:px-3 py-3 md:py-2 hover:bg-gray-100 dark:hover:bg-gray-700/50 cursor-pointer transition-colors"
             :class="space.id === spacesStore.currentSpaceId ? 'bg-primary-50 dark:bg-primary-900/20' : ''"
             @click="handleSelectSpace(space.id)"
           >
-            <div class="flex items-center gap-2 flex-1 min-w-0">
+            <div class="flex items-center gap-3 md:gap-2 flex-1 min-w-0">
               <div class="relative">
                 <UIcon 
-                  :name="space.icon ? `i-lucide-${space.icon}` : 'i-heroicons-building-office-2'" 
-                  class="w-4 h-4 flex-shrink-0"
+                  :name="(space.icon && space.icon.trim() !== '') ? `i-lucide-${space.icon}` : 'i-heroicons-building-office-2'" 
+                  class="w-6 h-6 md:w-4 md:h-4 flex-shrink-0"
                   :class="space.id === spacesStore.currentSpaceId ? 'text-primary-600 dark:text-primary-400' : 'text-gray-500 dark:text-gray-400'"
                 />
                 <!-- Checkmark for current space -->
                 <div
                   v-if="space.id === spacesStore.currentSpaceId"
-                  class="absolute -top-0.5 -right-0.5 w-3 h-3 bg-primary-500 rounded-full flex items-center justify-center border border-white dark:border-gray-800"
+                  class="absolute -top-0.5 -right-0.5 w-3.5 md:w-3 h-3.5 md:h-3 bg-primary-500 rounded-full flex items-center justify-center border border-white dark:border-gray-800"
                 >
-                  <UIcon name="i-heroicons-check" class="w-2 h-2 text-white" />
+                  <UIcon name="i-heroicons-check" class="w-2.5 md:w-2 h-2.5 md:h-2 text-white" />
                 </div>
               </div>
               <span 
-                class="text-sm truncate flex-1"
+                class="text-lg md:text-sm truncate flex-1"
                 :class="space.id === spacesStore.currentSpaceId ? 'text-primary-700 dark:text-primary-300 font-semibold' : 'text-gray-700 dark:text-gray-300'"
               >
                 {{ space.name }}
@@ -205,21 +212,21 @@ const currentSpace = computed(() => spacesStore.currentSpace);
             </div>
             
             <!-- Action Buttons (on hover) -->
-            <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            <div class="flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
               <button
                 @click="handleEditSpace({ id: space.id, name: space.name }, $event)"
-                class="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                class="p-1.5 md:p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
                 title="Edit space"
               >
-                <UIcon name="i-heroicons-pencil" class="w-3.5 h-3.5 text-gray-600 dark:text-gray-400" />
+                <UIcon name="i-heroicons-pencil" class="w-4 h-4 md:w-3.5 md:h-3.5 text-gray-600 dark:text-gray-400" />
               </button>
               <button
                 v-if="spacesStore.spaces.length > 1"
                 @click="handleDeleteSpace(space.id, $event)"
-                class="p-1 rounded hover:bg-red-100 dark:hover:bg-red-900/20 transition-colors"
+                class="p-1.5 md:p-1 rounded hover:bg-red-100 dark:hover:bg-red-900/20 transition-colors"
                 title="Delete space"
               >
-                <UIcon name="i-heroicons-trash" class="w-3.5 h-3.5 text-red-600 dark:text-red-400" />
+                <UIcon name="i-heroicons-trash" class="w-4 h-4 md:w-3.5 md:h-3.5 text-red-600 dark:text-red-400" />
               </button>
             </div>
           </div>
@@ -231,9 +238,9 @@ const currentSpace = computed(() => spacesStore.currentSpace);
         <!-- New Space Button -->
         <button
           @click="handleNewSpace"
-          class="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors"
+          class="w-full flex items-center gap-3 md:gap-2 px-4 md:px-3 py-3 md:py-2 text-lg md:text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors"
         >
-          <UIcon name="i-heroicons-plus" class="w-4 h-4 text-gray-500 dark:text-gray-400" />
+          <UIcon name="i-heroicons-plus" class="w-5 h-5 md:w-4 md:h-4 text-gray-500 dark:text-gray-400" />
           <span>New Space</span>
         </button>
       </div>
