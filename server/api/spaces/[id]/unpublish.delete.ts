@@ -16,25 +16,107 @@ export default defineEventHandler(async (event) => {
     });
   }
 
-  // Verify space ownership
-  const [space] = await executeQuery<SpaceOwnerRow[]>(
-    'SELECT user_id FROM spaces WHERE id = ?',
-    [spaceId]
-  );
+  try {
+    // Verify space ownership
+    const spaceResults = await executeQuery<SpaceOwnerRow[]>(
+      'SELECT user_id FROM spaces WHERE id = ?',
+      [spaceId]
+    );
 
-  if (!space || space.user_id !== userId) {
+    const space = spaceResults[0];
+
+    if (!space || space.user_id !== userId) {
+      throw createError({
+        statusCode: 403,
+        message: 'Not authorized to unpublish this space'
+      });
+    }
+
+    // Recursive function to unpublish folder and all its notes and subfolders
+    async function unpublishFolderRecursive(folderId: number) {
+      // Unpublish all notes in this folder
+      const notesInFolder = await executeQuery<Array<{ id: string }>>(
+        'SELECT id FROM notes WHERE folder_id = ? AND user_id = ?',
+        [folderId, userId]
+      );
+
+      for (const note of notesInFolder) {
+        await executeQuery(
+          'UPDATE published_notes SET is_active = FALSE, updated_at = CURRENT_TIMESTAMP WHERE note_id = ? AND owner_id = ?',
+          [note.id, userId]
+        );
+      }
+
+      // Get all subfolders
+      const subfolders = await executeQuery<Array<{ id: number }>>(
+        'SELECT id FROM folders WHERE parent_id = ? AND user_id = ?',
+        [folderId, userId]
+      );
+
+      // Recursively unpublish subfolders and their contents
+      for (const subfolder of subfolders) {
+        // First unpublish the subfolder itself
+        await executeQuery(
+          'UPDATE published_folders SET is_active = FALSE, updated_at = CURRENT_TIMESTAMP WHERE folder_id = ? AND owner_id = ?',
+          [subfolder.id, userId]
+        );
+        // Then recursively unpublish its contents
+        await unpublishFolderRecursive(subfolder.id);
+      }
+    }
+
+    // Get all folders in this space
+    const foldersInSpace = await executeQuery<Array<{ id: number }>>(
+      'SELECT id FROM folders WHERE space_id = ? AND user_id = ?',
+      [spaceId, userId]
+    );
+
+    // Unpublish all folders recursively
+    for (const folder of foldersInSpace) {
+      // First unpublish the folder itself
+      await executeQuery(
+        'UPDATE published_folders SET is_active = FALSE, updated_at = CURRENT_TIMESTAMP WHERE folder_id = ? AND owner_id = ?',
+        [folder.id, userId]
+      );
+      // Then recursively unpublish its contents
+      await unpublishFolderRecursive(folder.id);
+    }
+
+    // Unpublish all notes without folders in this space
+    const rootNotes = await executeQuery<Array<{ id: string }>>(
+      `SELECT n.id FROM notes n
+       WHERE n.folder_id IS NULL AND n.user_id = ?
+       AND EXISTS (
+         SELECT 1 FROM folders f WHERE f.space_id = ? AND f.user_id = ?
+       )`,
+      [userId, spaceId, userId]
+    );
+
+    for (const note of rootNotes) {
+      await executeQuery(
+        'UPDATE published_notes SET is_active = FALSE, updated_at = CURRENT_TIMESTAMP WHERE note_id = ? AND owner_id = ?',
+        [note.id, userId]
+      );
+    }
+
+    // Unpublish the space itself
+    await executeQuery(
+      'UPDATE published_spaces SET is_active = FALSE, updated_at = CURRENT_TIMESTAMP WHERE space_id = ? AND owner_id = ?',
+      [spaceId, userId]
+    );
+
+    return { success: true, message: 'Space and all its contents unpublished successfully' };
+  } catch (error: any) {
+    console.error('Error unpublishing space:', error);
+    
+    if (error && typeof error === 'object' && 'statusCode' in error) {
+      throw error;
+    }
+    
     throw createError({
-      statusCode: 403,
-      message: 'Not authorized to unpublish this space'
+      statusCode: 500,
+      message: error?.message || 'Failed to unpublish space'
     });
   }
-
-  // Deactivate publishing (soft delete)
-  await executeQuery(
-    'UPDATE published_spaces SET is_active = FALSE, updated_at = CURRENT_TIMESTAMP WHERE space_id = ? AND owner_id = ?',
-    [spaceId, userId]
-  );
-
-  return { success: true, message: 'Space unpublished successfully' };
 });
 
