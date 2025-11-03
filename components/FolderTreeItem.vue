@@ -9,6 +9,7 @@ interface Props {
   isExpanded?: boolean;
   // For drag-and-drop: parent folder to get siblings
   parentFolder?: Folder | null;
+  publishStatus?: { is_published: boolean; share_url?: string } | undefined;
 }
 
 interface Emits {
@@ -27,6 +28,10 @@ interface Emits {
   (e: 'reorder-folder', folderId: number, newIndex: number): void;
   (e: 'open-note', noteId: string): void;
   (e: 'delete-note', noteId: string): void;
+  (e: 'publish', folderId: number): void;
+  (e: 'unpublish', folderId: number): void;
+  (e: 'check-publish-status', folderId: number): void;
+  (e: 'copy-link', folderId: number): void;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -152,6 +157,8 @@ function truncateNoteTitle(title: string, maxLength: number = 30): string {
 
 function toggleContextMenu(event: MouseEvent) {
   event.stopPropagation();
+  // Check publish status when opening context menu
+  emit('check-publish-status', props.folder.id);
   event.preventDefault();
   
   // Calculate position for the menu
@@ -235,6 +242,11 @@ function toggleContextMenu(event: MouseEvent) {
 }
 
 function showNewNoteSubmenuHandler(event?: MouseEvent) {
+  // Clear any pending hide timeout
+  if (submenuTimeout) {
+    clearTimeout(submenuTimeout);
+    submenuTimeout = null;
+  }
   // Prevent submenu from opening immediately after context menu opens
   if (contextMenuJustOpened.value) {
     return;
@@ -280,13 +292,25 @@ function showNewNoteSubmenuHandler(event?: MouseEvent) {
   showNewNoteSubmenu.value = true;
 }
 
+let submenuTimeout: ReturnType<typeof setTimeout> | null = null;
+
 function hideNewNoteSubmenuHandler() {
+  // Clear any existing timeout
+  if (submenuTimeout) {
+    clearTimeout(submenuTimeout);
+  }
+  
   // Small delay to allow moving to submenu
-  setTimeout(() => {
-    if (!document.querySelector('[data-new-note-submenu-hover]')) {
+  submenuTimeout = setTimeout(() => {
+    // Check if mouse is still over button or submenu
+    const isOverButton = newNoteSubmenuButtonRef.value?.matches(':hover');
+    const isOverSubmenu = document.querySelector('[data-new-note-submenu-hover]')?.matches(':hover');
+    
+    if (!isOverButton && !isOverSubmenu) {
       showNewNoteSubmenu.value = false;
     }
-  }, 100);
+    submenuTimeout = null;
+  }, 150);
 }
 
 // Folder colors based on depth for visual hierarchy
@@ -1032,6 +1056,33 @@ onMounted(() => {
           >
             <UIcon name="i-heroicons-pencil-square" class="w-5 h-5 text-gray-500" />
             <span>Rename</span>
+          </button>
+          <button
+            v-if="!publishStatus?.is_published"
+            type="button"
+            @click="emit('publish', folder.id); showContextMenu = false"
+            class="w-full text-left px-4 py-2.5 text-sm text-primary-600 dark:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/20 flex items-center gap-3"
+          >
+            <UIcon name="i-heroicons-link" class="w-5 h-5" />
+            <span>Publish Folder</span>
+          </button>
+          <button
+            v-if="publishStatus?.is_published"
+            type="button"
+            @click="emit('copy-link', folder.id); showContextMenu = false"
+            class="w-full text-left px-4 py-2.5 text-sm text-primary-600 dark:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/20 flex items-center gap-3"
+          >
+            <UIcon name="i-heroicons-clipboard-document" class="w-5 h-5" />
+            <span>Copy Link</span>
+          </button>
+          <button
+            v-if="publishStatus?.is_published"
+            type="button"
+            @click="emit('unpublish', folder.id); showContextMenu = false"
+            class="w-full text-left px-4 py-2.5 text-sm text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20 flex items-center gap-3"
+          >
+            <UIcon name="i-heroicons-x-circle" class="w-5 h-5" />
+            <span>Unpublish Folder</span>
           </button>
           <button
             type="button"

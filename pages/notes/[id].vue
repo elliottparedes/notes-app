@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { UpdateNoteDto, Folder } from '~/models';
+import { useAuthStore } from '~/stores/auth';
 
 const route = useRoute();
 const router = useRouter();
@@ -23,6 +24,9 @@ const showFolderDropdown = ref(false);
 const folderDropdownPos = ref({ top: 0, left: 0 });
 const folderButtonRef = ref<HTMLButtonElement | null>(null);
 const isPolishing = ref(false);
+const isPublishing = ref(false);
+const publishStatus = ref<{ is_published: boolean; share_url?: string } | null>(null);
+const showPublishModal = ref(false);
 
 const editForm = reactive<UpdateNoteDto & { content: string }>({
   title: '',
@@ -141,11 +145,121 @@ onMounted(async () => {
   try {
     await notesStore.openTab(noteId.value);
     router.push('/dashboard');
+    // Check publish status
+    checkPublishStatus();
   } catch (error) {
     console.error('Error opening note:', error);
     router.push('/dashboard');
   }
 });
+
+// Check publish status
+async function checkPublishStatus() {
+  try {
+    const authStore = useAuthStore();
+    if (!authStore.token) return;
+    
+    const status = await $fetch<{ is_published: boolean; share_url?: string }>(`/api/notes/${noteId.value}/publish-status`, {
+      headers: {
+        Authorization: `Bearer ${authStore.token}`
+      }
+    });
+    publishStatus.value = status;
+  } catch (error) {
+    console.error('Error checking publish status:', error);
+    publishStatus.value = { is_published: false };
+  }
+}
+
+// Publish note
+async function publishNote() {
+  if (isPublishing.value) return;
+  
+  try {
+    isPublishing.value = true;
+    const authStore = useAuthStore();
+    if (!authStore.token) {
+      toast.add({ title: 'Error', description: 'Not authenticated', color: 'error' });
+      return;
+    }
+    
+    const response = await $fetch<{ share_id: string; share_url: string }>(`/api/notes/${noteId.value}/publish`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${authStore.token}`
+      }
+    });
+    
+    publishStatus.value = { is_published: true, share_url: response.share_url };
+    showPublishModal.value = true;
+    toast.add({
+      title: 'Note Published',
+      description: 'Your note is now publicly accessible',
+      color: 'success'
+    });
+  } catch (error: any) {
+    console.error('Error publishing note:', error);
+    toast.add({
+      title: 'Error',
+      description: error.data?.message || 'Failed to publish note',
+      color: 'error'
+    });
+  } finally {
+    isPublishing.value = false;
+  }
+}
+
+// Unpublish note
+async function unpublishNote() {
+  if (isPublishing.value) return;
+  
+  try {
+    isPublishing.value = true;
+    const authStore = useAuthStore();
+    if (!authStore.token) {
+      toast.add({ title: 'Error', description: 'Not authenticated', color: 'error' });
+      return;
+    }
+    
+    await $fetch(`/api/notes/${noteId.value}/unpublish`, {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${authStore.token}`
+      }
+    });
+    
+    publishStatus.value = { is_published: false };
+    showPublishModal.value = false;
+    toast.add({
+      title: 'Note Unpublished',
+      description: 'Your note is no longer publicly accessible',
+      color: 'success'
+    });
+  } catch (error: any) {
+    console.error('Error unpublishing note:', error);
+    toast.add({
+      title: 'Error',
+      description: error.data?.message || 'Failed to unpublish note',
+      color: 'error'
+    });
+  } finally {
+    isPublishing.value = false;
+  }
+}
+
+// Copy share URL
+function copyShareUrl() {
+  if (!publishStatus.value?.share_url) return;
+  
+  if (process.client && navigator.clipboard) {
+    navigator.clipboard.writeText(publishStatus.value.share_url);
+    toast.add({
+      title: 'Link Copied',
+      description: 'Share link copied to clipboard',
+      color: 'success'
+    });
+  }
+}
 
 // Auto-save on content change (only when not locked)
 watch([() => editForm.title, () => editForm.content, () => editForm.folder_id], () => {
@@ -404,6 +518,17 @@ onUnmounted(() => {
               <span class="hidden sm:inline">Saved</span>
             </div>
           </ClientOnly>
+          
+          <!-- Publish/Unpublish Button -->
+          <UButton
+            :icon="publishStatus?.is_published ? 'i-heroicons-globe-alt' : 'i-heroicons-link'"
+            :color="publishStatus?.is_published ? 'primary' : 'neutral'"
+            variant="ghost"
+            size="sm"
+            :loading="isPublishing"
+            @click="publishStatus?.is_published ? unpublishNote() : publishNote()"
+            :title="publishStatus?.is_published ? 'Unpublish Note' : 'Publish Note'"
+          />
           
           <!-- Lock/Unlock Button -->
           <UButton
@@ -798,6 +923,80 @@ onUnmounted(() => {
         </div>
       </Transition>
     </Teleport>
+
+    <!-- Publish Modal -->
+    <div
+      v-if="showPublishModal && publishStatus?.is_published"
+      class="fixed inset-0 z-50 flex items-center justify-center p-4"
+    >
+      <!-- Backdrop -->
+      <div
+        class="absolute inset-0 bg-black/50 backdrop-blur-sm"
+        @click="showPublishModal = false"
+      />
+      
+      <!-- Modal -->
+      <div class="relative bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-md w-full p-6 border border-gray-200 dark:border-gray-700">
+        <!-- Header -->
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
+            Note Published
+          </h3>
+          <button
+            @click="showPublishModal = false"
+            class="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+          >
+            <UIcon name="i-heroicons-x-mark" class="w-5 h-5 text-gray-500" />
+          </button>
+        </div>
+
+        <!-- Description -->
+        <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+          Your note is now publicly accessible. Anyone with the link can view it.
+        </p>
+
+        <!-- Share URL -->
+        <div class="mb-4">
+          <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">
+            Share Link
+          </label>
+          <div class="flex gap-2">
+            <input
+              :value="publishStatus.share_url"
+              readonly
+              class="flex-1 px-3 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-gray-900 dark:text-white"
+            />
+            <UButton
+              icon="i-heroicons-clipboard-document"
+              color="primary"
+              @click="copyShareUrl"
+            >
+              Copy
+            </UButton>
+          </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="flex gap-3">
+          <UButton
+            color="neutral"
+            variant="soft"
+            block
+            @click="showPublishModal = false"
+          >
+            Close
+          </UButton>
+          <UButton
+            color="error"
+            variant="soft"
+            block
+            @click="unpublishNote"
+          >
+            Unpublish
+          </UButton>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 

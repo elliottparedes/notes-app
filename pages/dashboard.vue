@@ -43,6 +43,16 @@ const showFolderDropdown = ref(false);
 const folderDropdownPos = ref({ top: 0, left: 0 });
 const folderButtonRef = ref<HTMLButtonElement | null>(null);
 const isPolishing = ref(false);
+const isPublishing = ref(false);
+const publishStatus = ref<{ is_published: boolean; share_url?: string } | null>(null);
+const showPublishModal = ref(false);
+
+// Folder publish status
+const folderPublishStatuses = ref<Map<number, { is_published: boolean; share_url?: string }>>(new Map());
+const showFolderPublishModal = ref(false);
+const currentFolderPublishStatus = ref<{ folderId: number; folderName: string; is_published: boolean; share_url?: string } | null>(null);
+const showUnpublishFolderModal = ref(false);
+const folderToUnpublish = ref<{ folderId: number; folderName: string } | null>(null);
 
 // Track previous values for change detection (to handle collaborative notes correctly)
 const prevTitle = ref<string>('');
@@ -486,7 +496,7 @@ watch(activeNote, (note, oldNote) => {
     return;
   }
   
-  if (note) {
+    if (note) {
     console.log('[Dashboard] Active note changed:', {
       id: note.id.substring(0, 20),
       is_shared: note.is_shared,
@@ -495,6 +505,9 @@ watch(activeNote, (note, oldNote) => {
       hasContent: !!note.content,
       contentLength: note.content ? note.content.length : 0
     });
+    
+    // Check publish status
+    checkPublishStatus();
     
     // If note doesn't have content or seems incomplete, try to fetch it
     if ((!note.content || note.content === '') && process.client) {
@@ -862,6 +875,166 @@ function handleRenameFolder(folderId: number) {
 function handleDeleteFolder(folderId: number) {
   folderToManage.value = folderId;
   showDeleteFolderModal.value = true;
+}
+
+// Check folder publish status
+async function checkFolderPublishStatus(folderId: number) {
+  try {
+    const status = await $fetch<{ is_published: boolean; share_url?: string; parent_space_published?: boolean }>(`/api/folders/${folderId}/publish-status`, {
+      headers: {
+        Authorization: `Bearer ${authStore.token}`
+      }
+    });
+    folderPublishStatuses.value.set(folderId, status);
+    return status;
+  } catch (error) {
+    console.error('Error checking folder publish status:', error);
+    folderPublishStatuses.value.set(folderId, { is_published: false });
+    return { is_published: false };
+  }
+}
+
+// Publish/Unpublish folder handlers
+async function handlePublishFolder(folderId: number) {
+  try {
+    // Check if parent space is published
+    const folder = foldersStore.getFolderById(folderId);
+    if (folder) {
+      const status = await checkFolderPublishStatus(folderId);
+
+      // If already published, show modal with link
+      if (status.is_published && status.share_url) {
+        currentFolderPublishStatus.value = {
+          folderId,
+          folderName: folder.name,
+          is_published: true,
+          share_url: status.share_url
+        };
+        showFolderPublishModal.value = true;
+        return;
+      }
+
+      if (status.parent_space_published) {
+        const confirmed = confirm('This folder is in a published space. Publishing the space already makes all folders and notes public. Do you still want to publish this folder separately?');
+        if (!confirmed) return;
+      }
+
+      const response = await $fetch<{ share_id: string; share_url: string }>(`/api/folders/${folderId}/publish`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${authStore.token}`
+        }
+      });
+
+      // Update status and show modal
+      folderPublishStatuses.value.set(folderId, { is_published: true, share_url: response.share_url });
+      currentFolderPublishStatus.value = {
+        folderId,
+        folderName: folder.name,
+        is_published: true,
+        share_url: response.share_url
+      };
+      showFolderPublishModal.value = true;
+
+      toast.add({
+        title: 'Folder Published',
+        description: `All notes and subfolders in "${folder.name}" are now publicly accessible`,
+        color: 'success'
+      });
+
+      // Refresh folders to show updated state
+      await foldersStore.fetchFolders();
+    }
+  } catch (error: any) {
+    console.error('Error publishing folder:', error);
+    toast.add({
+      title: 'Error',
+      description: error.data?.message || 'Failed to publish folder',
+      color: 'error'
+    });
+  }
+}
+
+async function handleCopyFolderLink(folderId: number) {
+  try {
+    const folder = foldersStore.getFolderById(folderId);
+    if (!folder) return;
+
+    // Get current status
+    const status = await checkFolderPublishStatus(folderId);
+
+    if (status.is_published && status.share_url) {
+      if (process.client && navigator.clipboard) {
+        navigator.clipboard.writeText(status.share_url);
+        toast.add({
+          title: 'Link Copied',
+          description: 'Folder share link copied to clipboard',
+          color: 'success'
+        });
+      }
+    } else {
+      toast.add({
+        title: 'Not Published',
+        description: 'This folder is not published yet',
+        color: 'warning'
+      });
+    }
+  } catch (error: any) {
+    console.error('Error copying folder link:', error);
+    toast.add({
+      title: 'Error',
+      description: error.data?.message || 'Failed to copy link',
+      color: 'error'
+    });
+  }
+}
+
+async function handleUnpublishFolder(folderId: number) {
+  const folder = foldersStore.getFolderById(folderId);
+  if (!folder) return;
+
+  // Show confirmation modal
+  folderToUnpublish.value = {
+    folderId,
+    folderName: folder.name
+  };
+  showUnpublishFolderModal.value = true;
+}
+
+async function confirmUnpublishFolder() {
+  if (!folderToUnpublish.value) return;
+
+  try {
+    const { folderId, folderName } = folderToUnpublish.value;
+
+    await $fetch(`/api/folders/${folderId}/unpublish`, {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${authStore.token}`
+      }
+    });
+
+    // Update status
+    folderPublishStatuses.value.set(folderId, { is_published: false });
+    showFolderPublishModal.value = false;
+    showUnpublishFolderModal.value = false;
+    folderToUnpublish.value = null;
+
+    toast.add({
+      title: 'Folder Unpublished',
+      description: `"${folderName}" and all its contents are no longer publicly accessible`,
+      color: 'success'
+    });
+
+    await foldersStore.fetchFolders();
+  } catch (error: any) {
+    console.error('Error unpublishing folder:', error);
+    toast.add({
+      title: 'Error',
+      description: error.data?.message || 'Failed to unpublish folder',
+      color: 'error'
+    });
+  }
 }
 
 async function handleMoveUp(folderId: number) {
@@ -1887,6 +2060,158 @@ const selectedFolderName = computed(() => {
 });
 
 // Polish note with AI
+// Check publish status for active note
+async function checkPublishStatus() {
+  if (!activeNote.value) return;
+  
+  try {
+    const status = await $fetch<{ is_published: boolean; share_url?: string }>(`/api/notes/${activeNote.value.id}/publish-status`, {
+      headers: {
+        Authorization: `Bearer ${authStore.token}`
+      }
+    });
+    publishStatus.value = status;
+  } catch (error) {
+    console.error('Error checking publish status:', error);
+    publishStatus.value = { is_published: false };
+  }
+}
+
+// Handle publish button click
+async function handlePublishButtonClick() {
+  if (!activeNote.value) return;
+  
+  // If status not loaded yet, check it first
+  if (publishStatus.value === null) {
+    await checkPublishStatus();
+  }
+  
+  // If published, show modal with link
+  if (publishStatus.value?.is_published) {
+    showPublishModal.value = true;
+  } else {
+    // If not published, publish it
+    await publishNote();
+  }
+}
+
+// Publish note
+async function publishNote() {
+  if (!activeNote.value || isPublishing.value) return;
+  
+  try {
+    // Check if parent folder or space is published
+    if (activeNote.value.folder_id) {
+      const folderStatus = await $fetch<{ is_published: boolean; parent_space_published?: boolean }>(`/api/folders/${activeNote.value.folder_id}/publish-status`, {
+        headers: {
+          Authorization: `Bearer ${authStore.token}`
+        }
+      });
+
+      if (folderStatus.is_published || folderStatus.parent_space_published) {
+        const parentType = folderStatus.parent_space_published ? 'space' : 'folder';
+        const confirmed = confirm(`This note is in a published ${parentType}. Publishing the ${parentType} already makes this note public. Do you still want to publish this note separately?`);
+        if (!confirmed) return;
+      }
+    }
+    
+    isPublishing.value = true;
+    if (!authStore.token) {
+      toast.add({ title: 'Error', description: 'Not authenticated', color: 'error' });
+      return;
+    }
+    
+    const response = await $fetch<{ share_id: string; share_url: string }>(`/api/notes/${activeNote.value.id}/publish`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${authStore.token}`
+      }
+    });
+    
+    publishStatus.value = { is_published: true, share_url: response.share_url };
+    showPublishModal.value = true;
+    toast.add({
+      title: 'Note Published',
+      description: 'Your note is now publicly accessible',
+      color: 'success'
+    });
+  } catch (error: any) {
+    console.error('Error publishing note:', error);
+    toast.add({
+      title: 'Error',
+      description: error.data?.message || 'Failed to publish note',
+      color: 'error'
+    });
+  } finally {
+    isPublishing.value = false;
+  }
+}
+
+// Unpublish note
+async function unpublishNote() {
+  if (!activeNote.value || isPublishing.value) return;
+  
+  try {
+    isPublishing.value = true;
+    if (!authStore.token) {
+      toast.add({ title: 'Error', description: 'Not authenticated', color: 'error' });
+      return;
+    }
+    
+    await $fetch(`/api/notes/${activeNote.value.id}/unpublish`, {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${authStore.token}`
+      }
+    });
+    
+    publishStatus.value = { is_published: false };
+    showPublishModal.value = false;
+    toast.add({
+      title: 'Note Unpublished',
+      description: 'Your note is no longer publicly accessible',
+      color: 'success'
+    });
+  } catch (error: any) {
+    console.error('Error unpublishing note:', error);
+    toast.add({
+      title: 'Error',
+      description: error.data?.message || 'Failed to unpublish note',
+      color: 'error'
+    });
+  } finally {
+    isPublishing.value = false;
+  }
+}
+
+// Copy share URL
+function copyShareUrl() {
+  if (!publishStatus.value?.share_url) return;
+  
+  if (process.client && navigator.clipboard) {
+    navigator.clipboard.writeText(publishStatus.value.share_url);
+    toast.add({
+      title: 'Link Copied',
+      description: 'Share link copied to clipboard',
+      color: 'success'
+    });
+  }
+}
+
+// Copy folder share URL
+function copyFolderShareUrl() {
+  if (!currentFolderPublishStatus.value?.share_url) return;
+  
+  if (process.client && navigator.clipboard) {
+    navigator.clipboard.writeText(currentFolderPublishStatus.value.share_url);
+    toast.add({
+      title: 'Link Copied',
+      description: 'Folder share link copied to clipboard',
+      color: 'success'
+    });
+  }
+}
+
 async function polishNote() {
   if (!activeNote.value) return;
   if (!editForm.title?.trim() && !editForm.content?.trim()) {
@@ -2256,6 +2581,7 @@ onMounted(() => {
                 :folder="folder"
                 :selected-id="selectedFolderId"
                 :is-expanded="foldersStore.expandedFolderIds.has(folder.id)"
+                :publish-status="folderPublishStatuses.get(folder.id)"
                 @select="selectFolder"
                 @toggle="handleToggleFolder"
                 @create-subfolder="handleCreateSubfolder"
@@ -2267,6 +2593,10 @@ onMounted(() => {
                 @import-recipe="handleRecipeImportInFolder"
                 @rename="handleRenameFolder"
                 @delete="handleDeleteFolder"
+                @publish="handlePublishFolder"
+                @unpublish="handleUnpublishFolder"
+                @copy-link="handleCopyFolderLink"
+                @check-publish-status="checkFolderPublishStatus"
                 @move-up="handleMoveUp"
                 @move-down="handleMoveDown"
                 @reorder-folder="handleFolderReorder"
@@ -2678,22 +3008,27 @@ onMounted(() => {
                       :folder="folder"
                       :selected-id="selectedFolderId"
                       :is-expanded="foldersStore.expandedFolderIds.has(folder.id)"
+                      :publish-status="folderPublishStatuses.get(folder.id)"
                       @select="selectFolder"
                       @toggle="handleToggleFolder"
                       @create-subfolder="handleCreateSubfolder"
-                @create-note="handleCreateNoteInFolder"
-                @create-list-note="handleListNoteInFolder"
-                @create-template-note="handleTemplateNoteInFolder"
-                @create-ai-note="handleAiGenerateInFolder"
+                      @create-note="handleCreateNoteInFolder"
+                      @create-list-note="handleListNoteInFolder"
+                      @create-template-note="handleTemplateNoteInFolder"
+                      @create-ai-note="handleAiGenerateInFolder"
                 @import-recipe="handleRecipeImportInFolder"
                 @rename="handleRenameFolder"
                 @delete="handleDeleteFolder"
+                @publish="handlePublishFolder"
+                @unpublish="handleUnpublishFolder"
+                @copy-link="handleCopyFolderLink"
+                @check-publish-status="checkFolderPublishStatus"
                 @move-up="handleMoveUp"
                 @move-down="handleMoveDown"
                 @reorder-folder="handleFolderReorder"
                 @open-note="handleFolderNoteClick"
                 @delete-note="(noteId) => handleDeleteNote(notesStore.notes.find(n => n.id === noteId)!)"
-                    />
+              />
                   </div>
                 </div>
 
@@ -2863,6 +3198,24 @@ onMounted(() => {
                 title="Share Note"
               >
                 <UIcon name="i-heroicons-user-plus" class="w-4 h-4" />
+              </button>
+              
+              <!-- Publish/Unpublish Note Button -->
+              <button
+                v-if="activeNote.user_id === authStore.currentUser?.id && !activeNote.is_shared && !activeNote.share_permission"
+                @click="handlePublishButtonClick"
+                :disabled="isPublishing"
+                class="p-2 rounded-lg transition-colors"
+                :class="publishStatus?.is_published 
+                  ? 'hover:bg-primary-50 dark:hover:bg-primary-900/20 text-primary-600 dark:text-primary-400' 
+                  : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400'"
+                :title="publishStatus?.is_published ? 'View/Copy Share Link' : 'Publish Note'"
+              >
+                <UIcon 
+                  :name="publishStatus?.is_published ? 'i-heroicons-globe-alt' : 'i-heroicons-link'"
+                  :class="isPublishing ? 'animate-spin' : ''"
+                  class="w-4 h-4" 
+                />
               </button>
               
               <!-- Keyboard Shortcuts Info -->
@@ -3678,6 +4031,227 @@ onMounted(() => {
       @update:is-open="showSearchModal = $event"
       @selected="handleNoteSelected"
     />
+
+    <!-- Publish Modal -->
+    <Teleport to="body">
+      <Transition name="modal">
+        <div
+          v-if="showPublishModal && publishStatus?.is_published"
+          class="fixed inset-0 z-50 flex items-center justify-center p-4"
+        >
+          <!-- Backdrop -->
+          <div
+            class="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            @click="showPublishModal = false"
+          />
+          
+          <!-- Modal -->
+          <div class="relative bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-md w-full p-6 border border-gray-200 dark:border-gray-700">
+            <!-- Header -->
+            <div class="flex items-center justify-between mb-4">
+              <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
+                Note Published
+              </h3>
+              <button
+                @click="showPublishModal = false"
+                class="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+              >
+                <UIcon name="i-heroicons-x-mark" class="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+
+            <!-- Description -->
+            <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+              Your note is now publicly accessible. Anyone with the link can view it.
+            </p>
+
+            <!-- Share URL -->
+            <div class="mb-4">
+              <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Share Link
+              </label>
+              <div class="flex gap-2">
+                <input
+                  :value="publishStatus.share_url"
+                  readonly
+                  class="flex-1 px-3 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-gray-900 dark:text-white"
+                />
+                <UButton
+                  icon="i-heroicons-clipboard-document"
+                  color="primary"
+                  @click="copyShareUrl"
+                >
+                  Copy
+                </UButton>
+              </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="flex gap-3">
+              <UButton
+                color="neutral"
+                variant="soft"
+                block
+                @click="showPublishModal = false"
+              >
+                Close
+              </UButton>
+              <UButton
+                color="error"
+                variant="soft"
+                block
+                @click="unpublishNote"
+              >
+                Unpublish
+              </UButton>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+
+    <!-- Folder Publish Modal -->
+    <Teleport to="body">
+      <Transition name="modal">
+        <div
+          v-if="showFolderPublishModal && currentFolderPublishStatus"
+          class="fixed inset-0 z-50 flex items-center justify-center p-4"
+        >
+          <!-- Backdrop -->
+          <div
+            class="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            @click="showFolderPublishModal = false"
+          />
+          
+          <!-- Modal -->
+          <div class="relative bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-md w-full p-6 border border-gray-200 dark:border-gray-700">
+            <!-- Header -->
+            <div class="flex items-center justify-between mb-4">
+              <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
+                Folder Published
+              </h3>
+              <button
+                @click="showFolderPublishModal = false"
+                class="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+              >
+                <UIcon name="i-heroicons-x-mark" class="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+
+            <!-- Description -->
+            <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+              Your folder "<strong>{{ currentFolderPublishStatus.folderName }}</strong>" and all its contents are now publicly accessible. Anyone with the link can view them.
+            </p>
+
+            <!-- Share URL -->
+            <div class="mb-4">
+              <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Share Link
+              </label>
+              <div class="flex gap-2">
+                <input
+                  :value="currentFolderPublishStatus.share_url"
+                  readonly
+                  class="flex-1 px-3 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-gray-900 dark:text-white"
+                />
+                <UButton
+                  icon="i-heroicons-clipboard-document"
+                  color="primary"
+                  @click="copyFolderShareUrl"
+                >
+                  Copy
+                </UButton>
+              </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="flex gap-3">
+              <UButton
+                color="neutral"
+                variant="soft"
+                block
+                @click="showFolderPublishModal = false"
+              >
+                Close
+              </UButton>
+              <UButton
+                color="error"
+                variant="soft"
+                block
+                @click="handleUnpublishFolder(currentFolderPublishStatus.folderId)"
+              >
+                Unpublish
+              </UButton>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+
+    <!-- Unpublish Folder Confirmation Modal -->
+    <Teleport to="body">
+      <Transition name="modal">
+        <div
+          v-if="showUnpublishFolderModal && folderToUnpublish"
+          class="fixed inset-0 z-50 flex items-center justify-center p-4"
+        >
+          <!-- Backdrop -->
+          <div
+            class="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            @click="showUnpublishFolderModal = false"
+          />
+          
+          <!-- Modal -->
+          <div class="relative bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-md w-full p-6 border border-gray-200 dark:border-gray-700">
+            <!-- Header -->
+            <div class="flex items-center justify-between mb-4">
+              <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
+                Unpublish Folder
+              </h3>
+              <button
+                @click="showUnpublishFolderModal = false"
+                class="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+              >
+                <UIcon name="i-heroicons-x-mark" class="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+
+            <!-- Warning Icon -->
+            <div class="flex items-center gap-3 mb-4 p-3 bg-orange-50 dark:bg-orange-900/20 rounded-lg">
+              <UIcon name="i-heroicons-exclamation-triangle" class="w-6 h-6 text-orange-600 dark:text-orange-400 flex-shrink-0" />
+              <p class="text-sm text-orange-800 dark:text-orange-200">
+                This will make <strong>"{{ folderToUnpublish.folderName }}"</strong> and all its contents (notes and subfolders) no longer publicly accessible.
+              </p>
+            </div>
+
+            <!-- Description -->
+            <p class="text-sm text-gray-600 dark:text-gray-400 mb-6">
+              Anyone with the share link will no longer be able to view this folder or its contents. This action cannot be undone.
+            </p>
+
+            <!-- Actions -->
+            <div class="flex gap-3">
+              <UButton
+                color="neutral"
+                variant="soft"
+                block
+                @click="showUnpublishFolderModal = false"
+              >
+                Cancel
+              </UButton>
+              <UButton
+                color="error"
+                variant="solid"
+                block
+                @click="confirmUnpublishFolder"
+              >
+                Unpublish Folder
+              </UButton>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
   </div>
 </template>
 

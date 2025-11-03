@@ -115,6 +115,22 @@ export default defineEventHandler(async (event) => {
     
     const folder = folders[0];
 
+    // Auto-publish folder if parent space is published
+    const [publishedSpace] = await executeQuery<Array<{ share_id: string }>>(
+      'SELECT share_id FROM published_spaces WHERE space_id = ? AND owner_id = ? AND is_active = TRUE',
+      [spaceId, userId]
+    );
+
+    if (publishedSpace.length > 0) {
+      // Auto-publish the new folder
+      const { randomUUID } = await import('crypto');
+      const folderShareId = randomUUID();
+      await executeQuery(
+        'INSERT INTO published_folders (folder_id, share_id, owner_id, is_active) VALUES (?, ?, ?, TRUE)',
+        [folder.id, folderShareId, userId]
+      );
+    }
+
     return folder;
   } catch (error: any) {
     console.error('Error creating folder:', error);
