@@ -25,7 +25,7 @@ export default defineNuxtRouteMiddleware(async (to) => {
     }
     
     // No token - redirect to login if accessing protected route
-    const publicRoutes = ['/login', '/signup', '/'];
+    const publicRoutes = ['/login', '/signup', '/', '/features', '/about', '/faq', '/use-cases'];
     const isPublishedRoute = to.path.startsWith('/p/');
     if (!publicRoutes.includes(to.path) && !isPublishedRoute) {
       return navigateTo('/login', { replace: true });
@@ -39,13 +39,17 @@ export default defineNuxtRouteMiddleware(async (to) => {
     await authStore.initializeAuth();
   }
 
-  // Handle root path
+  // Handle root path - allow landing page, redirect authenticated users to dashboard
   if (to.path === '/') {
-    return navigateTo(authStore.isAuthenticated ? '/dashboard' : '/login');
+    if (authStore.isAuthenticated) {
+      return navigateTo('/dashboard', { replace: true });
+    }
+    // Allow landing page to show for unauthenticated users
+    return;
   }
 
-  // Define public routes
-  const publicRoutes = ['/login', '/signup'];
+  // Define public routes (marketing pages + auth pages)
+  const publicRoutes = ['/login', '/signup', '/features', '/about', '/faq', '/use-cases'];
   const isPublishedRoute = to.path.startsWith('/p/');
   const isPublicRoute = publicRoutes.includes(to.path) || isPublishedRoute;
 

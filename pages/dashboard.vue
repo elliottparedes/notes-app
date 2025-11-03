@@ -177,7 +177,7 @@ const showShareModal = ref(false);
 const shareUserSearch = ref('');
 const userSearchResults = ref<Array<{ id: number; email: string; name: string | null }>>([]);
 const sharePermission = ref<'viewer' | 'editor'>('editor');
-const selectedUserToShare = ref<{ id: number; email: string; name: string | null } | null>(null);
+const selectedUsersToShare = ref<Array<{ id: number; email: string; name: string | null }>>([]);
 
 // Session key to force re-render on new sessions
 const sessionKey = ref('default');
@@ -1352,7 +1352,7 @@ function openShareModal() {
   showShareModal.value = true;
   shareUserSearch.value = '';
   userSearchResults.value = [];
-  selectedUserToShare.value = null;
+  selectedUsersToShare.value = [];
 }
 
 async function searchUsers() {
@@ -1362,40 +1362,61 @@ async function searchUsers() {
   }
 
   try {
-    userSearchResults.value = await sharedNotesStore.searchUsers(shareUserSearch.value);
+    const results = await sharedNotesStore.searchUsers(shareUserSearch.value);
+    // Filter out users that are already selected
+    const selectedIds = selectedUsersToShare.value.map(u => u.id);
+    userSearchResults.value = results.filter(user => !selectedIds.includes(user.id));
   } catch (error) {
     console.error('User search error:', error);
   }
 }
 
 function selectUserToShare(user: { id: number; email: string; name: string | null }) {
-  selectedUserToShare.value = user;
-  shareUserSearch.value = user.name || user.email;
+  // Check if user is already selected
+  if (selectedUsersToShare.value.some(u => u.id === user.id)) {
+    return;
+  }
+  
+  selectedUsersToShare.value.push(user);
+  shareUserSearch.value = ''; // Clear input so user can search for more
   userSearchResults.value = [];
 }
 
+function removeUserFromShare(userId: number) {
+  selectedUsersToShare.value = selectedUsersToShare.value.filter(u => u.id !== userId);
+  // Re-search if there's a search query to refresh the dropdown
+  if (shareUserSearch.value.length >= 2) {
+    searchUsers();
+  }
+}
+
 async function shareNote() {
-  if (!activeNote.value || !selectedUserToShare.value) return;
+  if (!activeNote.value || selectedUsersToShare.value.length === 0) return;
 
   try {
-    await sharedNotesStore.shareNote(
-      activeNote.value.id,
-      selectedUserToShare.value.email,
-      sharePermission.value
+    const sharePromises = selectedUsersToShare.value.map(user =>
+      sharedNotesStore.shareNote(
+        activeNote.value!.id,
+        user.email,
+        sharePermission.value
+      )
     );
+
+    await Promise.all(sharePromises);
 
     // Refresh notes to update the is_shared field
     await notesStore.fetchNotes();
 
+    const userNames = selectedUsersToShare.value.map(u => u.name || u.email).join(', ');
     toast.add({
       title: 'Success',
-      description: `Note shared with ${selectedUserToShare.value.name || selectedUserToShare.value.email}`,
+      description: `Note shared with ${userNames}`,
       color: 'success'
     });
 
     showShareModal.value = false;
     shareUserSearch.value = '';
-    selectedUserToShare.value = null;
+    selectedUsersToShare.value = [];
   } catch (error: any) {
     toast.add({
       title: 'Error',
@@ -4221,7 +4242,7 @@ onMounted(() => {
 
             <!-- User search -->
             <div class="mb-4">
-              <label class="text-sm font-medium mb-2 block text-gray-700 dark:text-gray-300">Share with user</label>
+              <label class="text-sm font-medium mb-2 block text-gray-700 dark:text-gray-300">Share with users</label>
               <input
                 v-model="shareUserSearch"
                 @input="searchUsers"
@@ -4229,6 +4250,27 @@ onMounted(() => {
                 placeholder="Search by email or name..."
                 class="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
+              
+              <!-- Selected users -->
+              <div v-if="selectedUsersToShare.length > 0" class="mt-2 flex flex-wrap gap-2">
+                <div
+                  v-for="user in selectedUsersToShare"
+                  :key="user.id"
+                  class="inline-flex items-center gap-2 px-3 py-1.5 bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 rounded-lg text-sm"
+                >
+                  <div class="w-5 h-5 bg-gradient-to-br from-primary-400 to-primary-600 rounded-full flex items-center justify-center text-white text-xs font-semibold">
+                    {{ (user.name || user.email).charAt(0).toUpperCase() }}
+                  </div>
+                  <span class="font-medium">{{ user.name || user.email }}</span>
+                  <button
+                    @click="removeUserFromShare(user.id)"
+                    type="button"
+                    class="ml-1 hover:bg-primary-200 dark:hover:bg-primary-800 rounded p-0.5 transition-colors"
+                  >
+                    <UIcon name="i-heroicons-x-mark" class="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
               
               <!-- Search results -->
               <div v-if="userSearchResults.length > 0" class="mt-2 border border-gray-200 dark:border-gray-700 rounded-lg max-h-40 overflow-y-auto">
@@ -4305,9 +4347,9 @@ onMounted(() => {
                 color="primary" 
                 block 
                 @click="shareNote"
-                :disabled="!selectedUserToShare"
+                :disabled="selectedUsersToShare.length === 0"
               >
-                Share
+                Share {{ selectedUsersToShare.length > 0 ? `(${selectedUsersToShare.length})` : '' }}
               </UButton>
             </div>
           </div>

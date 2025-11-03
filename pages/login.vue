@@ -70,8 +70,8 @@ async function handleLogin() {
       </div>
       
       <!-- Gradient Orbs -->
-      <div class="absolute top-20 left-20 w-96 h-96 bg-blue-500/20 rounded-full blur-3xl"></div>
-      <div class="absolute bottom-20 right-20 w-96 h-96 bg-purple-500/20 rounded-full blur-3xl"></div>
+      <div class="absolute top-20 left-20 w-96 h-96 bg-primary-500/20 rounded-full blur-3xl"></div>
+      <div class="absolute bottom-20 right-20 w-96 h-96 bg-teal-500/20 rounded-full blur-3xl"></div>
       
       <div class="relative z-10 flex flex-col justify-center px-12 xl:px-16 text-white">
         <h1 class="text-4xl xl:text-5xl font-bold mb-6 leading-tight">
@@ -84,8 +84,8 @@ async function handleLogin() {
         
         <div class="space-y-6">
           <div class="flex items-start space-x-4">
-            <div class="flex-shrink-0 w-12 h-12 rounded-xl bg-blue-500/20 backdrop-blur-sm flex items-center justify-center">
-              <svg class="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div class="flex-shrink-0 w-12 h-12 rounded-xl bg-teal-500/20 backdrop-blur-sm flex items-center justify-center">
+              <svg class="w-6 h-6 text-teal-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
               </svg>
             </div>
@@ -96,8 +96,8 @@ async function handleLogin() {
           </div>
           
           <div class="flex items-start space-x-4">
-            <div class="flex-shrink-0 w-12 h-12 rounded-xl bg-purple-500/20 backdrop-blur-sm flex items-center justify-center">
-              <svg class="w-6 h-6 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div class="flex-shrink-0 w-12 h-12 rounded-xl bg-emerald-500/20 backdrop-blur-sm flex items-center justify-center">
+              <svg class="w-6 h-6 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
               </svg>
             </div>
@@ -128,7 +128,7 @@ async function handleLogin() {
         <!-- Logo -->
         <div class="flex justify-center mb-8">
           <div class="relative">
-            <div class="absolute inset-0 bg-gradient-to-br from-blue-400 to-purple-600 rounded-3xl blur-xl opacity-30"></div>
+            <div class="absolute inset-0 bg-gradient-to-br from-primary-400 via-emerald-500 to-teal-600 rounded-3xl blur-xl opacity-30"></div>
             <img src="/folder.png" alt="Markdown Notes" class="relative w-20 h-20 drop-shadow-lg" />
           </div>
         </div>
@@ -165,7 +165,7 @@ async function handleLogin() {
                 <button
                   type="button"
                   @click.stop.prevent="openForgotPassword"
-                  class="text-sm font-medium text-blue-600 hover:text-blue-500 dark:text-blue-400 dark:hover:text-blue-300 transition-colors cursor-pointer relative z-10 hover:underline"
+                  class="text-sm font-medium text-primary-600 hover:text-primary-500 dark:text-primary-400 dark:hover:text-primary-300 transition-colors cursor-pointer relative z-10 hover:underline"
                   :disabled="loading"
                   tabindex="0"
                 >
@@ -200,7 +200,7 @@ async function handleLogin() {
         <div class="mt-6 text-center">
           <p class="text-sm text-gray-600 dark:text-gray-400">
             Don't have an account?
-            <NuxtLink to="/signup" class="font-semibold text-blue-600 hover:text-blue-500 dark:text-blue-400 dark:hover:text-blue-300 ml-1 transition-colors">
+            <NuxtLink to="/signup" class="font-semibold text-primary-600 hover:text-primary-500 dark:text-primary-400 dark:hover:text-primary-300 ml-1 transition-colors">
               Sign up for free →
             </NuxtLink>
           </p>
