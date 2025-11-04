@@ -228,12 +228,22 @@ async function loadData() {
     // Fetch spaces first, then folders (which depends on current space)
     await spacesStore.fetchSpaces();
     
-      await Promise.all([
+    // Ensure spaces are loaded before proceeding
+    if (spacesStore.spaces.length === 0) {
+      console.warn('[Dashboard] No spaces found after fetch');
+    }
+    
+    await Promise.all([
       foldersStore.fetchFolders(),
       notesStore.fetchNotes(),
       notesStore.loadNoteOrder(),
       sharedNotesStore.fetchSharedNotes()
     ]);
+    
+    // Ensure folders are loaded before marking as initialized
+    // Wait an extra tick to ensure all reactive updates are complete
+    await nextTick();
+    
     hasInitialized.value = true;
   } catch (error) {
     console.error('Failed to load data:', error);
@@ -242,6 +252,8 @@ async function loadData() {
       description: 'Failed to load data',
       color: 'error'
     });
+    // Still mark as initialized to show error state
+    hasInitialized.value = true;
   } finally {
     loading.value = false;
   }
@@ -2587,8 +2599,8 @@ onMounted(() => {
 
 <template>
   <div>
-    <!-- Loading screen while auth is initializing or during SSR -->
-    <div v-if="!isMounted || !authStore.currentUser || !authStore.initialized" class="flex items-center justify-center h-screen bg-gray-50 dark:bg-gray-900">
+    <!-- Loading screen while auth is initializing, during SSR, or data is loading -->
+    <div v-if="!isMounted || !authStore.currentUser || !authStore.initialized || loading || !hasInitialized || foldersStore.loading || spacesStore.loading" class="flex items-center justify-center h-screen bg-gray-50 dark:bg-gray-900">
       <div class="text-center">
         <div class="w-16 h-16 mx-auto mb-4 border-4 border-primary-500 border-t-transparent rounded-full animate-spin"></div>
         <p class="text-gray-600 dark:text-gray-400">Loading...</p>
@@ -3507,27 +3519,36 @@ onMounted(() => {
             
             <!-- Save Status -->
             <ClientOnly>
-              <div class="flex items-center gap-2 px-4 border-l border-gray-200 dark:border-gray-700">
-                <div 
-                  class="flex items-center gap-1.5 text-xs"
-                  :class="{
-                    'text-gray-500 dark:text-gray-400': isSaving,
-                    'text-green-600 dark:text-green-400': !isSaving
-                  }"
-                >
-                  <UIcon 
-                    v-if="isSaving"
-                    name="i-heroicons-arrow-path"
-                    class="w-4 h-4 animate-spin"
-                  />
-                  <UIcon 
-                    v-else
-                    name="i-heroicons-check-circle"
-                    class="w-4 h-4"
-                  />
-                  <span class="hidden lg:inline">
-                    {{ isSaving ? 'Saving...' : 'Saved' }}
-                  </span>
+              <div class="flex items-center gap-1 pl-4 pr-2 border-l border-gray-200 dark:border-gray-700">
+                <div class="flex items-center gap-1.5 text-xs flex-shrink-0 relative" style="width: 95px; min-width: 95px;">
+                  <!-- Invisible placeholder to reserve space for longest text "Saving..." -->
+                  <div class="invisible flex items-center gap-1.5" aria-hidden="true">
+                    <UIcon name="i-heroicons-arrow-path" class="w-4 h-4" />
+                    <span class="hidden lg:inline whitespace-nowrap">Saving...</span>
+                  </div>
+                  <!-- Visible content -->
+                  <div class="absolute flex items-center gap-1.5">
+                    <div 
+                      v-if="isSaving"
+                      class="flex items-center gap-1.5 text-gray-500 dark:text-gray-400"
+                    >
+                      <UIcon 
+                        name="i-heroicons-arrow-path"
+                        class="w-4 h-4 animate-spin flex-shrink-0"
+                      />
+                      <span class="hidden lg:inline whitespace-nowrap">Saving...</span>
+                    </div>
+                    <div 
+                      v-else
+                      class="flex items-center gap-1.5 text-green-600 dark:text-green-400"
+                    >
+                      <UIcon 
+                        name="i-heroicons-check-circle"
+                        class="w-4 h-4 flex-shrink-0"
+                      />
+                      <span class="hidden lg:inline whitespace-nowrap">Saved</span>
+                    </div>
+                  </div>
                 </div>
               </div>
             </ClientOnly>

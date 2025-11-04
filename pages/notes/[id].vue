@@ -199,6 +199,21 @@ function handleAttachmentUploaded(attachment: import('~/models').Attachment) {
   attachments.value = [attachment, ...attachments.value];
 }
 
+// Handle attachment upload from editor (drag & drop)
+async function handleAttachmentUploadedFromEditor(attachment: import('~/models').Attachment) {
+  console.log('[NotePage] Received attachment-uploaded event:', attachment);
+  // First add to list immediately for instant feedback
+  handleAttachmentUploaded(attachment);
+  // Then reload attachments list to get fresh presigned URLs
+  await loadAttachments();
+  toast.add({
+    title: 'File Uploaded',
+    description: `${attachment.file_name} uploaded successfully`,
+    color: 'success',
+  });
+}
+
+
 // Handle attachment deletion
 function handleAttachmentDeleted(attachmentId: number) {
   attachments.value = attachments.value.filter((a) => a.id !== attachmentId);
@@ -670,7 +685,7 @@ onUnmounted(() => {
   <div class="min-h-screen" :class="isLocked ? 'bg-white dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-900'">
     <!-- Top Navigation Bar -->
     <header class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm">
-      <div class="flex items-center justify-between h-16 px-4 md:px-6">
+      <div class="flex items-center justify-between h-16 pl-4 md:pl-6 pr-2 md:pr-4">
         <!-- Left: Back Button & Logo -->
         <div class="flex items-center gap-3">
           <UButton
@@ -689,20 +704,33 @@ onUnmounted(() => {
         </div>
 
         <!-- Right: Note Actions -->
-        <div class="flex items-center gap-2">
+        <div class="flex items-center gap-1">
           <!-- Save Status (Client-only to prevent hydration mismatch) -->
           <ClientOnly>
-            <div v-if="!isOnline" class="flex items-center gap-2 text-xs text-yellow-600 dark:text-yellow-400">
-              <UIcon name="i-heroicons-wifi" class="w-4 h-4" />
-              <span class="hidden sm:inline">Offline</span>
-            </div>
-            <div v-else-if="isSaving" class="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-              <UIcon name="i-heroicons-arrow-path" class="w-4 h-4 animate-spin" />
-              <span class="hidden sm:inline">Saving...</span>
-            </div>
-            <div v-else class="flex items-center gap-2 text-xs text-green-600 dark:text-green-400">
-              <UIcon name="i-heroicons-check-circle" class="w-4 h-4" />
-              <span class="hidden sm:inline">Saved</span>
+            <div class="flex items-center gap-1.5 text-xs flex-shrink-0" style="width: 95px; min-width: 95px;">
+              <!-- Invisible placeholder to reserve space for longest text "Saving..." -->
+              <div class="invisible flex items-center gap-2" aria-hidden="true">
+                <UIcon name="i-heroicons-arrow-path" class="w-4 h-4" />
+                <span class="hidden sm:inline whitespace-nowrap">Saving...</span>
+              </div>
+              <!-- Visible content -->
+              <div class="absolute flex items-center gap-2">
+                <!-- Offline state -->
+                <div v-if="!isOnline" class="flex items-center gap-2 text-yellow-600 dark:text-yellow-400">
+                  <UIcon name="i-heroicons-wifi" class="w-4 h-4 flex-shrink-0" />
+                  <span class="hidden sm:inline whitespace-nowrap">Offline</span>
+                </div>
+                <!-- Saving state -->
+                <div v-else-if="isSaving" class="flex items-center gap-2 text-gray-500 dark:text-gray-400">
+                  <UIcon name="i-heroicons-arrow-path" class="w-4 h-4 animate-spin flex-shrink-0" />
+                  <span class="hidden sm:inline whitespace-nowrap">Saving...</span>
+                </div>
+                <!-- Saved state -->
+                <div v-else class="flex items-center gap-2 text-green-600 dark:text-green-400">
+                  <UIcon name="i-heroicons-check-circle" class="w-4 h-4 flex-shrink-0" />
+                  <span class="hidden sm:inline whitespace-nowrap">Saved</span>
+                </div>
+              </div>
             </div>
           </ClientOnly>
           
@@ -998,13 +1026,19 @@ onUnmounted(() => {
             </div>
           </div>
           <ClientOnly>
-            <TiptapEditor
-              v-model="editForm.content"
-              placeholder="Start writing..."
-              :editable="!isLocked"
-              :showToolbar="showEditorToolbar"
-              :noteId="noteId"
-            />
+            <template #default>
+              <TiptapEditor
+                ref="tiptapEditorRef"
+                v-model="editForm.content"
+                placeholder="Start writing..."
+                :editable="!isLocked"
+                :showToolbar="showEditorToolbar"
+                :noteId="noteId"
+                :onAttachmentUpload="handleAttachmentUploadedFromEditor"
+                @attachment-uploaded="handleAttachmentUploadedFromEditor"
+                @attachmentUploaded="handleAttachmentUploadedFromEditor"
+              />
+            </template>
           </ClientOnly>
         </div>
       </div>

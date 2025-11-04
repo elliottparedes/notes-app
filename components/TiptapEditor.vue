@@ -12,8 +12,9 @@ import TableCell from '@tiptap/extension-table-cell'
 import TableHeader from '@tiptap/extension-table-header'
 import Image from '@tiptap/extension-image'
 import Gapcursor from '@tiptap/extension-gapcursor'
-import { Extension } from '@tiptap/core'
+import { Extension, Node } from '@tiptap/core'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
+import { NodeSelection } from '@tiptap/pm/state'
 import type { Level } from '@tiptap/extension-heading'
 import { YouTube } from './YouTubeExtension'
 
@@ -77,6 +78,7 @@ const TableExit = Extension.create({
     }
   }
 })
+
 
 // Custom TaskItem extension that applies strike formatting when checked
 const TaskItemWithStrike = TaskItem.extend({
@@ -149,15 +151,19 @@ const props = withDefaults(defineProps<{
   editable?: boolean
   showToolbar?: boolean
   noteId?: string // Note ID for file uploads
+  onAttachmentUpload?: (attachment: any) => void | Promise<void>
 }>(), {
   editable: true,
   showToolbar: true,
-  noteId: undefined
+  noteId: undefined,
+  onAttachmentUpload: undefined
 })
 
 const emit = defineEmits<{
   (e: 'update:modelValue', value: string): void
   (e: 'update:showToolbar', value: boolean): void
+  (e: 'attachment-uploaded', attachment: { id: number; file_name: string; file_path: string; mime_type: string | null; presigned_url?: string }): void
+  (e: 'attachmentUploaded', attachment: { id: number; file_name: string; file_path: string; mime_type: string | null; presigned_url?: string }): void
 }>()
 
 // Modal states
@@ -175,7 +181,6 @@ const contextMenuSubmenu = ref<string | null>(null)
 const submenuButtonRefs = ref<{ [key: string]: HTMLElement | null }>({})
 
 // File upload state
-const isDragOver = ref(false)
 const fileInputRef = ref<HTMLInputElement | null>(null)
 const isUploadingFile = ref(false)
 
@@ -462,6 +467,7 @@ async function uploadFiles(files: File[]) {
   isUploadingFile.value = true
   
   try {
+    const uploadedAttachments = []
     for (const file of files) {
       const formData = new FormData()
       formData.append('file', file)
@@ -480,38 +486,23 @@ async function uploadFiles(files: File[]) {
         body: formData,
       })
       
-      // Don't auto-insert images - they'll be shown as links at the top of the note
-      // Images can still be inserted manually via the image button if needed
+      uploadedAttachments.push(attachment)
+      console.log('[TiptapEditor] Uploaded attachment:', attachment)
+      
+      // Emit event to notify parent component
+      emit('attachment-uploaded', attachment)
+      emit('attachmentUploaded', attachment)
+      // Wait a tick to ensure event is processed
+      await nextTick()
     }
+    
+    console.log('[TiptapEditor] Uploaded', uploadedAttachments.length, 'files')
+    // Don't auto-insert images - they'll be shown as links at the top of the note
+    // Images can still be inserted manually via the image button if needed
   } catch (error: any) {
-    console.error('Upload error:', error)
+    console.error('[TiptapEditor] Upload error:', error)
   } finally {
     isUploadingFile.value = false
-  }
-}
-
-function handleDragOver(event: DragEvent) {
-  if (!props.editable || !props.noteId) return
-  event.preventDefault()
-  event.stopPropagation()
-  isDragOver.value = true
-}
-
-function handleDragLeave(event: DragEvent) {
-  event.preventDefault()
-  event.stopPropagation()
-  isDragOver.value = false
-}
-
-function handleDrop(event: DragEvent) {
-  if (!props.editable || !props.noteId) return
-  event.preventDefault()
-  event.stopPropagation()
-  isDragOver.value = false
-  
-  const files = event.dataTransfer?.files
-  if (files && files.length > 0) {
-    uploadFiles(Array.from(files))
   }
 }
 
@@ -625,10 +616,6 @@ onBeforeUnmount(() => {
 <template>
   <div 
     class="tiptap-editor w-full relative"
-    :class="{ 'drag-over': isDragOver }"
-    @dragover="handleDragOver"
-    @dragleave="handleDragLeave"
-    @drop="handleDrop"
   >
     <!-- Toolbar (only show when editable) -->
     <Transition name="toolbar">
@@ -890,20 +877,6 @@ onBeforeUnmount(() => {
       multiple
       @change="handleFileSelect"
     />
-    
-    
-    <!-- Drag Overlay -->
-    <Transition name="drag-overlay">
-      <div
-        v-if="isDragOver && editable && noteId"
-        class="absolute inset-0 z-50 bg-primary-500/10 dark:bg-primary-400/10 border-2 border-dashed border-primary-500 dark:border-primary-400 rounded-lg flex items-center justify-center pointer-events-none"
-      >
-        <div class="text-center">
-          <UIcon name="i-heroicons-paper-clip" class="w-12 h-12 text-primary-500 dark:text-primary-400 mx-auto mb-2" />
-          <p class="text-primary-700 dark:text-primary-300 font-medium">Drop files here to upload</p>
-        </div>
-      </div>
-    </Transition>
     
     <!-- Editor Content -->
     <div @contextmenu="handleContextMenu">
@@ -1698,6 +1671,7 @@ onBeforeUnmount(() => {
   color: #60a5fa;
 }
 
+
 /* Table styles */
 .tiptap-editor .ProseMirror table {
   border-collapse: collapse;
@@ -1835,17 +1809,6 @@ onBeforeUnmount(() => {
   transform: scale(1) translateY(0);
 }
 
-/* Drag overlay transition */
-.drag-overlay-enter-active,
-.drag-overlay-leave-active {
-  transition: all 0.2s ease;
-}
-
-.drag-overlay-enter-from,
-.drag-overlay-leave-to {
-  opacity: 0;
-  transform: scale(0.95);
-}
 
 /* Fade transition for floating button */
 .fade-enter-active,

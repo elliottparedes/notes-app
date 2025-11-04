@@ -3,6 +3,7 @@ import type { UserLoginDto } from '~/models';
 
 const authStore = useAuthStore();
 const toast = useToast();
+const router = useRouter();
 
 const form = reactive<UserLoginDto>({
   email: '',
@@ -11,6 +12,46 @@ const form = reactive<UserLoginDto>({
 
 const loading = ref(false);
 const showForgotPasswordModal = ref(false);
+
+// Check synchronously on client side to prevent flash
+const checkingAuth = ref(true);
+
+// Immediate synchronous check for token (runs before first render)
+if (process.client) {
+  const token = localStorage.getItem('auth_token');
+  if (token) {
+    // Token exists - redirect immediately, keep showing loading
+    checkingAuth.value = true;
+    // Use nextTick to ensure router is ready
+    nextTick(() => {
+      router.replace('/dashboard');
+    });
+  } else {
+    // No token found, allow page to render
+    checkingAuth.value = false;
+  }
+} else {
+  // On server, always check (will be determined on client)
+  checkingAuth.value = true;
+}
+
+// Also check after mount to handle async auth initialization
+onMounted(async () => {
+  // Wait for auth store to initialize if it hasn't already
+  if (!authStore.initialized) {
+    await authStore.initializeAuth();
+  }
+  
+  // Check if user is already authenticated
+  if (authStore.isAuthenticated) {
+    // Redirect immediately without showing the login page
+    await router.replace('/dashboard');
+    return;
+  }
+  
+  // Allow page to render if not authenticated
+  checkingAuth.value = false;
+});
 
 function openForgotPassword() {
   showForgotPasswordModal.value = true;
@@ -61,7 +102,16 @@ async function handleLogin() {
 
 <template>
   <div>
-    <div class="min-h-screen flex">
+    <!-- Show loading state while checking auth -->
+    <div v-if="checkingAuth" class="min-h-screen flex items-center justify-center bg-white dark:bg-gray-900">
+      <div class="text-center">
+        <UIcon name="i-heroicons-arrow-path" class="w-8 h-8 animate-spin mx-auto text-primary-600 mb-4" />
+        <p class="text-sm text-gray-600 dark:text-gray-400">Checking authentication...</p>
+      </div>
+    </div>
+    
+    <!-- Show login form only when not checking auth -->
+    <div v-else class="min-h-screen flex">
       <!-- Left Side - Marketing -->
       <div class="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-slate-800 via-slate-900 to-slate-950 relative overflow-hidden">
       <!-- Background Pattern -->
