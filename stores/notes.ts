@@ -634,14 +634,16 @@ export const useNotesStore = defineStore('notes', {
       
       // On mobile, close all other tabs before opening the new one
       if (process.client && this.isMobile()) {
-        // Close all tabs except the one we're about to open
-        this.openTabs = this.openTabs.filter(id => id === stringId);
+        // On mobile, only allow one tab open at a time
+        // Set the new note as the only open tab
+        this.openTabs = [stringId];
+      } else {
+        // On desktop, add to tabs if not already open
+        if (!this.openTabs.includes(stringId)) {
+          this.openTabs.push(stringId);
+        }
       }
       
-      // Add to tabs if not already open
-      if (!this.openTabs.includes(stringId)) {
-        this.openTabs.push(stringId);
-      }
       // Set as active tab
       this.activeTabId = stringId;
       this.saveTabsToStorage();

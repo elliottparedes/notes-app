@@ -154,7 +154,11 @@ function handleToggle(event: Event) {
   }
 }
 
-function handleNoteClick(noteId: string) {
+function handleNoteClick(noteId: string, event?: Event) {
+  if (event) {
+    event.stopPropagation();
+    event.preventDefault();
+  }
   emit('open-note', noteId);
 }
 
@@ -1170,7 +1174,7 @@ onMounted(() => {
         >
           <div class="w-6 flex-shrink-0" />
           
-          <div @click="handleNoteClick(note.id)" class="flex items-center gap-3 md:gap-2 flex-1 min-w-0 cursor-pointer py-2.5 md:py-2">
+          <div @click.stop="handleNoteClick(note.id, $event)" class="flex items-center gap-3 md:gap-2 flex-1 min-w-0 cursor-pointer py-2.5 md:py-2">
             <!-- Note Icon -->
             <UIcon 
               name="i-heroicons-document-text" 
