@@ -214,8 +214,14 @@ const isUploadingFile = ref(false)
 // Toolbar visibility - controlled by parent now
 const showToolbar = computed(() => props.showToolbar ?? true)
 
+// Expose methods for parent components to access editor content
+function getHTML(): string {
+  return editor.value?.getHTML() || ''
+}
+
 defineExpose({
-  showToolbar
+  showToolbar,
+  getHTML
 })
 
 const editor = useEditor({

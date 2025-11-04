@@ -39,6 +39,7 @@ const isSaving = ref(false);
 const autoSaveTimeout = ref<NodeJS.Timeout | null>(null);
 const isLocked = ref(false);
 const collaborativeEditorRef = ref<{ getCurrentContent: () => string } | null>(null);
+const tiptapEditorRef = ref<{ getHTML: () => string } | null>(null);
 const showFolderDropdown = ref(false);
 const folderDropdownPos = ref({ top: 0, left: 0 });
 const folderButtonRef = ref<HTMLButtonElement | null>(null);
@@ -1412,26 +1413,117 @@ async function shareNote() {
 
   try {
     // Save the current note content BEFORE sharing to prevent data loss
-    // This ensures any unsaved edits are preserved
+    // This ensures any unsaved edits are preserved, especially for list notes
     const currentNoteId = activeNote.value.id;
-    const currentContent = editForm.content || activeNote.value.content || '';
+    
+    // Get content directly from TiptapEditor if available (for list notes, this ensures we get the latest HTML)
+    // This is critical because editForm.content might not be synced yet, especially for list notes with TaskItemWithStrike
+    let currentContent = '';
+    let contentSource = 'unknown';
+    
+    // Wait for editor to be ready and any pending updates (especially TaskItemWithStrike plugin)
+    await nextTick();
+    // Give TaskItemWithStrike plugin time to finish applying strike marks if needed
+    await new Promise(resolve => setTimeout(resolve, 50));
+    
+    if (tiptapEditorRef.value?.getHTML) {
+      // Get content directly from editor (most reliable for list notes)
+      // This bypasses any timing issues with editForm.content sync
+      // The TaskItemWithStrike plugin modifies content, so getting directly from editor ensures we get the final state
+      currentContent = tiptapEditorRef.value.getHTML();
+      contentSource = 'tiptapEditor';
+      console.log('[Dashboard] Got content directly from TiptapEditor', {
+        contentLength: currentContent.length,
+        hasContent: !!currentContent,
+        preview: currentContent.substring(0, 100) // Preview first 100 chars for debugging
+      });
+    } else if (editForm.content) {
+      // Use editForm if available
+      currentContent = editForm.content;
+      contentSource = 'editForm';
+      console.log('[Dashboard] Using content from editForm', {
+        contentLength: currentContent.length
+      });
+    } else if (activeNote.value.content) {
+      // Fallback to activeNote
+      currentContent = activeNote.value.content;
+      contentSource = 'activeNote';
+      console.log('[Dashboard] Using content from activeNote', {
+        contentLength: currentContent.length
+      });
+    }
+    
     const currentTitle = editForm.title || activeNote.value.title || '';
     
-    // Save current state to database before sharing
-    if (currentContent || currentTitle) {
-      try {
-        await notesStore.updateNote(currentNoteId, {
-          title: currentTitle,
-          content: currentContent,
-          tags: editForm.tags || activeNote.value.tags || [],
-          folder_id: editForm.folder_id ?? activeNote.value.folder_id ?? null
+    console.log('[Dashboard] Preparing to share note', {
+      noteId: currentNoteId,
+      contentLength: currentContent.length,
+      contentSource,
+      title: currentTitle,
+      hasContent: !!currentContent,
+      hasTitle: !!currentTitle
+    });
+    
+    // If we still don't have content, this is a critical error
+    if (!currentContent) {
+      console.error('[Dashboard] CRITICAL: No content found to share!', {
+        noteId: currentNoteId,
+        tiptapEditorAvailable: !!tiptapEditorRef.value?.getHTML,
+        editFormContent: editForm.content,
+        editFormContentLength: editForm.content?.length || 0,
+        activeNoteContent: activeNote.value.content,
+        activeNoteContentLength: activeNote.value.content?.length || 0
+      });
+      
+      // Try one more time to get content - force editor sync
+      await nextTick();
+      if (tiptapEditorRef.value?.getHTML) {
+        currentContent = tiptapEditorRef.value.getHTML();
+        if (currentContent) {
+          console.log('[Dashboard] Successfully got content on retry', {
+            contentLength: currentContent.length
+          });
+        }
+      }
+      
+      // If still no content, show error and abort
+      if (!currentContent) {
+        toast.add({
+          title: 'Error',
+          description: 'Cannot share note: Content is empty. Please ensure the note has content before sharing.',
+          color: 'error'
         });
-        console.log('[Dashboard] Note content saved before sharing');
-      } catch (saveError) {
-        console.error('[Dashboard] Failed to save note before sharing:', saveError);
-        // Continue with sharing even if save fails
+        return;
       }
     }
+    
+    // Save current state to database before sharing
+    // This ensures the content is persisted before we switch to collaborative mode
+    try {
+      await notesStore.updateNote(currentNoteId, {
+        title: currentTitle,
+        content: currentContent, // Use the content we just retrieved
+        tags: editForm.tags || activeNote.value.tags || [],
+        folder_id: editForm.folder_id ?? activeNote.value.folder_id ?? null
+      });
+      console.log('[Dashboard] Note content saved before sharing', {
+        contentLength: currentContent.length,
+        title: currentTitle,
+        contentSource
+      });
+    } catch (saveError) {
+      console.error('[Dashboard] Failed to save note before sharing:', saveError);
+      toast.add({
+        title: 'Error',
+        description: 'Failed to save note before sharing. Please try again.',
+        color: 'error'
+      });
+      return; // Abort sharing if save fails
+    }
+
+    // Store the content we just saved - this is what we want to preserve
+    const savedContent = currentContent;
+    const savedTitle = currentTitle;
 
     const sharePromises = selectedUsersToShare.value.map(user =>
       sharedNotesStore.shareNote(
@@ -1444,29 +1536,57 @@ async function shareNote() {
     await Promise.all(sharePromises);
 
     // Refresh notes to update the is_shared field
-    // But preserve the active note's content if it's currently being edited
-    const preservedContent = editForm.content;
-    const preservedTitle = editForm.title;
-    
     await notesStore.fetchNotes();
     
-    // Restore the active note's content if it was being edited
-    // This prevents fetchNotes() from overwriting unsaved content
-    if (activeNote.value && activeNote.value.id === currentNoteId) {
-      // If the fetched note has empty/different content, restore what we had
-      if (preservedContent && (!activeNote.value.content || activeNote.value.content !== preservedContent)) {
-        const noteIndex = notesStore.notes.findIndex(n => n.id === currentNoteId);
-        if (noteIndex !== -1 && notesStore.notes[noteIndex]) {
-          notesStore.notes[noteIndex].content = preservedContent;
-          notesStore.notes[noteIndex].title = preservedTitle || notesStore.notes[noteIndex].title || '';
-        }
-        // Also update currentNote if it exists
-        if (notesStore.currentNote && notesStore.currentNote.id === currentNoteId) {
-          notesStore.currentNote.content = preservedContent;
-          notesStore.currentNote.title = preservedTitle || notesStore.currentNote.title || '';
-        }
-      }
+    // CRITICAL: Restore the saved content after fetchNotes() - this is essential for list notes
+    // fetchNotes() might return stale/empty content, especially for list notes with TaskItemWithStrike
+    // We must restore the content we just saved to ensure it's preserved
+    const noteIndex = notesStore.notes.findIndex(n => n.id === currentNoteId);
+    if (noteIndex !== -1 && notesStore.notes[noteIndex]) {
+      // Always restore the content we just saved, regardless of what fetchNotes returned
+      // This is especially important for list notes where the content might not sync properly
+      notesStore.notes[noteIndex].content = savedContent;
+      notesStore.notes[noteIndex].title = savedTitle || notesStore.notes[noteIndex].title || '';
+      console.log('[Dashboard] Restored saved content after fetchNotes', {
+        contentLength: savedContent.length,
+        restored: true,
+        noteIndex
+      });
     }
+    
+    // Also update currentNote if it exists (this affects activeNote computed property)
+    if (notesStore.currentNote && notesStore.currentNote.id === currentNoteId) {
+      notesStore.currentNote.content = savedContent;
+      notesStore.currentNote.title = savedTitle || notesStore.currentNote.title || '';
+      console.log('[Dashboard] Updated currentNote with saved content', {
+        contentLength: savedContent.length
+      });
+    }
+    
+    // Force a refetch of the active note to ensure CollaborativeEditor gets the correct initialContent
+    // This is critical because CollaborativeEditor uses activeNote.content as initialContent
+    try {
+      await notesStore.fetchNote(currentNoteId);
+      // After fetching, restore the content again (in case fetchNote returned stale data)
+      const freshNoteIndex = notesStore.notes.findIndex(n => n.id === currentNoteId);
+      if (freshNoteIndex !== -1 && notesStore.notes[freshNoteIndex]) {
+        notesStore.notes[freshNoteIndex].content = savedContent;
+        notesStore.notes[freshNoteIndex].title = savedTitle || notesStore.notes[freshNoteIndex].title || '';
+      }
+      if (notesStore.currentNote && notesStore.currentNote.id === currentNoteId) {
+        notesStore.currentNote.content = savedContent;
+        notesStore.currentNote.title = savedTitle || notesStore.currentNote.title || '';
+      }
+      console.log('[Dashboard] Refetched and restored note content', {
+        contentLength: savedContent.length
+      });
+    } catch (fetchError) {
+      console.error('[Dashboard] Failed to refetch note after sharing:', fetchError);
+      // Continue anyway - we've already restored the content
+    }
+    
+    // Wait for Vue reactivity to update
+    await nextTick();
 
     const userNames = selectedUsersToShare.value.map(u => u.name || u.email).join(', ');
     toast.add({
@@ -3909,6 +4029,7 @@ onMounted(() => {
               <!-- Use regular TiptapEditor for non-shared notes -->
               <ClientOnly v-else>
                 <TiptapEditor
+                  ref="tiptapEditorRef"
                   v-model="editForm.content"
                   placeholder="Start writing... Right-click for options or press ? for keyboard shortcuts"
                   :editable="!isLocked"
