@@ -2602,8 +2602,8 @@ onMounted(() => {
     <!-- Loading screen while auth is initializing, during SSR, or data is loading -->
     <div v-if="!isMounted || !authStore.currentUser || !authStore.initialized || loading || !hasInitialized || foldersStore.loading || spacesStore.loading" class="flex items-center justify-center h-screen bg-gray-50 dark:bg-gray-900">
       <div class="text-center">
-        <div class="w-16 h-16 mx-auto mb-4 border-4 border-primary-500 border-t-transparent rounded-full animate-spin"></div>
-        <p class="text-gray-600 dark:text-gray-400">Loading...</p>
+        <UIcon name="i-heroicons-arrow-path" class="w-8 h-8 animate-spin mx-auto text-primary-600 mb-4" />
+        <p class="text-sm text-gray-600 dark:text-gray-400">Loading...</p>
       </div>
     </div>
 
