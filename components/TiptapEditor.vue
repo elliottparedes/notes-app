@@ -92,6 +92,16 @@ const TaskItemWithStrike = TaskItem.extend({
             return null
           }
 
+          // Skip if this looks like a complete document replacement (e.g., switching notes)
+          // Check if the document sizes are very different or if it's a setContent operation
+          const isCompleteReplacement = 
+            Math.abs(oldState.doc.content.size - newState.doc.content.size) > oldState.doc.content.size * 0.5 ||
+            transactions.some(tr => tr.getMeta('addToHistory') === false && tr.steps.length > 0);
+
+          if (isCompleteReplacement) {
+            return null
+          }
+
           const tr = newState.tr
           let modified = false
 
@@ -99,8 +109,20 @@ const TaskItemWithStrike = TaskItem.extend({
           newState.doc.descendants((node, pos) => {
             if (node.type.name === 'taskItem') {
               const isChecked = node.attrs.checked
-              const oldNode = oldState.doc.nodeAt(pos)
-              const wasChecked = oldNode?.attrs?.checked || false
+              
+              // Safely check if position exists in old document
+              let wasChecked = false
+              if (pos >= 0 && pos < oldState.doc.content.size) {
+                try {
+                  const oldNode = oldState.doc.nodeAt(pos)
+                  if (oldNode && oldNode.type.name === 'taskItem') {
+                    wasChecked = oldNode.attrs.checked || false
+                  }
+                } catch (e) {
+                  // Position doesn't exist in old document, assume unchecked
+                  wasChecked = false
+                }
+              }
 
               // If checked state changed, apply or remove strike formatting
               if (isChecked !== wasChecked) {
@@ -109,31 +131,36 @@ const TaskItemWithStrike = TaskItem.extend({
                 const contentStart = pos + 1
                 const contentEnd = pos + node.nodeSize - 1
 
-                newState.doc.nodesBetween(contentStart, contentEnd, (textNode, textPos) => {
-                  if (textNode.isText) {
-                    // Check if strike mark exists
-                    const hasStrike = textNode.marks.some(mark => mark.type.name === 'strike')
-                    const strikeMarkType = newState.schema.marks.strike
-                    
-                    if (!strikeMarkType) {
-                      return // Strike mark type not available
-                    }
-                    
-                    if (isChecked && !hasStrike) {
-                      // Apply strike formatting to this text node
-                      const strikeMark = strikeMarkType.create()
-                      tr.addMark(textPos, textPos + textNode.nodeSize, strikeMark)
-                      modified = true
-                    } else if (!isChecked && hasStrike) {
-                      // Remove strike formatting from this text node
-                      const strikeMark = textNode.marks.find(mark => mark.type.name === 'strike')
-                      if (strikeMark) {
-                        tr.removeMark(textPos, textPos + textNode.nodeSize, strikeMark)
+                try {
+                  newState.doc.nodesBetween(contentStart, contentEnd, (textNode, textPos) => {
+                    if (textNode.isText && textPos >= 0 && textPos + textNode.nodeSize <= newState.doc.content.size) {
+                      // Check if strike mark exists
+                      const hasStrike = textNode.marks.some(mark => mark.type.name === 'strike')
+                      const strikeMarkType = newState.schema.marks.strike
+                      
+                      if (!strikeMarkType) {
+                        return // Strike mark type not available
+                      }
+                      
+                      if (isChecked && !hasStrike) {
+                        // Apply strike formatting to this text node
+                        const strikeMark = strikeMarkType.create()
+                        tr.addMark(textPos, textPos + textNode.nodeSize, strikeMark)
                         modified = true
+                      } else if (!isChecked && hasStrike) {
+                        // Remove strike formatting from this text node
+                        const strikeMark = textNode.marks.find(mark => mark.type.name === 'strike')
+                        if (strikeMark) {
+                          tr.removeMark(textPos, textPos + textNode.nodeSize, strikeMark)
+                          modified = true
+                        }
                       }
                     }
-                  }
-                })
+                  })
+                } catch (e) {
+                  // Skip this task item if there's an error accessing positions
+                  console.warn('[TiptapEditor] Error processing task item strike:', e)
+                }
               }
             }
           })
