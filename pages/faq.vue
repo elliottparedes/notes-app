@@ -1,47 +1,98 @@
 <script setup lang="ts">
-useHead({
-  title: 'FAQ - Frequently Asked Questions | Unfold Notes',
-  meta: [
+const { setPageSEO, baseUrl } = useSEO()
+
+// Enhanced FAQ schema with all questions
+const faqSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'FAQPage',
+  mainEntity: [
     {
-      name: 'description',
-      content: 'Frequently asked questions about Unfold Notes. Learn about features, pricing, offline support, collaboration, security, and more.'
+      '@type': 'Question',
+      name: 'What is Unfold Notes?',
+      acceptedAnswer: {
+        '@type': 'Answer',
+        text: 'Unfold Notes is a modern, offline-first note-taking app that helps you organize your thoughts with AI-powered features, real-time collaboration, and beautiful organization tools. It works everywhere - on desktop, mobile, and tablets - and functions completely offline.'
+      }
     },
-  ],
-  script: [
     {
-      type: 'application/ld+json',
-      children: JSON.stringify({
-        '@context': 'https://schema.org',
-        '@type': 'FAQPage',
-        mainEntity: [
-          {
-            '@type': 'Question',
-            name: 'What is Unfold Notes?',
-            acceptedAnswer: {
-              '@type': 'Answer',
-              text: 'Unfold Notes is a modern, offline-first note-taking app with AI-powered features, real-time collaboration, and beautiful organization tools.'
-            }
-          },
-          {
-            '@type': 'Question',
-            name: 'Is Unfold Notes free to use?',
-            acceptedAnswer: {
-              '@type': 'Answer',
-              text: 'Yes, Unfold Notes is completely free to use with 500MB of storage included.'
-            }
-          },
-          {
-            '@type': 'Question',
-            name: 'Does Unfold Notes work offline?',
-            acceptedAnswer: {
-              '@type': 'Answer',
-              text: 'Yes! Unfold Notes is built as an offline-first Progressive Web App (PWA). All features work without internet connection, and your changes sync automatically when you\'re back online.'
-            }
-          }
-        ]
-      })
+      '@type': 'Question',
+      name: 'Is Unfold Notes free to use?',
+      acceptedAnswer: {
+        '@type': 'Answer',
+        text: 'Yes! Unfold Notes is completely free to use. We provide 500MB of free storage per user, which is perfect for most note-taking needs. You can attach files, export PDFs, and use all features without any payment required.'
+      }
+    },
+    {
+      '@type': 'Question',
+      name: 'Does Unfold Notes work offline?',
+      acceptedAnswer: {
+        '@type': 'Answer',
+        text: 'Absolutely! Unfold Notes is built as an offline-first Progressive Web App (PWA). This means all features work without an internet connection. You can create, edit, and organize notes completely offline. When you reconnect to the internet, all your changes sync automatically.'
+      }
+    },
+    {
+      '@type': 'Question',
+      name: 'Can I collaborate with others?',
+      acceptedAnswer: {
+        '@type': 'Answer',
+        text: 'Yes! Unfold Notes supports real-time collaboration. You can share notes with team members and see live cursors and presence indicators. You can grant view or edit permissions, making it perfect for team knowledge sharing.'
+      }
+    },
+    {
+      '@type': 'Question',
+      name: 'How much storage do I get?',
+      acceptedAnswer: {
+        '@type': 'Answer',
+        text: 'Every user gets 500MB of free storage for file attachments. You can check your storage usage in the Settings page. If you need more storage, you can delete old attachments to free up space.'
+      }
+    },
+    {
+      '@type': 'Question',
+      name: 'Is my data secure?',
+      acceptedAnswer: {
+        '@type': 'Answer',
+        text: 'Yes, your data is secure and private. All authentication is handled securely with JWT tokens, and passwords are hashed using bcrypt. We don\'t sell your data or track your content. Your notes belong to you.'
+      }
+    },
+    {
+      '@type': 'Question',
+      name: 'Can I export my notes?',
+      acceptedAnswer: {
+        '@type': 'Answer',
+        text: 'Yes! You can export any note as a professionally formatted PDF. Just click the PDF export button when viewing a note, and it will download instantly.'
+      }
+    },
+    {
+      '@type': 'Question',
+      name: 'Does Unfold Notes have AI features?',
+      acceptedAnswer: {
+        '@type': 'Answer',
+        text: 'Yes! Unfold Notes includes AI-powered features powered by Google Gemini. You can generate notes from prompts, polish your writing, and get intelligent suggestions to improve your content.'
+      }
+    },
+    {
+      '@type': 'Question',
+      name: 'Can I use Unfold Notes on mobile?',
+      acceptedAnswer: {
+        '@type': 'Answer',
+        text: 'Yes! Unfold Notes is a Progressive Web App that works perfectly on mobile devices. You can install it on your phone\'s home screen and use it like a native app. It\'s fully responsive and optimized for touch interactions.'
+      }
     }
   ]
+}
+
+setPageSEO({
+  title: 'FAQ - Frequently Asked Questions | Unfold Notes Help',
+  description: 'Frequently asked questions about Unfold Notes. Learn about features, pricing, offline support, collaboration, security, AI features, mobile support, and more. Get answers to common questions.',
+  path: '/faq',
+  keywords: [
+    'unfold notes faq',
+    'note taking app questions',
+    'offline notes help',
+    'note app support',
+    'unfold notes help'
+  ],
+  schema: faqSchema
 });
 
 const faqs = [

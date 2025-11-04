@@ -1,12 +1,41 @@
 <script setup lang="ts">
-useHead({
-  title: 'About Unfold Notes - Our Mission & Story',
-  meta: [
-    {
-      name: 'description',
-      content: 'Learn about Unfold Notes - a modern note-taking app built with a focus on offline-first architecture, collaboration, and beautiful design. Created by Elliott.'
+const { setPageSEO, baseUrl } = useSEO()
+
+setPageSEO({
+  title: 'About Unfold Notes - Our Mission, Story & Values',
+  description: 'Learn about Unfold Notes - a modern note-taking app built with a focus on offline-first architecture, collaboration, and beautiful design. Created by Elliott with a mission to make note-taking accessible everywhere.',
+  path: '/about',
+  keywords: [
+    'about unfold notes',
+    'note taking app story',
+    'offline notes mission',
+    'note app creator',
+    'unfold notes about'
+  ],
+  schema: {
+    '@context': 'https://schema.org',
+    '@type': 'AboutPage',
+    name: 'About Unfold Notes',
+    description: 'Learn about Unfold Notes, its mission, values, and the story behind this modern note-taking app.',
+    url: `${baseUrl}/about`,
+    breadcrumb: {
+      '@type': 'BreadcrumbList',
+      itemListElement: [
+        {
+          '@type': 'ListItem',
+          position: 1,
+          name: 'Home',
+          item: baseUrl
+        },
+        {
+          '@type': 'ListItem',
+          position: 2,
+          name: 'About',
+          item: `${baseUrl}/about`
+        }
+      ]
     }
-  ]
+  }
 });
 </script>
 

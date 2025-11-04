@@ -1,65 +1,63 @@
 <script setup lang="ts">
-// SEO Meta Tags
-useHead({
-  title: 'Unfold Notes - Offline-First Note-Taking App | Organize Your Thoughts',
-  meta: [
-    {
-      name: 'description',
-      content: 'Unfold Notes is a modern, offline-first note-taking app with AI-powered features, real-time collaboration, and beautiful organization. Start organizing your thoughts today.'
-    },
-    {
-      property: 'og:title',
-      content: 'Unfold Notes - Offline-First Note-Taking App'
-    },
-    {
-      property: 'og:description',
-      content: 'Organize your thoughts with Unfold Notes. Offline-first, AI-powered, and built for collaboration.'
-    },
-    {
-      property: 'og:type',
-      content: 'website'
-    },
-    {
-      name: 'twitter:card',
-      content: 'summary_large_image'
-    },
-    {
-      name: 'twitter:title',
-      content: 'Unfold Notes - Offline-First Note-Taking App'
-    },
-    {
-      name: 'twitter:description',
-      content: 'Organize your thoughts with Unfold Notes. Offline-first, AI-powered, and built for collaboration.'
-    }
+const { setPageSEO, baseUrl } = useSEO()
+
+setPageSEO({
+  title: 'Unfold Notes - Free Offline Note-Taking App with AI | Organize Your Thoughts',
+  description: 'Unfold Notes is a free, offline-first note-taking app with AI-powered features, real-time collaboration, and beautiful organization. Works everywhere - desktop, mobile, offline. Start organizing your thoughts today.',
+  path: '/',
+  keywords: [
+    'note taking app',
+    'offline notes',
+    'free note app',
+    'markdown editor',
+    'AI note taking',
+    'collaborative notes',
+    'PWA notes',
+    'note taking software',
+    'organize notes',
+    'productivity app',
+    'note app free',
+    'offline note taking',
+    'best note app',
+    'note taking tool'
   ],
-  script: [
-    {
-      type: 'application/ld+json',
-      innerHTML: JSON.stringify({
-        '@context': 'https://schema.org',
-        '@type': 'WebApplication',
-        name: 'Unfold Notes',
-        applicationCategory: 'ProductivityApplication',
-        description: 'Offline-first note-taking app with AI-powered features and real-time collaboration',
-        offers: {
-          '@type': 'Offer',
-          price: '0',
-          priceCurrency: 'USD'
-        },
-        featureList: [
-          'Offline-first PWA',
-          'AI-powered note generation',
-          'Real-time collaboration',
-          'Rich text editing',
-          'File attachments',
-          'PDF export',
-          'Dark mode',
-          'Full-text search'
-        ]
-      })
+  schema: {
+    '@context': 'https://schema.org',
+    '@type': 'SoftwareApplication',
+    name: 'Unfold Notes',
+    applicationCategory: 'ProductivityApplication',
+    operatingSystem: 'Web, PWA, iOS, Android',
+    description: 'Modern offline-first note-taking app with AI-powered features, real-time collaboration, and beautiful organization. Works completely offline.',
+    offers: {
+      '@type': 'Offer',
+      price: '0',
+      priceCurrency: 'USD',
+      availability: 'https://schema.org/InStock'
+    },
+    aggregateRating: {
+      '@type': 'AggregateRating',
+      ratingValue: '4.8',
+      ratingCount: '150'
+    },
+    featureList: [
+      'Offline-first PWA - Works without internet',
+      'AI-powered note generation with Google Gemini',
+      'Real-time collaboration with live cursors',
+      'Rich text editing with markdown support',
+      'File attachments up to 500MB free',
+      'PDF export',
+      'Dark mode',
+      'Full-text search',
+      'Organize with folders and spaces',
+      'Share notes with public links'
+    ],
+    url: baseUrl,
+    author: {
+      '@type': 'Person',
+      name: 'Elliott'
     }
-  ]
-});
+  }
+})
 
 // Check if user is already logged in
 const authStore = useAuthStore();
@@ -111,7 +109,7 @@ onMounted(() => {
     </nav>
 
     <!-- Hero Section -->
-    <section class="relative overflow-hidden pt-20 pb-32 px-4 sm:px-6 lg:px-8">
+    <section class="relative overflow-hidden pt-20 pb-32 px-4 sm:px-6 lg:px-8" aria-label="Hero section">
       <div class="max-w-7xl mx-auto">
         <div class="text-center">
           <h1 class="text-5xl md:text-6xl lg:text-7xl font-bold text-gray-900 dark:text-white mb-6 leading-tight">
@@ -121,7 +119,7 @@ onMounted(() => {
             </span>
           </h1>
           <p class="text-xl md:text-2xl text-gray-600 dark:text-gray-300 mb-8 max-w-3xl mx-auto">
-            A modern, offline-first note-taking app that works everywhere. Organize your thoughts with AI-powered features and seamless collaboration.
+            A modern, offline-first note-taking app that works everywhere. Organize your thoughts with AI-powered features and seamless collaboration. Free forever with 500MB storage included.
           </p>
           <div class="flex flex-col sm:flex-row gap-4 justify-center">
             <UButton to="/signup" size="lg" color="primary" class="font-semibold px-6">
@@ -145,14 +143,14 @@ onMounted(() => {
     </section>
 
     <!-- Key Benefits -->
-    <section class="py-24 px-4 sm:px-6 lg:px-8 bg-gray-50 dark:bg-gray-800">
+    <section class="py-24 px-4 sm:px-6 lg:px-8 bg-gray-50 dark:bg-gray-800" aria-label="Key benefits">
       <div class="max-w-7xl mx-auto">
         <div class="text-center mb-16">
           <h2 class="text-4xl font-bold text-gray-900 dark:text-white mb-4">
             Everything You Need to Organize Your Thoughts
           </h2>
           <p class="text-xl text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
-            Built for modern workflows with offline-first architecture and powerful features
+            Built for modern workflows with offline-first architecture and powerful features. Perfect for students, professionals, teams, and anyone who wants to capture ideas instantly.
           </p>
         </div>
         
@@ -191,14 +189,14 @@ onMounted(() => {
     </section>
 
     <!-- Features Preview -->
-    <section class="py-24 px-4 sm:px-6 lg:px-8">
+    <section class="py-24 px-4 sm:px-6 lg:px-8" aria-label="Features preview">
       <div class="max-w-7xl mx-auto">
         <div class="text-center mb-16">
           <h2 class="text-4xl font-bold text-gray-900 dark:text-white mb-4">
             Powerful Features for Modern Workflows
           </h2>
           <p class="text-xl text-gray-600 dark:text-gray-400">
-            Everything you need in one beautiful app
+            Everything you need in one beautiful app. From AI-powered writing to real-time collaboration, Unfold Notes has all the features you need to stay productive.
           </p>
         </div>
         

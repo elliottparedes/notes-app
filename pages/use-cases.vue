@@ -27,14 +27,46 @@ onBeforeUnmount(() => {
   document.body.style.overflow = '';
 });
 
-useHead({
-  title: 'Use Cases - How to Use Unfold Notes | Productivity Solutions',
-  meta: [
-    {
-      name: 'description',
-      content: 'Discover how Unfold Notes can help with personal note-taking, team collaboration, research documentation, meeting notes, project planning, and knowledge management.'
+const { setPageSEO, baseUrl } = useSEO()
+
+setPageSEO({
+  title: 'Use Cases - How to Use Unfold Notes for Productivity | Personal & Team',
+  description: 'Discover how Unfold Notes helps with personal note-taking, team collaboration, research documentation, meeting notes, project planning, and knowledge management. See real examples of how people use Unfold Notes.',
+  path: '/use-cases',
+  keywords: [
+    'note taking use cases',
+    'personal note taking',
+    'team collaboration notes',
+    'research note taking',
+    'meeting notes app',
+    'project planning notes',
+    'knowledge management',
+    'note taking for teams'
+  ],
+  schema: {
+    '@context': 'https://schema.org',
+    '@type': 'WebPage',
+    name: 'Use Cases - Unfold Notes',
+    description: 'Learn how Unfold Notes can be used for personal note-taking, team collaboration, research, meetings, and project planning.',
+    url: `${baseUrl}/use-cases`,
+    breadcrumb: {
+      '@type': 'BreadcrumbList',
+      itemListElement: [
+        {
+          '@type': 'ListItem',
+          position: 1,
+          name: 'Home',
+          item: baseUrl
+        },
+        {
+          '@type': 'ListItem',
+          position: 2,
+          name: 'Use Cases',
+          item: `${baseUrl}/use-cases`
+        }
+      ]
     }
-  ]
+  }
 });
 </script>
 
