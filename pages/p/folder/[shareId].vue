@@ -93,13 +93,11 @@ useHead({
 <template>
   <div class="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col">
     <!-- Header -->
-    <header class="border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-800 sticky top-0 z-10">
+    <header class="border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-800 fixed top-0 left-0 right-0 z-10 flex-shrink-0">
       <div class="w-full px-4 py-4">
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-3">
-            <div class="w-10 h-10 bg-gradient-to-br from-primary-500 to-primary-600 rounded-lg flex items-center justify-center">
-              <UIcon name="i-heroicons-folder" class="w-6 h-6 text-white" />
-            </div>
+            <img src="/swan-unfold.png" alt="The Swan" class="w-10 h-10 flex-shrink-0" />
             <div>
               <h1 class="text-lg font-semibold text-gray-900 dark:text-white">
                 {{ publishedFolder?.folder_name || 'Published Folder' }}
@@ -151,9 +149,9 @@ useHead({
     </div>
 
     <!-- Main Content -->
-    <div v-else-if="publishedFolder" class="flex-1 flex overflow-hidden">
+    <div v-else-if="publishedFolder" class="flex-1 flex pt-[73px]">
       <!-- Sidebar - Folder Tree -->
-      <aside class="w-80 border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-800 overflow-y-auto">
+      <aside class="w-80 border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-800 fixed top-[73px] left-0 bottom-0 overflow-y-auto flex-shrink-0">
         <div class="p-4 space-y-4">
           <!-- Notes in root folder -->
           <div v-if="publishedFolder.notes.length > 0" class="space-y-1">
@@ -199,7 +197,7 @@ useHead({
       </aside>
 
       <!-- Main Content Area -->
-      <main class="flex-1 overflow-y-auto bg-white dark:bg-gray-900">
+      <main class="flex-1 overflow-y-auto bg-white dark:bg-gray-900 ml-80">
         <div v-if="isLoadingNote" class="flex items-center justify-center h-full">
           <div class="animate-pulse space-y-4 text-center">
             <UIcon name="i-heroicons-document-text" class="w-12 h-12 text-gray-400 mx-auto" />
@@ -287,6 +285,47 @@ useHead({
 
 .note-content :deep(li) {
   margin-bottom: 0.5rem;
+}
+
+/* Task list styles - override default ul styles */
+.note-content :deep(ul[data-type="taskList"]) {
+  list-style: none;
+  padding-left: 0;
+  margin-left: 0;
+}
+
+.note-content :deep(ul[data-type="taskList"] li[data-type="taskItem"]) {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.note-content :deep(ul[data-type="taskList"] li[data-type="taskItem"] > label) {
+  flex: 0 0 auto;
+  margin-right: 0.5rem;
+  user-select: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  margin-top: 0.125rem;
+}
+
+.note-content :deep(ul[data-type="taskList"] li[data-type="taskItem"] > label input[type="checkbox"]) {
+  cursor: pointer;
+  width: 1rem;
+  height: 1rem;
+  margin: 0;
+}
+
+.note-content :deep(ul[data-type="taskList"] li[data-type="taskItem"] > div) {
+  flex: 1 1 auto;
+}
+
+/* Strikethrough for checked task items */
+.note-content :deep(ul[data-type="taskList"] li[data-type="taskItem"][data-checked="true"] > div) {
+  text-decoration: line-through;
+  opacity: 0.7;
 }
 
 .note-content :deep(code) {

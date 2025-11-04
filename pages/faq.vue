@@ -11,7 +11,7 @@ const faqSchema = {
       name: 'What is Unfold Notes?',
       acceptedAnswer: {
         '@type': 'Answer',
-        text: 'Unfold Notes is a modern note-taking app that helps you organize your thoughts with AI-powered features, real-time collaboration, and beautiful organization tools. It works everywhere - on desktop, mobile, and tablets.'
+        text: 'Unfold Notes is a modern note-taking app that helps you organize your thoughts with AI-powered features and beautiful organization tools. It works everywhere - on desktop, mobile, and tablets.'
       }
     },
     {
@@ -28,14 +28,6 @@ const faqSchema = {
       acceptedAnswer: {
         '@type': 'Answer',
         text: 'Yes! Unfold Notes is built as a Progressive Web App (PWA) with offline support. After the initial load, you can continue working even without an internet connection. You can create, edit, and organize notes offline. When you reconnect to the internet, all your changes sync automatically.'
-      }
-    },
-    {
-      '@type': 'Question',
-      name: 'Can I collaborate with others?',
-      acceptedAnswer: {
-        '@type': 'Answer',
-        text: 'Yes! Unfold Notes supports real-time collaboration. You can share notes with team members and see live cursors and presence indicators. You can grant view or edit permissions, making it perfect for team knowledge sharing.'
       }
     },
     {
@@ -83,7 +75,7 @@ const faqSchema = {
 
 setPageSEO({
   title: 'FAQ - Frequently Asked Questions | Unfold Notes Help',
-  description: 'Frequently asked questions about Unfold Notes. Learn about features, pricing, offline support, collaboration, security, AI features, mobile support, and more. Get answers to common questions.',
+  description: 'Frequently asked questions about Unfold Notes. Learn about features, pricing, offline support, security, AI features, mobile support, and more. Get answers to common questions.',
   path: '/faq',
   keywords: [
     'unfold notes faq',
@@ -98,7 +90,7 @@ setPageSEO({
 const faqs = [
   {
     question: 'What is Unfold Notes?',
-    answer: 'Unfold Notes is a modern note-taking app that helps you organize your thoughts with AI-powered features, real-time collaboration, and beautiful organization tools. It works everywhere - on desktop, mobile, and tablets.'
+    answer: 'Unfold Notes is a modern note-taking app that helps you organize your thoughts with AI-powered features and beautiful organization tools. It works everywhere - on desktop, mobile, and tablets.'
   },
   {
     question: 'Is Unfold Notes free to use?',
@@ -107,10 +99,6 @@ const faqs = [
   {
     question: 'Does Unfold Notes work offline?',
     answer: 'Yes! Unfold Notes is built as a Progressive Web App (PWA) with offline support. After the initial load, you can continue working even without an internet connection. You can create, edit, and organize notes offline. When you reconnect to the internet, all your changes sync automatically.'
-  },
-  {
-    question: 'Can I collaborate with others?',
-    answer: 'Yes! Unfold Notes supports real-time collaboration. You can share notes with team members and see live cursors and presence indicators. You can grant view or edit permissions, making it perfect for team knowledge sharing.'
   },
   {
     question: 'What file types can I attach?',
@@ -138,7 +126,7 @@ const faqs = [
   },
   {
     question: 'How do I get started?',
-    answer: 'Simply sign up for a free account! No credit card required. Once you create your account, you can start creating notes immediately. You can organize them with folders, add tags, attach files, and start collaborating with others.'
+    answer: 'Simply sign up for a free account! No credit card required. Once you create your account, you can start creating notes immediately. You can organize them with folders, add tags, and attach files.'
   },
   {
     question: 'What happens to my notes if I stop using Unfold Notes?',

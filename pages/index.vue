@@ -175,15 +175,6 @@ onMounted(() => {
             </p>
           </div>
           
-          <div class="bg-white dark:bg-gray-900 p-8 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700">
-            <div class="w-12 h-12 bg-green-100 dark:bg-green-900 rounded-lg flex items-center justify-center mb-4">
-              <UIcon name="i-heroicons-user-group" class="w-6 h-6 text-green-600 dark:text-green-400" />
-            </div>
-            <h3 class="text-xl font-semibold text-gray-900 dark:text-white mb-2">Collaborative</h3>
-            <p class="text-gray-600 dark:text-gray-400">
-              Share notes with team members. Real-time collaboration with live cursors and presence indicators. Perfect for teams and knowledge sharing.
-            </p>
-          </div>
         </div>
       </div>
     </section>

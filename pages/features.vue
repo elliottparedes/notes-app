@@ -170,37 +170,7 @@ setPageSEO({
           </div>
         </div>
 
-        <!-- Feature 3: Collaboration -->
-        <div class="grid md:grid-cols-2 gap-12 items-center">
-          <div class="order-2 md:order-1 bg-gray-100 dark:bg-gray-800 rounded-xl overflow-hidden shadow-2xl ring-1 ring-gray-200 dark:ring-gray-700 cursor-pointer transition-transform hover:scale-[1.02]" @click="openImageModal('/collab.png')">
-            <img src="/collab.png" alt="Real-Time Collaboration Preview" class="w-full h-full object-cover" />
-          </div>
-          <div class="order-1 md:order-2">
-            <div class="w-12 h-12 bg-blue-100 dark:bg-blue-900 rounded-lg flex items-center justify-center mb-4">
-              <UIcon name="i-heroicons-user-group" class="w-6 h-6 text-blue-600 dark:text-blue-400" />
-            </div>
-            <h2 class="text-3xl font-bold text-gray-900 dark:text-white mb-4">Real-Time Collaboration</h2>
-            <p class="text-lg text-gray-600 dark:text-gray-400 mb-4">
-              Work together with your team. Share notes, see live cursors, and collaborate in real-time.
-            </p>
-            <ul class="space-y-2 text-gray-600 dark:text-gray-400">
-              <li class="flex items-start gap-2">
-                <UIcon name="i-heroicons-check" class="w-5 h-5 text-primary-600 dark:text-primary-400 flex-shrink-0 mt-0.5" />
-                <span>Live cursors and presence indicators</span>
-              </li>
-              <li class="flex items-start gap-2">
-                <UIcon name="i-heroicons-check" class="w-5 h-5 text-primary-600 dark:text-primary-400 flex-shrink-0 mt-0.5" />
-                <span>Share with view or edit permissions</span>
-              </li>
-              <li class="flex items-start gap-2">
-                <UIcon name="i-heroicons-check" class="w-5 h-5 text-primary-600 dark:text-primary-400 flex-shrink-0 mt-0.5" />
-                <span>Perfect for teams and knowledge sharing</span>
-              </li>
-            </ul>
-          </div>
-        </div>
-
-        <!-- Feature 5: Organization -->
+        <!-- Feature 4: Organization -->
         <div class="grid md:grid-cols-2 gap-12 items-center">
           <div>
             <div class="w-12 h-12 bg-orange-100 dark:bg-orange-900 rounded-lg flex items-center justify-center mb-4">

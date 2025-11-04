@@ -189,70 +189,8 @@ const TableExit = Extension.create({
   }
 })
 
-// Custom TaskItem extension that applies strike formatting when checked
-const TaskItemWithStrike = TaskItem.extend({
-  addProseMirrorPlugins() {
-    return [
-      new Plugin({
-        key: new PluginKey('taskItemStrike'),
-        appendTransaction(transactions, oldState, newState) {
-          // Only process if the document actually changed
-          if (!transactions.some(tr => tr.docChanged)) {
-            return null
-          }
-
-          const tr = newState.tr
-          let modified = false
-
-          // Iterate through all task items to check for checked state changes
-          newState.doc.descendants((node, pos) => {
-            if (node.type.name === 'taskItem') {
-              const isChecked = node.attrs.checked
-              const oldNode = oldState.doc.nodeAt(pos)
-              const wasChecked = oldNode?.attrs?.checked || false
-
-              // If checked state changed, apply or remove strike formatting
-              if (isChecked !== wasChecked) {
-                // Find all text nodes within the task item and apply/remove strike
-                // The task item content starts after the checkbox (pos + 1)
-                const contentStart = pos + 1
-                const contentEnd = pos + node.nodeSize - 1
-
-                newState.doc.nodesBetween(contentStart, contentEnd, (textNode, textPos) => {
-                  if (textNode.isText) {
-                    // Check if strike mark exists
-                    const hasStrike = textNode.marks.some(mark => mark.type.name === 'strike')
-                    const strikeMarkType = newState.schema.marks.strike
-                    
-                    if (!strikeMarkType) {
-                      return // Strike mark type not available
-                    }
-                    
-                    if (isChecked && !hasStrike) {
-                      // Apply strike formatting to this text node
-                      const strikeMark = strikeMarkType.create()
-                      tr.addMark(textPos, textPos + textNode.nodeSize, strikeMark)
-                      modified = true
-                    } else if (!isChecked && hasStrike) {
-                      // Remove strike formatting from this text node
-                      const strikeMark = textNode.marks.find(mark => mark.type.name === 'strike')
-                      if (strikeMark) {
-                        tr.removeMark(textPos, textPos + textNode.nodeSize, strikeMark)
-                        modified = true
-                      }
-                    }
-                  }
-                })
-              }
-            }
-          })
-
-          return modified ? tr : null
-        }
-      })
-    ]
-  }
-})
+// Using standard TaskItem (strike formatting removed for testing)
+// No custom parseHTML needed - normalization function strips wrappers before parsing
 
 // Track other users' cursors and typing positions
 const collaboratorCursors = ref<Array<{ 
@@ -373,7 +311,7 @@ const baseExtensions = [
   OrderedList,
   ListItem,
   TaskList,
-  TaskItemWithStrike.configure({
+  TaskItem.configure({
     nested: true,
     HTMLAttributes: {
       class: 'flex items-start gap-2'
@@ -996,7 +934,7 @@ onMounted(() => {
 
       // Initialize content from database if YJS doc is empty (first time sync)
       // CRITICAL: Use Y.Doc config map to track initialization (prevents overwriting collaborative content)
-      syncedHandler = () => {
+      syncedHandler = async () => {
         if (isDestroying.value) {
           console.log(`[UnifiedEditor ${props.noteId}] ⚠️ Synced event during destroy, ignoring`)
           return
@@ -1016,30 +954,277 @@ onMounted(() => {
           const config = ydoc.getMap('config')
           const initialContentLoaded = config.get('initialContentLoaded')
           
+          // CRITICAL: Even if initialContentLoaded is true, check if Y.Doc actually has meaningful content
+          // This prevents skipping initialization when Y.Doc has empty/stale content
           if (initialContentLoaded) {
-            console.log(`[UnifiedEditor ${props.noteId}] ✅ Initial content already loaded (from Y.Doc config), skipping`)
-            isInitialized.value = true
-            return
+            // Check if editor actually has content (especially task lists)
+            const editorIsEmpty = editor.value.isEmpty
+            const editorText = editor.value.state.doc.textContent.trim()
+            const editorHTML = editor.value.getHTML()
+            const editorHasTaskList = editorHTML && (
+              editorHTML.includes('data-type="taskList') ||
+              editorHTML.includes("data-type='taskList")
+            )
+            
+            // Check if initial content has task lists
+            const initialHasTaskList = props.initialContent && (
+              props.initialContent.includes('data-type="taskList') ||
+              props.initialContent.includes("data-type='taskList") ||
+              (props.initialContent.includes('<ul') && props.initialContent.includes('taskList'))
+            )
+            
+            // If editor is empty or missing task lists that should be there, force re-initialize
+            const shouldForceReinit = (editorIsEmpty || editorText.length === 0) && 
+                                     props.initialContent && 
+                                     props.initialContent.trim().length > 0
+            
+            const shouldForceTaskListReinit = initialHasTaskList && !editorHasTaskList && 
+                                             props.initialContent && 
+                                             props.initialContent.trim().length > 0
+            
+            if (shouldForceReinit || shouldForceTaskListReinit) {
+              console.log(`[UnifiedEditor ${props.noteId}] ⚠️ Y.Doc config says initialized but editor is empty/missing task lists - FORCE RE-INITIALIZING`, {
+                editorIsEmpty,
+                editorTextLength: editorText.length,
+                initialHasTaskList,
+                editorHasTaskList,
+                shouldForceReinit,
+                shouldForceTaskListReinit
+              })
+              // Reset the flag so we can initialize
+              config.set('initialContentLoaded', false)
+              // Don't return - continue with initialization below
+            } else {
+              console.log(`[UnifiedEditor ${props.noteId}] ✅ Initial content already loaded (from Y.Doc config), editor has content`)
+              isInitialized.value = true
+              return
+            }
           }
           
           // Check if editor has meaningful content (more than just empty paragraph)
+          // For task lists, we need to check HTML structure, not just textContent
+          // because task lists can have structure but minimal text
           const editorIsEmpty = editor.value.isEmpty
           const editorText = editor.value.state.doc.textContent.trim()
-          const hasContent = editorText.length > 0
+          const editorHTML = editor.value.getHTML()
+          
+          // Check if initial content has task lists (critical for preserving checkbox content)
+          const initialHasTaskList = props.initialContent && (
+            props.initialContent.includes('data-type="taskList') ||
+            props.initialContent.includes("data-type='taskList") ||
+            props.initialContent.includes('<ul') && props.initialContent.includes('taskList')
+          )
+          
+          // Check if there's actual HTML structure (not just empty paragraphs)
+          // Task lists have structure like <ul data-type="taskList"> even if text is minimal
+          const hasHTMLStructure = editorHTML && (
+            editorHTML.length > 20 || // More than just <p></p>
+            editorHTML.includes('<ul') || 
+            editorHTML.includes('<ol') ||
+            editorHTML.includes('data-type="taskList') ||
+            editorHTML.includes('<h') ||
+            editorHTML.includes('<blockquote') ||
+            editorHTML.includes('<table')
+          )
+          const hasTextContent = editorText.length > 0
+          const hasContent = hasTextContent || hasHTMLStructure
+          
+          // Check if editor has task lists
+          const editorHasTaskList = editorHTML && (
+            editorHTML.includes('data-type="taskList') ||
+            editorHTML.includes("data-type='taskList")
+          )
           
           console.log(`[UnifiedEditor ${props.noteId}] 📏 Editor state:`, {
             isEmpty: editorIsEmpty,
             textLength: editorText.length,
+            htmlLength: editorHTML.length,
+            hasTextContent,
+            hasHTMLStructure,
             hasContent,
-            initialContentLength: props.initialContent?.length || 0
+            initialHasTaskList,
+            editorHasTaskList,
+            initialContentLength: props.initialContent?.length || 0,
+            htmlPreview: editorHTML.substring(0, 100)
           })
           
+          // Helper function to normalize task list HTML for TipTap parsing
+          // CRITICAL: TipTap TaskItem parser expects content DIRECTLY in <li>, not in wrapper divs
+          // When parsing: <li data-type="taskItem" data-checked="false"><p>content</p></li>
+          // When rendering: TipTap adds <label> and <div> wrappers automatically
+          // So we must STRIP wrappers for parsing, TipTap will add them back when rendering
+          function normalizeTaskListHTML(html: string): string {
+            if (!html || !html.includes('data-type="taskList')) {
+              return html
+            }
+            
+            try {
+              console.log(`[UnifiedEditor ${props.noteId}] 🔧 Normalizing task list HTML, original length:`, html.length)
+              
+              // Create a temporary DOM element to parse and normalize
+              const temp = document.createElement('div')
+              temp.innerHTML = html
+              
+              // Find all task items and ensure they have the correct structure
+              const taskItems = temp.querySelectorAll('li[data-type="taskItem"]')
+              console.log(`[UnifiedEditor ${props.noteId}] 🔧 Found ${taskItems.length} task items to normalize`)
+              
+              taskItems.forEach((item, index) => {
+                // Get the checked state from data-checked attribute
+                const checked = item.getAttribute('data-checked') === 'true'
+                
+                // Find wrapper div and label
+                const wrapperDiv = item.querySelector('div')
+                const label = item.querySelector('label')
+                
+                // Extract content from wrapper div (this is where the actual text is)
+                let content = ''
+                if (wrapperDiv) {
+                  content = wrapperDiv.innerHTML.trim()
+                  console.log(`[UnifiedEditor ${props.noteId}] 🔧 Task item ${index} - extracted from wrapper div:`, content.substring(0, 50))
+                } else {
+                  // No wrapper div - check if content is directly in li
+                  // Remove label to see what's left
+                  const tempClone = item.cloneNode(true) as HTMLElement
+                  const labelClone = tempClone.querySelector('label')
+                  if (labelClone) {
+                    labelClone.remove()
+                  }
+                  content = tempClone.innerHTML.trim()
+                  console.log(`[UnifiedEditor ${props.noteId}] 🔧 Task item ${index} - extracted from li (no wrapper):`, content.substring(0, 50))
+                }
+                
+                // If no content found, try to get text content
+                if (!content || content === '<p></p>' || content === '') {
+                  const allText = item.textContent?.trim() || ''
+                  // Remove checkbox label text if present
+                  const labelText = label?.textContent?.trim() || ''
+                  let textContent = allText
+                  if (labelText && allText.includes(labelText)) {
+                    textContent = allText.replace(labelText, '').trim()
+                  }
+                  if (textContent) {
+                    content = `<p>${textContent}</p>`
+                    console.log(`[UnifiedEditor ${props.noteId}] 🔧 Task item ${index} - extracted from text:`, textContent.substring(0, 50))
+                  } else {
+                    content = '<p></p>'
+                  }
+                }
+                
+                // CRITICAL: Strip ALL wrapper elements (label, div) and put content directly in <li>
+                // TipTap expects: <li data-type="taskItem" data-checked="false"><p>content</p></li>
+                // It will add the wrappers when rendering, but they confuse the parser
+                item.innerHTML = content
+                
+                // Ensure data-checked attribute is set (TipTap reads this, not the checkbox)
+                item.setAttribute('data-checked', checked ? 'true' : 'false')
+                
+                // Remove any class attributes that might interfere with parsing
+                // TipTap will add its own classes when rendering
+                item.removeAttribute('class')
+                
+                console.log(`[UnifiedEditor ${props.noteId}] 🔧 Task item ${index} - normalized to:`, item.outerHTML.substring(0, 100))
+              })
+              
+              const normalized = temp.innerHTML
+              console.log(`[UnifiedEditor ${props.noteId}] 🔧 Normalized HTML length:`, normalized.length, 'original:', html.length)
+              console.log(`[UnifiedEditor ${props.noteId}] 🔧 Normalized preview:`, normalized.substring(0, 200))
+              
+              return normalized
+            } catch (error) {
+              console.error(`[UnifiedEditor ${props.noteId}] Error normalizing task list HTML:`, error)
+              return html // Return original if normalization fails
+            }
+          }
+          
+          // Normalize initial content if it has task lists
+          let normalizedContent = props.initialContent
+          if (initialHasTaskList && props.initialContent) {
+            normalizedContent = normalizeTaskListHTML(props.initialContent)
+            if (normalizedContent !== props.initialContent) {
+              console.log(`[UnifiedEditor ${props.noteId}] 🔧 Normalized task list HTML to remove wrapper elements`)
+            }
+          }
+          
+          // CRITICAL: If initial content has task lists but editor doesn't, always initialize
+          // This prevents task list content from being lost
+          if (initialHasTaskList && !editorHasTaskList && normalizedContent && normalizedContent.trim().length > 0) {
+            console.log(`[UnifiedEditor ${props.noteId}] ⚠️ Task list detected in initial content but missing in editor - FORCE INITIALIZING`)
+            console.log(`[UnifiedEditor ${props.noteId}] ⚠️ Normalized content preview:`, normalizedContent.substring(0, 200))
+            
+            editor.value.commands.setContent(normalizedContent, { emitUpdate: true })
+            
+            // Verify the content was actually set - check immediately after
+            await nextTick()
+            const afterSetHTML = editor.value.getHTML()
+            const afterSetHasTaskList = afterSetHTML.includes('data-type="taskList')
+            
+            console.log(`[UnifiedEditor ${props.noteId}] ⚠️ After setContent:`, {
+              htmlLength: afterSetHTML.length,
+              hasTaskList: afterSetHasTaskList,
+              htmlPreview: afterSetHTML.substring(0, 200)
+            })
+            
+            if (!afterSetHasTaskList) {
+              console.error(`[UnifiedEditor ${props.noteId}] ❌ CRITICAL: Task list was stripped during setContent!`)
+              console.error(`[UnifiedEditor ${props.noteId}] Original normalized:`, normalizedContent.substring(0, 500))
+              console.error(`[UnifiedEditor ${props.noteId}] After setContent:`, afterSetHTML.substring(0, 500))
+            }
+            
+            config.set('initialContentLoaded', true)
+            isInitialized.value = true
+            return
+          }
+          
           // Only set initial content if:
-          // 1. Editor is truly empty (no text content)
+          // 1. Editor is truly empty (no text content AND no HTML structure)
           // 2. We have initial content from database
           // 3. Initial content hasn't been loaded before (tracked in Y.Doc config)
           if (hasContent) {
             // Y.Doc already has content (from another client or previous session)
+            // But check if it matches the initial content - if not, we should initialize
+            // For task lists, be more strict about matching (check for task list markers)
+            const contentMatches = editorHTML === normalizedContent || 
+                                   editorHTML === props.initialContent ||
+                                   (editorHTML.length < 50 && normalizedContent && normalizedContent.length > 50) ||
+                                   (initialHasTaskList && editorHasTaskList && Math.abs(editorHTML.length - (normalizedContent?.length || 0)) < 100)
+            
+            if (!contentMatches && normalizedContent && normalizedContent.trim().length > 0) {
+              // Content doesn't match - likely Y.Doc has stale/empty content
+              // Initialize with database content (normalized)
+              console.log(`[UnifiedEditor ${props.noteId}] 🔄 Content mismatch, initializing with database content`, {
+                editorHTMLLength: editorHTML.length,
+                initialContentLength: props.initialContent?.length || 0,
+                normalizedContentLength: normalizedContent.length,
+                initialHasTaskList,
+                editorHasTaskList,
+                normalizedPreview: normalizedContent.substring(0, 200)
+              })
+              
+              editor.value.commands.setContent(normalizedContent, { emitUpdate: true })
+              
+              // Verify the content was actually set - check immediately after
+              await nextTick()
+              const afterSetHTML = editor.value.getHTML()
+              const afterSetHasTaskList = afterSetHTML.includes('data-type="taskList')
+              
+              console.log(`[UnifiedEditor ${props.noteId}] 🔄 After setContent:`, {
+                htmlLength: afterSetHTML.length,
+                hasTaskList: afterSetHasTaskList,
+                htmlPreview: afterSetHTML.substring(0, 200)
+              })
+              
+              if (initialHasTaskList && !afterSetHasTaskList) {
+                console.error(`[UnifiedEditor ${props.noteId}] ❌ CRITICAL: Task list was stripped during setContent!`)
+                console.error(`[UnifiedEditor ${props.noteId}] Original normalized:`, normalizedContent.substring(0, 500))
+                console.error(`[UnifiedEditor ${props.noteId}] After setContent:`, afterSetHTML.substring(0, 500))
+              }
+              
+              config.set('initialContentLoaded', true)
+              isInitialized.value = true
+              return
+            }
+            
             // Mark as initialized and trust Y.Doc's content
             console.log(`[UnifiedEditor ${props.noteId}] 📦 Y.Doc already has content, trusting collaborative state`)
             config.set('initialContentLoaded', true)
@@ -1048,11 +1233,51 @@ onMounted(() => {
           }
           
           // Editor is empty, check if we should initialize from database
-          if (props.initialContent && props.initialContent.trim().length > 0) {
+          if (normalizedContent && normalizedContent.trim().length > 0) {
             console.log(`[UnifiedEditor ${props.noteId}] 📝 Initializing editor with database content (first time)`)
+            console.log(`[UnifiedEditor ${props.noteId}] 📝 Normalized content preview:`, normalizedContent.substring(0, 200))
             
             // Set content with emitUpdate: true to sync to Y.Doc for other collaborators
-            editor.value.commands.setContent(props.initialContent, { emitUpdate: true })
+            editor.value.commands.setContent(normalizedContent, { emitUpdate: true })
+            
+            // Verify the content was actually set - check immediately after
+            await nextTick()
+            const afterSetHTML = editor.value.getHTML()
+            const afterSetHasTaskList = afterSetHTML.includes('data-type="taskList')
+            
+            // Check TipTap's internal document structure to see if it parsed as taskItems
+            const doc = editor.value.state.doc
+            let taskItemCount = 0
+            let listItemCount = 0
+            doc.descendants((node) => {
+              if (node.type.name === 'taskItem') {
+                taskItemCount++
+              } else if (node.type.name === 'listItem') {
+                listItemCount++
+              }
+            })
+            
+            console.log(`[UnifiedEditor ${props.noteId}] 📝 After setContent:`, {
+              htmlLength: afterSetHTML.length,
+              hasTaskList: afterSetHasTaskList,
+              htmlPreview: afterSetHTML.substring(0, 200),
+              taskItemNodes: taskItemCount,
+              listItemNodes: listItemCount,
+              docStructure: doc.content.content.map(n => ({ type: n.type.name, attrs: n.attrs }))
+            })
+            
+            if (taskItemCount === 0 && initialHasTaskList) {
+              console.error(`[UnifiedEditor ${props.noteId}] ❌ CRITICAL: TipTap parsed task lists as regular list items!`)
+              console.error(`[UnifiedEditor ${props.noteId}] Task items found: ${taskItemCount}, List items found: ${listItemCount}`)
+              console.error(`[UnifiedEditor ${props.noteId}] Original normalized:`, normalizedContent.substring(0, 500))
+              console.error(`[UnifiedEditor ${props.noteId}] After setContent HTML:`, afterSetHTML.substring(0, 500))
+            }
+            
+            if (initialHasTaskList && !afterSetHasTaskList) {
+              console.error(`[UnifiedEditor ${props.noteId}] ❌ CRITICAL: Task list was stripped during setContent!`)
+              console.error(`[UnifiedEditor ${props.noteId}] Original normalized:`, normalizedContent.substring(0, 500))
+              console.error(`[UnifiedEditor ${props.noteId}] After setContent:`, afterSetHTML.substring(0, 500))
+            }
             
             // Mark as initialized in Y.Doc config map (prevents re-initialization)
             config.set('initialContentLoaded', true)

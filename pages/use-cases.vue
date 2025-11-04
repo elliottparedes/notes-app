@@ -141,35 +141,6 @@ setPageSEO({
         </div>
 
         <div class="grid md:grid-cols-2 gap-12 items-center">
-          <div class="order-2 md:order-1 bg-gray-100 dark:bg-gray-800 rounded-xl overflow-hidden shadow-2xl ring-1 ring-gray-200 dark:ring-gray-700 cursor-pointer transition-transform hover:scale-[1.02]" @click="openImageModal('/collab.png')">
-            <img src="/collab.png" alt="Team Collaboration Preview" class="w-full h-full object-cover" />
-          </div>
-          <div class="order-1 md:order-2">
-            <div class="w-12 h-12 bg-green-100 dark:bg-green-900 rounded-lg flex items-center justify-center mb-4">
-              <UIcon name="i-heroicons-user-group" class="w-6 h-6 text-green-600 dark:text-green-400" />
-            </div>
-            <h2 class="text-3xl font-bold text-gray-900 dark:text-white mb-4">Team Collaboration</h2>
-            <p class="text-lg text-gray-600 dark:text-gray-400 mb-4">
-              Share knowledge and collaborate in real-time. Perfect for teams building documentation, sharing meeting notes, or working together on projects.
-            </p>
-            <ul class="space-y-2 text-gray-600 dark:text-gray-400">
-              <li class="flex items-start gap-2">
-                <UIcon name="i-heroicons-check" class="w-5 h-5 text-primary-600 dark:text-primary-400 flex-shrink-0 mt-0.5" />
-                <span>Team knowledge bases</span>
-              </li>
-              <li class="flex items-start gap-2">
-                <UIcon name="i-heroicons-check" class="w-5 h-5 text-primary-600 dark:text-primary-400 flex-shrink-0 mt-0.5" />
-                <span>Shared documentation</span>
-              </li>
-              <li class="flex items-start gap-2">
-                <UIcon name="i-heroicons-check" class="w-5 h-5 text-primary-600 dark:text-primary-400 flex-shrink-0 mt-0.5" />
-                <span>Real-time collaborative editing</span>
-              </li>
-            </ul>
-          </div>
-        </div>
-
-        <div class="grid md:grid-cols-2 gap-12 items-center">
           <div>
             <div class="w-12 h-12 bg-purple-100 dark:bg-purple-900 rounded-lg flex items-center justify-center mb-4">
               <UIcon name="i-heroicons-academic-cap" class="w-6 h-6 text-purple-600 dark:text-purple-400" />

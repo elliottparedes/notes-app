@@ -77,22 +77,6 @@ const showNoteCreationMenu = ref(false);
 const showUserMenu = ref(false);
 
 // Shared notes section state - persist to localStorage
-const isSharedNotesExpanded = ref(true);
-
-// Load saved state from localStorage on mount
-if (process.client) {
-  const savedState = localStorage.getItem('sharedNotesExpanded');
-  if (savedState !== null) {
-    isSharedNotesExpanded.value = savedState === 'true';
-  }
-}
-
-// Save state to localStorage when it changes
-watch(isSharedNotesExpanded, (newValue) => {
-  if (process.client) {
-    localStorage.setItem('sharedNotesExpanded', String(newValue));
-  }
-});
 
 // Desktop sidebar visibility state - persist to localStorage
 const isDesktopSidebarVisible = ref(true);
@@ -176,12 +160,6 @@ const showRecipeImportModal = ref(false);
 const recipeUrl = ref('');
 const isImportingRecipe = ref(false);
 
-// Share note modal
-const showShareModal = ref(false);
-const shareUserSearch = ref('');
-const userSearchResults = ref<Array<{ id: number; email: string; name: string | null }>>([]);
-const sharePermission = ref<'viewer' | 'editor'>('editor');
-const selectedUsersToShare = ref<Array<{ id: number; email: string; name: string | null }>>([]);
 
 // Session key to force re-render on new sessions
 const sessionKey = ref('default');
@@ -1407,259 +1385,7 @@ async function deleteFolder() {
   }
 }
 
-// Share note functions
-function openShareModal() {
-  if (!activeNote.value) return;
-  showShareModal.value = true;
-  shareUserSearch.value = '';
-  userSearchResults.value = [];
-  selectedUsersToShare.value = [];
-}
-
-async function searchUsers() {
-  if (shareUserSearch.value.length < 2) {
-    userSearchResults.value = [];
-    return;
-  }
-
-  try {
-    const results = await sharedNotesStore.searchUsers(shareUserSearch.value);
-    // Filter out users that are already selected
-    const selectedIds = selectedUsersToShare.value.map(u => u.id);
-    userSearchResults.value = results.filter(user => !selectedIds.includes(user.id));
-  } catch (error) {
-    console.error('User search error:', error);
-  }
-}
-
-function selectUserToShare(user: { id: number; email: string; name: string | null }) {
-  // Check if user is already selected
-  if (selectedUsersToShare.value.some(u => u.id === user.id)) {
-    return;
-  }
-  
-  selectedUsersToShare.value.push(user);
-  shareUserSearch.value = ''; // Clear input so user can search for more
-  userSearchResults.value = [];
-}
-
-function removeUserFromShare(userId: number) {
-  selectedUsersToShare.value = selectedUsersToShare.value.filter(u => u.id !== userId);
-  // Re-search if there's a search query to refresh the dropdown
-  if (shareUserSearch.value.length >= 2) {
-    searchUsers();
-  }
-}
-
-async function shareNote() {
-  if (!activeNote.value || selectedUsersToShare.value.length === 0) return;
-
-  try {
-    // Save the current note content BEFORE sharing to prevent data loss
-    // This ensures any unsaved edits are preserved, especially for list notes
-    const currentNoteId = activeNote.value.id;
-    
-    // Get content directly from TiptapEditor if available (for list notes, this ensures we get the latest HTML)
-    // This is critical because editForm.content might not be synced yet, especially for list notes with TaskItemWithStrike
-    let currentContent = '';
-    let contentSource = 'unknown';
-    
-    // Wait for editor to be ready and any pending updates (especially TaskItemWithStrike plugin)
-    await nextTick();
-    // Give TaskItemWithStrike plugin time to finish applying strike marks if needed
-    await new Promise(resolve => setTimeout(resolve, 50));
-    
-    if (tiptapEditorRef.value?.getHTML) {
-      // Get content directly from editor (most reliable for list notes)
-      // This bypasses any timing issues with editForm.content sync
-      // The TaskItemWithStrike plugin modifies content, so getting directly from editor ensures we get the final state
-      currentContent = tiptapEditorRef.value.getHTML();
-      contentSource = 'tiptapEditor';
-      console.log('[Dashboard] Got content directly from TiptapEditor', {
-        contentLength: currentContent.length,
-        hasContent: !!currentContent,
-        preview: currentContent.substring(0, 100) // Preview first 100 chars for debugging
-      });
-    } else if (editForm.content) {
-      // Use editForm if available
-      currentContent = editForm.content;
-      contentSource = 'editForm';
-      console.log('[Dashboard] Using content from editForm', {
-        contentLength: currentContent.length
-      });
-    } else if (activeNote.value.content) {
-      // Fallback to activeNote
-      currentContent = activeNote.value.content;
-      contentSource = 'activeNote';
-      console.log('[Dashboard] Using content from activeNote', {
-        contentLength: currentContent.length
-      });
-    }
-    
-    const currentTitle = editForm.title || activeNote.value.title || '';
-    
-    console.log('[Dashboard] Preparing to share note', {
-      noteId: currentNoteId,
-      contentLength: currentContent.length,
-      contentSource,
-      title: currentTitle,
-      hasContent: !!currentContent,
-      hasTitle: !!currentTitle
-    });
-    
-    // If we still don't have content, this is a critical error
-    if (!currentContent) {
-      console.error('[Dashboard] CRITICAL: No content found to share!', {
-        noteId: currentNoteId,
-        tiptapEditorAvailable: !!tiptapEditorRef.value?.getHTML,
-        editFormContent: editForm.content,
-        editFormContentLength: editForm.content?.length || 0,
-        activeNoteContent: activeNote.value.content,
-        activeNoteContentLength: activeNote.value.content?.length || 0
-      });
-      
-      // Try one more time to get content - force editor sync
-      await nextTick();
-      if (tiptapEditorRef.value?.getHTML) {
-        currentContent = tiptapEditorRef.value.getHTML();
-        if (currentContent) {
-          console.log('[Dashboard] Successfully got content on retry', {
-            contentLength: currentContent.length
-          });
-        }
-      }
-      
-      // If still no content, show error and abort
-      if (!currentContent) {
-        toast.add({
-          title: 'Error',
-          description: 'Cannot share note: Content is empty. Please ensure the note has content before sharing.',
-          color: 'error'
-        });
-        return;
-      }
-    }
-    
-    // Save current state to database before sharing
-    // This ensures the content is persisted before we switch to collaborative mode
-    try {
-      await notesStore.updateNote(currentNoteId, {
-        title: currentTitle,
-        content: currentContent, // Use the content we just retrieved
-        tags: editForm.tags || activeNote.value.tags || [],
-        folder_id: editForm.folder_id ?? activeNote.value.folder_id ?? null
-      });
-      console.log('[Dashboard] Note content saved before sharing', {
-        contentLength: currentContent.length,
-        title: currentTitle,
-        contentSource
-      });
-    } catch (saveError) {
-      console.error('[Dashboard] Failed to save note before sharing:', saveError);
-      toast.add({
-        title: 'Error',
-        description: 'Failed to save note before sharing. Please try again.',
-        color: 'error'
-      });
-      return; // Abort sharing if save fails
-    }
-
-    // Store the content we just saved - this is what we want to preserve
-    const savedContent = currentContent;
-    const savedTitle = currentTitle;
-    
-    // CRITICAL: Also update editForm.content to ensure it's available for CollaborativeEditor
-    // This is especially important for task lists where content might not be in activeNote yet
-    editForm.content = savedContent;
-    console.log('[Dashboard] Updated editForm.content with saved content before sharing', {
-      contentLength: savedContent.length,
-      preview: savedContent.substring(0, 200)
-    });
-
-    const sharePromises = selectedUsersToShare.value.map(user =>
-      sharedNotesStore.shareNote(
-        activeNote.value!.id,
-        user.email,
-        sharePermission.value
-      )
-    );
-
-    await Promise.all(sharePromises);
-
-    // Refresh notes to update the is_shared field
-    await notesStore.fetchNotes();
-    
-    // CRITICAL: Restore the saved content IMMEDIATELY after fetchNotes() - this is essential for list notes
-    // fetchNotes() might return stale/empty content, especially for list notes with TaskItemWithStrike
-    // We must restore the content we just saved to ensure it's preserved BEFORE CollaborativeEditor initializes
-    const noteIndex = notesStore.notes.findIndex(n => n.id === currentNoteId);
-    if (noteIndex !== -1 && notesStore.notes[noteIndex]) {
-      // Always restore the content we just saved, regardless of what fetchNotes returned
-      // This is especially important for list notes where the content might not sync properly
-      notesStore.notes[noteIndex].content = savedContent;
-      notesStore.notes[noteIndex].title = savedTitle || notesStore.notes[noteIndex].title || '';
-      console.log('[Dashboard] Restored saved content after fetchNotes', {
-        contentLength: savedContent.length,
-        restored: true,
-        noteIndex,
-        preview: savedContent.substring(0, 200) // Debug preview
-      });
-    }
-    
-    // Also update currentNote if it exists (this affects activeNote computed property)
-    // This MUST happen BEFORE CollaborativeEditor initializes
-    if (notesStore.currentNote && notesStore.currentNote.id === currentNoteId) {
-      notesStore.currentNote.content = savedContent;
-      notesStore.currentNote.title = savedTitle || notesStore.currentNote.title || '';
-      console.log('[Dashboard] Updated currentNote with saved content', {
-        contentLength: savedContent.length,
-        preview: savedContent.substring(0, 200)
-      });
-    }
-    
-    // CRITICAL: Update activeNote.value directly if it's the same note
-    // This ensures UnifiedEditor gets the correct initialContent prop
-    if (activeNote.value && activeNote.value.id === currentNoteId) {
-      activeNote.value.content = savedContent;
-      activeNote.value.title = savedTitle || activeNote.value.title || '';
-      console.log('[Dashboard] Updated activeNote.value directly with saved content', {
-        contentLength: savedContent.length,
-        hasContent: !!savedContent,
-        preview: savedContent.substring(0, 200)
-      });
-    }
-    
-    // CRITICAL: Also update editForm.content so UnifiedEditor gets it as initialContent
-    // This is the most reliable way to ensure content is passed to UnifiedEditor
-    editForm.content = savedContent;
-    console.log('[Dashboard] Updated editForm.content with saved content for UnifiedEditor', {
-      contentLength: savedContent.length,
-      preview: savedContent.substring(0, 200)
-    });
-    
-    // Wait for Vue reactivity to update before UnifiedEditor initializes
-    await nextTick();
-    // Give an extra tick to ensure all reactive updates have propagated
-    await nextTick();
-
-    const userNames = selectedUsersToShare.value.map(u => u.name || u.email).join(', ');
-    toast.add({
-      title: 'Success',
-      description: `Note shared with ${userNames}`,
-      color: 'success'
-    });
-
-    showShareModal.value = false;
-    shareUserSearch.value = '';
-    selectedUsersToShare.value = [];
-  } catch (error: any) {
-    toast.add({
-      title: 'Error',
-      description: error.data?.message || 'Failed to share note',
-      color: 'error'
-    });
-  }
-}
+// Share note functions - REMOVED (collaboration feature disabled)
 
 async function removeShare(shareId: number) {
   try {
@@ -1738,10 +1464,6 @@ async function removeShare(shareId: number) {
   }
 }
 
-async function handleOpenSharedNote(share: any) {
-  await notesStore.openTab(share.note_id);
-  isMobileSidebarOpen.value = false;
-}
 
 // Computed for current note shares
 const currentNoteShares = computed(() => {
@@ -3115,72 +2837,6 @@ onMounted(() => {
             </div>
           </div>
 
-          <!-- Shared Notes Section -->
-          <div class="mt-6">
-            <button 
-              @click="isSharedNotesExpanded = !isSharedNotesExpanded"
-              class="w-full flex items-center justify-between px-3 py-1.5 mb-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors group"
-            >
-              <h3 class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider flex items-center gap-2">
-                <UIcon 
-                  name="i-heroicons-chevron-right" 
-                  class="w-3.5 h-3.5 transition-transform duration-200"
-                  :class="isSharedNotesExpanded ? 'rotate-90' : ''"
-                />
-                <UIcon name="i-heroicons-user-group" class="w-3.5 h-3.5" />
-                Shared
-              </h3>
-              <span class="text-xs px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 group-hover:bg-purple-200 dark:group-hover:bg-purple-900/50 transition-colors">
-                {{ sharedNotesStore.groupedSharedNotes.length }}
-              </span>
-            </button>
-
-            <!-- Shared notes list -->
-            <Transition name="expand-shared">
-              <div v-if="isSharedNotesExpanded && sharedNotesStore.groupedSharedNotes.length > 0" class="shared-notes-container">
-                <div class="shared-notes-content space-y-0.5">
-                  <div
-                    v-for="share in sharedNotesStore.groupedSharedNotes"
-                    :key="`share-${share.note_id}`"
-                    @click="handleOpenSharedNote(share)"
-                    class="group flex items-start gap-2 px-3 py-2 rounded-lg cursor-pointer transition-colors hover:bg-purple-50 dark:hover:bg-purple-900/20"
-                    :class="notesStore.activeTabId === share.note_id ? 'bg-purple-100 dark:bg-purple-900/30' : ''"
-                  >
-                    <UIcon 
-                      :name="share.is_owned_by_me ? 'i-heroicons-arrow-up-tray' : 'i-heroicons-arrow-down-tray'" 
-                      class="w-4 h-4 flex-shrink-0 text-purple-600 dark:text-purple-400 mt-0.5" 
-                    />
-                    <div class="flex-1 min-w-0">
-                      <p class="text-sm font-medium text-gray-900 dark:text-white truncate">
-                        {{ share.note_title }}
-                      </p>
-                      <p class="text-xs text-gray-500 dark:text-gray-400 truncate">
-                        {{ share.is_owned_by_me ? 
-                           (share.shareCount > 1 ? `Shared with ${share.shareCount} people` : `Shared with ${share.shared_with_name || share.shared_with_email}`) : 
-                           `From ${share.owner_name || share.owner_email}` }}
-                      </p>
-                    </div>
-                    <UBadge 
-                      :color="share.permission === 'editor' ? 'primary' : 'neutral'" 
-                      size="xs"
-                      class="flex-shrink-0"
-                    >
-                      {{ share.permission }}
-                    </UBadge>
-                  </div>
-                </div>
-              </div>
-            </Transition>
-
-            <Transition name="expand-shared">
-              <div v-if="isSharedNotesExpanded && sharedNotesStore.groupedSharedNotes.length === 0" class="shared-notes-container">
-                <div class="shared-notes-content px-3 py-6 text-center">
-                  <UIcon name="i-heroicons-user-group" class="w-10 h-10 mx-auto text-gray-300 dark:text-gray-600 mb-2" />
-                  <p class="text-xs text-gray-500 dark:text-gray-400">No shared notes yet</p>
-                </div>
-              </div>
-            </Transition>
-          </div>
         </div>
 
         <!-- Sidebar Footer -->
@@ -3541,72 +3197,6 @@ onMounted(() => {
                   </div>
                 </div>
 
-                <!-- Shared Notes Section (Mobile) -->
-                <div class="mt-6">
-                  <button 
-                    @click="isSharedNotesExpanded = !isSharedNotesExpanded"
-                    class="w-full flex items-center justify-between px-1 py-2 mb-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors group"
-                  >
-                    <h3 class="text-base md:text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider flex items-center gap-2">
-                      <UIcon 
-                        name="i-heroicons-chevron-right" 
-                        class="w-5 h-5 md:w-3.5 md:h-3.5 transition-transform duration-200"
-                        :class="isSharedNotesExpanded ? 'rotate-90' : ''"
-                      />
-                      <UIcon name="i-heroicons-user-group" class="w-5 h-5 md:w-3.5 md:h-3.5" />
-                      Shared
-                    </h3>
-                    <span class="text-xs px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 group-hover:bg-purple-200 dark:group-hover:bg-purple-900/50 transition-colors">
-                      {{ sharedNotesStore.groupedSharedNotes.length }}
-                    </span>
-                  </button>
-
-                  <!-- Shared notes list -->
-                  <Transition name="expand-shared">
-                    <div v-if="isSharedNotesExpanded && sharedNotesStore.groupedSharedNotes.length > 0" class="shared-notes-container">
-                      <div class="shared-notes-content space-y-0.5">
-                        <div
-                          v-for="share in sharedNotesStore.groupedSharedNotes"
-                          :key="`share-mobile-${share.note_id}`"
-                          @click="handleOpenSharedNote(share)"
-                          class="group flex items-start gap-3 md:gap-2 px-1 md:px-3 py-3 md:py-2 rounded-lg cursor-pointer transition-colors hover:bg-purple-50 dark:hover:bg-purple-900/20"
-                          :class="notesStore.activeTabId === share.note_id ? 'bg-purple-100 dark:bg-purple-900/30' : ''"
-                        >
-                          <UIcon 
-                            :name="share.is_owned_by_me ? 'i-heroicons-arrow-up-tray' : 'i-heroicons-arrow-down-tray'" 
-                            class="w-6 h-6 md:w-4 md:h-4 flex-shrink-0 text-purple-600 dark:text-purple-400 mt-0.5" 
-                          />
-                          <div class="flex-1 min-w-0">
-                            <p class="text-lg md:text-sm font-medium text-gray-900 dark:text-white truncate">
-                              {{ share.note_title }}
-                            </p>
-                            <p class="text-base md:text-xs text-gray-500 dark:text-gray-400 truncate">
-                              {{ share.is_owned_by_me ? 
-                                 (share.shareCount > 1 ? `Shared with ${share.shareCount} people` : `Shared with ${share.shared_with_name || share.shared_with_email}`) : 
-                                 `From ${share.owner_name || share.owner_email}` }}
-                            </p>
-                          </div>
-                          <UBadge 
-                            :color="share.permission === 'editor' ? 'primary' : 'neutral'" 
-                            size="xs"
-                            class="flex-shrink-0"
-                          >
-                            {{ share.permission }}
-                          </UBadge>
-                        </div>
-                      </div>
-                    </div>
-                  </Transition>
-
-                  <Transition name="expand-shared">
-                    <div v-if="isSharedNotesExpanded && sharedNotesStore.groupedSharedNotes.length === 0" class="shared-notes-container">
-                      <div class="shared-notes-content px-3 py-6 text-center">
-                        <UIcon name="i-heroicons-user-group" class="w-10 h-10 mx-auto text-gray-300 dark:text-gray-600 mb-2" />
-                        <p class="text-sm md:text-xs text-gray-500 dark:text-gray-400">No shared notes yet</p>
-                      </div>
-                    </div>
-                  </Transition>
-                </div>
               </div>
 
               <!-- Drawer Footer -->
@@ -3688,16 +3278,6 @@ onMounted(() => {
                   :class="isPolishing ? 'animate-spin' : ''" 
                   class="w-4 h-4" 
                 />
-              </button>
-              
-              <!-- Share Note Button -->
-              <button
-                v-if="activeNote.user_id === authStore.currentUser?.id"
-                @click="openShareModal"
-                class="p-2 rounded-lg transition-colors hover:bg-blue-50 dark:hover:bg-blue-900/20 text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400"
-                title="Share Note"
-              >
-                <UIcon name="i-heroicons-user-plus" class="w-4 h-4" />
               </button>
               
               <!-- Publish/Unpublish Note Button -->
@@ -3840,16 +3420,6 @@ onMounted(() => {
                     :class="isPolishing ? 'animate-spin' : ''" 
                     class="w-5 h-5" 
                   />
-                </button>
-                
-                <!-- Share Note Button -->
-                <button
-                  v-if="activeNote.user_id === authStore.currentUser?.id"
-                  @click="openShareModal"
-                  class="p-2 rounded-lg transition-colors hover:bg-blue-50 dark:hover:bg-blue-900/20 text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400"
-                  title="Share Note"
-                >
-                  <UIcon name="i-heroicons-user-plus" class="w-5 h-5" />
                 </button>
                 
                 <!-- Publish/Unpublish Note Button -->
@@ -4577,144 +4147,6 @@ onMounted(() => {
                 </p>
                 <UButton color="primary" variant="soft" @click="showShortcutsModal = false">Got it</UButton>
               </div>
-            </div>
-          </div>
-        </div>
-      </Transition>
-    </Teleport>
-
-    <!-- Share Note Modal -->
-    <Teleport to="body">
-      <Transition name="modal">
-        <div v-if="showShareModal" class="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" @click="showShareModal = false" />
-          <div class="relative bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-lg w-full p-6 border border-gray-200 dark:border-gray-700">
-            <!-- Icon -->
-            <div class="flex items-center justify-center w-12 h-12 mx-auto mb-4 bg-blue-100 dark:bg-blue-900/30 rounded-full">
-              <UIcon name="i-heroicons-user-plus" class="w-6 h-6 text-blue-600 dark:text-blue-400" />
-            </div>
-
-            <!-- Title -->
-            <h3 class="text-lg font-semibold text-gray-900 dark:text-white text-center mb-2">
-              Share Note
-            </h3>
-
-            <!-- Description -->
-            <p class="text-sm text-gray-600 dark:text-gray-400 text-center mb-6">
-              Collaborate in real-time with other users
-            </p>
-
-            <!-- User search -->
-            <div class="mb-4">
-              <label class="text-sm font-medium mb-2 block text-gray-700 dark:text-gray-300">Share with users</label>
-              <input
-                v-model="shareUserSearch"
-                @input="searchUsers"
-                type="text"
-                placeholder="Search by email or name..."
-                class="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-              
-              <!-- Selected users -->
-              <div v-if="selectedUsersToShare.length > 0" class="mt-2 flex flex-wrap gap-2">
-                <div
-                  v-for="user in selectedUsersToShare"
-                  :key="user.id"
-                  class="inline-flex items-center gap-2 px-3 py-1.5 bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 rounded-lg text-sm"
-                >
-                  <div class="w-5 h-5 bg-gradient-to-br from-primary-400 to-primary-600 rounded-full flex items-center justify-center text-white text-xs font-semibold">
-                    {{ (user.name || user.email).charAt(0).toUpperCase() }}
-                  </div>
-                  <span class="font-medium">{{ user.name || user.email }}</span>
-                  <button
-                    @click="removeUserFromShare(user.id)"
-                    type="button"
-                    class="ml-1 hover:bg-primary-200 dark:hover:bg-primary-800 rounded p-0.5 transition-colors"
-                  >
-                    <UIcon name="i-heroicons-x-mark" class="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-              
-              <!-- Search results -->
-              <div v-if="userSearchResults.length > 0" class="mt-2 border border-gray-200 dark:border-gray-700 rounded-lg max-h-40 overflow-y-auto">
-                <button
-                  v-for="user in userSearchResults"
-                  :key="user.id"
-                  @click="selectUserToShare(user)"
-                  type="button"
-                  class="w-full px-4 py-2.5 text-left hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex items-center gap-3"
-                >
-                  <div class="w-8 h-8 bg-gradient-to-br from-blue-400 to-blue-600 rounded-full flex items-center justify-center text-white text-xs font-semibold">
-                    {{ (user.name || user.email).charAt(0).toUpperCase() }}
-                  </div>
-                  <div class="flex-1 min-w-0">
-                    <p class="font-medium text-gray-900 dark:text-white truncate">{{ user.name || user.email }}</p>
-                    <p class="text-xs text-gray-500 dark:text-gray-400 truncate">{{ user.email }}</p>
-                  </div>
-                </button>
-              </div>
-            </div>
-
-            <!-- Permission selector -->
-            <div class="mb-6">
-              <label class="text-sm font-medium mb-2 block text-gray-700 dark:text-gray-300">Permission</label>
-              <select 
-                v-model="sharePermission" 
-                class="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value="editor">Can Edit</option>
-                <option value="viewer">Can View Only</option>
-              </select>
-            </div>
-
-            <!-- Current shares list -->
-            <div v-if="currentNoteShares.length > 0" class="mb-6">
-              <h4 class="text-sm font-medium mb-3 text-gray-700 dark:text-gray-300">Currently shared with:</h4>
-              <div class="space-y-2">
-                <div
-                  v-for="share in currentNoteShares"
-                  :key="share.id"
-                  class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg"
-                >
-                  <div class="flex items-center gap-3 flex-1 min-w-0">
-                    <div class="w-8 h-8 bg-gradient-to-br from-purple-400 to-purple-600 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0">
-                      {{ (share.shared_with_name || share.shared_with_email).charAt(0).toUpperCase() }}
-                    </div>
-                    <div class="flex-1 min-w-0">
-                      <p class="text-sm font-medium text-gray-900 dark:text-white truncate">{{ share.shared_with_name || share.shared_with_email }}</p>
-                      <p class="text-xs text-gray-500 dark:text-gray-400">{{ share.permission }}</p>
-                    </div>
-                  </div>
-                  <button
-                    @click="removeShare(share.id)"
-                    type="button"
-                    class="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                    title="Remove share"
-                  >
-                    <UIcon name="i-heroicons-x-mark" class="w-5 h-5" />
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <div class="flex gap-3">
-              <UButton 
-                color="neutral" 
-                variant="soft" 
-                block 
-                @click="showShareModal = false"
-              >
-                Close
-              </UButton>
-              <UButton 
-                color="primary" 
-                block 
-                @click="shareNote"
-                :disabled="selectedUsersToShare.length === 0"
-              >
-                Share {{ selectedUsersToShare.length > 0 ? `(${selectedUsersToShare.length})` : '' }}
-              </UButton>
             </div>
           </div>
         </div>

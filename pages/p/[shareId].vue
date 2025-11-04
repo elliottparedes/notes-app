@@ -80,15 +80,13 @@ useHead({
 </script>
 
 <template>
-  <div class="min-h-screen bg-white dark:bg-gray-900">
+  <div class="min-h-screen bg-white dark:bg-gray-900 flex flex-col">
     <!-- Header -->
-    <header class="border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-800 sticky top-0 z-10">
+    <header class="border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-800 fixed top-0 left-0 right-0 z-10 flex-shrink-0">
       <div class="max-w-4xl mx-auto px-4 py-4">
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-3">
-            <div class="w-10 h-10 bg-gradient-to-br from-primary-500 to-primary-600 rounded-lg flex items-center justify-center">
-              <UIcon name="i-heroicons-document-text" class="w-6 h-6 text-white" />
-            </div>
+            <img src="/swan-unfold.png" alt="The Swan" class="w-10 h-10 flex-shrink-0" />
             <div>
               <h1 class="text-lg font-semibold text-gray-900 dark:text-white">
                 {{ publishedNote?.note_title || 'Published Note' }}
@@ -123,26 +121,31 @@ useHead({
     </header>
 
     <!-- Loading State -->
-    <div v-if="isLoading" class="max-w-4xl mx-auto px-4 py-12">
+    <div v-if="isLoading" class="flex-1 flex items-center justify-center">
+      <div class="max-w-4xl mx-auto px-4 py-12">
       <div class="animate-pulse space-y-4">
         <div class="h-8 bg-gray-200 dark:bg-gray-700 rounded w-3/4"></div>
         <div class="h-4 bg-gray-200 dark:bg-gray-700 rounded"></div>
         <div class="h-4 bg-gray-200 dark:bg-gray-700 rounded w-5/6"></div>
       </div>
+      </div>
     </div>
 
     <!-- Error State -->
-    <div v-else-if="error" class="max-w-4xl mx-auto px-4 py-12">
+    <div v-else-if="error" class="flex-1 flex items-center justify-center">
+      <div class="max-w-4xl mx-auto px-4 py-12">
       <div class="text-center">
         <UIcon name="i-heroicons-exclamation-triangle" class="w-12 h-12 text-red-500 mx-auto mb-4" />
         <h2 class="text-xl font-semibold text-gray-900 dark:text-white mb-2">Note Not Found</h2>
         <p class="text-gray-600 dark:text-gray-400">{{ error }}</p>
       </div>
+      </div>
     </div>
 
     <!-- Note Content -->
-    <main v-else-if="publishedNote" class="max-w-4xl mx-auto px-4 py-8">
-      <!-- Attachments Section -->
+    <main v-else-if="publishedNote" class="flex-1 overflow-y-auto pt-[73px]">
+      <div class="max-w-4xl mx-auto px-4 py-8">
+        <!-- Attachments Section -->
       <div v-if="attachments.length > 0" class="mb-8 pb-6 border-b border-gray-200 dark:border-gray-700">
         <div v-if="isLoadingAttachments" class="text-center py-2">
           <UIcon name="i-heroicons-arrow-path" class="w-4 h-4 animate-spin mx-auto text-gray-400" />
@@ -189,6 +192,7 @@ useHead({
           </span>
         </div>
       </footer>
+      </div>
     </main>
   </div>
 </template>
@@ -239,6 +243,47 @@ useHead({
 
 .note-content :deep(li) {
   margin-bottom: 0.5rem;
+}
+
+/* Task list styles - override default ul styles */
+.note-content :deep(ul[data-type="taskList"]) {
+  list-style: none;
+  padding-left: 0;
+  margin-left: 0;
+}
+
+.note-content :deep(ul[data-type="taskList"] li[data-type="taskItem"]) {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.note-content :deep(ul[data-type="taskList"] li[data-type="taskItem"] > label) {
+  flex: 0 0 auto;
+  margin-right: 0.5rem;
+  user-select: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  margin-top: 0.125rem;
+}
+
+.note-content :deep(ul[data-type="taskList"] li[data-type="taskItem"] > label input[type="checkbox"]) {
+  cursor: pointer;
+  width: 1rem;
+  height: 1rem;
+  margin: 0;
+}
+
+.note-content :deep(ul[data-type="taskList"] li[data-type="taskItem"] > div) {
+  flex: 1 1 auto;
+}
+
+/* Strikethrough for checked task items */
+.note-content :deep(ul[data-type="taskList"] li[data-type="taskItem"][data-checked="true"] > div) {
+  text-decoration: line-through;
+  opacity: 0.7;
 }
 
 .note-content :deep(code) {
