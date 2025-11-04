@@ -780,6 +780,14 @@ function getSubmenuPosition(buttonKey: string) {
   }
 }
 
+// Formatting handlers
+function applyInlineCode() {
+  if (!editor.value) return
+  // Toggle code mark - works with or without selection
+  editor.value.chain().focus().toggleCode().run()
+  closeContextMenu()
+}
+
 // Link handlers
 function setLink() {
   const previousUrl = editor.value?.getAttributes('link').href
@@ -1516,7 +1524,7 @@ onBeforeUnmount(() => {
             <span class="line-through w-5">S</span>
             <span class="flex-1 text-left">Strike</span>
           </button>
-          <button @click="editor?.chain().focus().toggleCode().run(); closeContextMenu()" class="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors" :class="editor?.isActive('code') ? 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20' : 'text-gray-700 dark:text-gray-300'">
+          <button @click="applyInlineCode" class="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors" :class="editor?.isActive('code') ? 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20' : 'text-gray-700 dark:text-gray-300'">
             <span class="font-mono text-xs w-5">&lt;/&gt;</span>
             <span class="flex-1 text-left">Code</span>
           </button>
@@ -1531,15 +1539,15 @@ onBeforeUnmount(() => {
           :style="{ bottom: `${getSubmenuPosition('headings').bottom}px`, left: `${getSubmenuPosition('headings').left}px` }"
           @click.stop
         >
-          <button @click="editor?.chain().focus().toggleHeading({ level: 1 }).run(); closeContextMenu()" class="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors" :class="editor?.isActive('heading', { level: 1 }) ? 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20 font-semibold' : 'text-gray-700 dark:text-gray-300'">
+          <button @click="() => { if (editor) { const result = editor.chain().focus().setHeading({ level: 1 }).run(); console.log('[UnifiedEditor] Set Heading 1:', result); } closeContextMenu(); }" class="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors" :class="editor?.isActive('heading', { level: 1 }) ? 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20 font-semibold' : 'text-gray-700 dark:text-gray-300'">
             <span class="font-bold text-xs w-6">H1</span>
             <span class="flex-1 text-left">Heading 1</span>
           </button>
-          <button @click="editor?.chain().focus().toggleHeading({ level: 2 }).run(); closeContextMenu()" class="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors" :class="editor?.isActive('heading', { level: 2 }) ? 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20 font-semibold' : 'text-gray-700 dark:text-gray-300'">
+          <button @click="() => { if (editor) { const result = editor.chain().focus().setHeading({ level: 2 }).run(); console.log('[UnifiedEditor] Set Heading 2:', result); } closeContextMenu(); }" class="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors" :class="editor?.isActive('heading', { level: 2 }) ? 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20 font-semibold' : 'text-gray-700 dark:text-gray-300'">
             <span class="font-bold text-xs w-6">H2</span>
             <span class="flex-1 text-left">Heading 2</span>
           </button>
-          <button @click="editor?.chain().focus().toggleHeading({ level: 3 }).run(); closeContextMenu()" class="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors" :class="editor?.isActive('heading', { level: 3 }) ? 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20 font-semibold' : 'text-gray-700 dark:text-gray-300'">
+          <button @click="() => { if (editor) { const result = editor.chain().focus().setHeading({ level: 3 }).run(); console.log('[UnifiedEditor] Set Heading 3:', result); } closeContextMenu(); }" class="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors" :class="editor?.isActive('heading', { level: 3 }) ? 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20 font-semibold' : 'text-gray-700 dark:text-gray-300'">
             <span class="font-bold text-xs w-6">H3</span>
             <span class="flex-1 text-left">Heading 3</span>
           </button>
@@ -1598,11 +1606,11 @@ onBeforeUnmount(() => {
             <span class="text-xs w-5">⊞</span>
             <span class="flex-1 text-left">Table</span>
           </button>
-          <button @click="editor?.chain().focus().toggleCodeBlock().run(); closeContextMenu()" class="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300">
+          <button @click="() => { if (editor) { const result = editor.chain().focus().setCodeBlock().run(); console.log('[UnifiedEditor] Set Code Block:', result); } closeContextMenu(); }" class="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300">
             <span class="font-mono text-xs w-5">{ }</span>
             <span class="flex-1 text-left">Code Block</span>
           </button>
-          <button @click="editor?.chain().focus().toggleBlockquote().run(); closeContextMenu()" class="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300">
+          <button @click="() => { if (editor) { const result = editor.chain().focus().setBlockquote().run(); console.log('[UnifiedEditor] Set Blockquote:', result); } closeContextMenu(); }" class="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300">
             <span class="w-5">"</span>
             <span class="flex-1 text-left">Quote</span>
           </button>
@@ -1846,29 +1854,35 @@ onBeforeUnmount(() => {
   height: 0;
 }
 
-/* Heading Styles - Match regular editor */
+/* Heading Styles - Apply to both unified-editor and collaborative-editor */
+.unified-editor :deep(.ProseMirror h1),
 .collaborative-editor :deep(.ProseMirror h1) {
   font-size: 2.25rem;
   font-weight: 800;
   line-height: 2.5rem;
   margin-top: 1.5rem;
   margin-bottom: 1rem;
+  display: block;
 }
 
+.unified-editor :deep(.ProseMirror h2),
 .collaborative-editor :deep(.ProseMirror h2) {
   font-size: 1.875rem;
   font-weight: 700;
   line-height: 2.25rem;
   margin-top: 1.5rem;
   margin-bottom: 0.875rem;
+  display: block;
 }
 
+.unified-editor :deep(.ProseMirror h3),
 .collaborative-editor :deep(.ProseMirror h3) {
   font-size: 1.5rem;
   font-weight: 600;
   line-height: 2rem;
   margin-top: 1.25rem;
   margin-bottom: 0.75rem;
+  display: block;
 }
 
 /* List Styles */
@@ -1890,7 +1904,8 @@ onBeforeUnmount(() => {
   margin: 0.25rem 0;
 }
 
-/* Code Block Styles - Notion-inspired */
+/* Code Block Styles - Notion-inspired - Apply to both unified-editor and collaborative-editor */
+.unified-editor :deep(.ProseMirror pre),
 .collaborative-editor :deep(.ProseMirror pre) {
   background: #f7f6f3;
   color: #37352f;
@@ -1901,8 +1916,11 @@ onBeforeUnmount(() => {
   overflow-x: auto;
   border: 1px solid #e9e9e7;
   box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.04);
+  display: block;
+  white-space: pre;
 }
 
+.dark .unified-editor :deep(.ProseMirror pre),
 .dark .collaborative-editor :deep(.ProseMirror pre) {
   background: #2e2e2e;
   color: #e8e8e8;
@@ -1910,6 +1928,7 @@ onBeforeUnmount(() => {
   box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.2);
 }
 
+.unified-editor :deep(.ProseMirror code),
 .collaborative-editor :deep(.ProseMirror code) {
   background: #f1f5f9;
   color: #1e293b;
@@ -1919,11 +1938,13 @@ onBeforeUnmount(() => {
   font-family: 'JetBrainsMono', 'Courier New', Courier, monospace;
 }
 
+.dark .unified-editor :deep(.ProseMirror code),
 .dark .collaborative-editor :deep(.ProseMirror code) {
   background: #374151;
   color: #e5e7eb;
 }
 
+.unified-editor :deep(.ProseMirror pre code),
 .collaborative-editor :deep(.ProseMirror pre code) {
   background: none;
   color: inherit;
@@ -1931,13 +1952,21 @@ onBeforeUnmount(() => {
   border: none;
 }
 
-/* Blockquote Styles */
+/* Blockquote Styles - Apply to both unified-editor and collaborative-editor */
+.unified-editor :deep(.ProseMirror blockquote),
 .collaborative-editor :deep(.ProseMirror blockquote) {
   border-left: 4px solid #3b82f6;
   padding-left: 1rem;
   margin: 1rem 0;
   font-style: italic;
   color: #64748b;
+  display: block;
+}
+
+.dark .unified-editor :deep(.ProseMirror blockquote),
+.dark .collaborative-editor :deep(.ProseMirror blockquote) {
+  border-left-color: #60a5fa;
+  color: #9ca3af;
 }
 
 /* Gapcursor Styles - Make it visible and clickable after tables */

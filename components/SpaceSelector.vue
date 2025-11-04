@@ -13,6 +13,16 @@ const showDeleteModal = ref(false);
 const deletingSpace = ref<{ id: number; name: string } | null>(null);
 const isDeleting = ref(false);
 
+// Preload icons when component mounts to prevent pop-in
+onMounted(async () => {
+  if (process.client) {
+    // Give icons time to load before first render
+    await nextTick();
+    // Small delay to ensure Iconify has time to load icons
+    await new Promise(resolve => setTimeout(resolve, 50));
+  }
+});
+
 // Close dropdown when clicking outside
 onMounted(() => {
   const handleClickOutside = (e: MouseEvent) => {
@@ -143,15 +153,18 @@ const currentSpace = computed(() => {
       :class="isDropdownOpen ? 'bg-gray-100 dark:bg-gray-700/50 border-primary-300 dark:border-primary-700' : 'border-transparent'"
     >
       <div class="flex items-center gap-3 md:gap-2 flex-1 min-w-0">
-        <div class="relative">
-          <UIcon 
-            :name="(currentSpace?.icon && currentSpace.icon.trim() !== '') ? `i-lucide-${currentSpace.icon}` : 'i-heroicons-building-office-2'" 
-            class="w-6 h-6 md:w-4 md:h-4 flex-shrink-0 text-primary-600 dark:text-primary-400" 
-          />
+        <div class="relative flex-shrink-0 w-6 h-6 md:w-4 md:h-4">
+          <!-- Icon container with fixed size to prevent layout shift -->
+          <div class="absolute inset-0 flex items-center justify-center">
+            <UIcon 
+              :name="(currentSpace?.icon && currentSpace.icon.trim() !== '') ? `i-lucide-${currentSpace.icon}` : 'i-heroicons-building-office-2'" 
+              class="w-6 h-6 md:w-4 md:h-4 text-primary-600 dark:text-primary-400 transition-opacity duration-150" 
+            />
+          </div>
           <!-- Current Space Indicator Dot -->
           <span 
             v-if="currentSpace"
-            class="absolute -top-0.5 -right-0.5 w-2.5 md:w-2 h-2.5 md:h-2 bg-primary-500 rounded-full border-2 border-white dark:border-gray-800"
+            class="absolute -top-0.5 -right-0.5 w-2.5 md:w-2 h-2.5 md:h-2 bg-primary-500 rounded-full border-2 border-white dark:border-gray-800 z-10"
             title="Current Space"
           ></span>
         </div>
@@ -189,16 +202,22 @@ const currentSpace = computed(() => {
             @click="handleSelectSpace(space.id)"
           >
             <div class="flex items-center gap-3 md:gap-2 flex-1 min-w-0">
-              <div class="relative">
-                <UIcon 
-                  :name="(space.icon && space.icon.trim() !== '') ? `i-lucide-${space.icon}` : 'i-heroicons-building-office-2'" 
-                  class="w-6 h-6 md:w-4 md:h-4 flex-shrink-0"
-                  :class="space.id === spacesStore.currentSpaceId ? 'text-primary-600 dark:text-primary-400' : 'text-gray-500 dark:text-gray-400'"
-                />
+              <div class="relative flex-shrink-0 w-6 h-6 md:w-4 md:h-4">
+                <!-- Icon container with fixed size to prevent layout shift -->
+                <div class="absolute inset-0 flex items-center justify-center">
+                  <UIcon 
+                    :name="(space.icon && space.icon.trim() !== '') ? `i-lucide-${space.icon}` : 'i-heroicons-building-office-2'" 
+                    class="w-6 h-6 md:w-4 md:h-4 transition-opacity duration-150"
+                    :class="[
+                      space.id === spacesStore.currentSpaceId ? 'text-primary-600 dark:text-primary-400' : 'text-gray-500 dark:text-gray-400',
+                      'icon-loading'
+                    ]"
+                  />
+                </div>
                 <!-- Checkmark for current space -->
                 <div
                   v-if="space.id === spacesStore.currentSpaceId"
-                  class="absolute -top-0.5 -right-0.5 w-3.5 md:w-3 h-3.5 md:h-3 bg-primary-500 rounded-full flex items-center justify-center border border-white dark:border-gray-800"
+                  class="absolute -top-0.5 -right-0.5 w-3.5 md:w-3 h-3.5 md:h-3 bg-primary-500 rounded-full flex items-center justify-center border border-white dark:border-gray-800 z-10"
                 >
                   <UIcon name="i-heroicons-check" class="w-2.5 md:w-2 h-2.5 md:h-2 text-white" />
                 </div>
@@ -249,7 +268,7 @@ const currentSpace = computed(() => {
     <!-- Space Modal -->
     <SpaceModal
       :is-open="showSpaceModal"
-      :space="editingSpace ? spacesStore.spaces.find(s => s.id === editingSpace.id) || null : null"
+      :space="editingSpace ? (spacesStore.spaces.find(s => s.id === editingSpace?.id) || null) : null"
       @update:is-open="showSpaceModal = $event"
       @created="handleSpaceCreated"
       @updated="handleSpaceUpdated"
@@ -362,4 +381,38 @@ const currentSpace = computed(() => {
     </ClientOnly>
   </div>
 </template>
+
+<style scoped>
+/* Prevent icon pop-in by ensuring icons have a fixed container size */
+.relative.w-6.h-6,
+.relative.md\:w-4.md\:h-4 {
+  min-width: 1.5rem;
+  min-height: 1.5rem;
+}
+
+@media (max-width: 768px) {
+  .relative.w-6.h-6 {
+    min-width: 1rem;
+    min-height: 1rem;
+  }
+}
+
+/* Ensure icon container doesn't cause layout shift */
+.relative.flex-shrink-0 {
+  contain: layout style;
+  will-change: contents;
+}
+
+/* Smooth icon appearance - prevent pop-in */
+.icon-loading {
+  will-change: opacity;
+}
+
+/* Ensure icons maintain their space even while loading */
+.relative.w-6.h-6 > div,
+.relative.md\:w-4.md\:h-4 > div {
+  min-width: 100%;
+  min-height: 100%;
+}
+</style>
 
