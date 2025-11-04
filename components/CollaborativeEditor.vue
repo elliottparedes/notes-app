@@ -834,15 +834,30 @@ onMounted(() => {
       
       console.log(`[CollabEditor ${props.noteId}] 📏 Editor empty: ${editorIsEmpty}, text length: ${editorText.length}`)
       console.log(`[CollabEditor ${props.noteId}] 📦 Initial content length: ${props.initialContent?.length || 0}`)
+      console.log(`[CollabEditor ${props.noteId}] 📦 Initial content preview: ${props.initialContent?.substring(0, 200) || 'empty'}`)
       
-      if (props.initialContent && editorIsEmpty) {
-        // Only initialize if the editor is truly empty
-        console.log(`[CollabEditor ${props.noteId}] 📝 Initializing editor with database content`)
-        // Use emitUpdate: true to sync content to Y.Doc for other collaborators
-        editor.value.commands.setContent(props.initialContent, { emitUpdate: true })
-        console.log(`[CollabEditor ${props.noteId}] ✅ Content loaded and synced to Y.Doc`)
-      } else if (!editorIsEmpty) {
-        console.log(`[CollabEditor ${props.noteId}] ♻️ Editor already has content, skipping initialization`)
+      // CRITICAL: For task lists, we need to ensure content is set even if editor appears non-empty
+      // The editor might appear non-empty if Y.Doc has some structure, but we still need to set the actual content
+      if (props.initialContent && props.initialContent.trim().length > 0) {
+        // Check if the content actually matches what's in the editor
+        const currentHTML = editor.value.getHTML();
+        const contentMatches = currentHTML === props.initialContent || 
+                               (currentHTML.length < 50 && props.initialContent.length > 50);
+        
+        if (editorIsEmpty || !contentMatches) {
+          // Only initialize if the editor is empty OR if content doesn't match
+          console.log(`[CollabEditor ${props.noteId}] 📝 Initializing editor with database content`, {
+            editorIsEmpty,
+            contentMatches,
+            currentHTMLLength: currentHTML.length,
+            initialContentLength: props.initialContent.length
+          });
+          // Use emitUpdate: true to sync content to Y.Doc for other collaborators
+          editor.value.commands.setContent(props.initialContent, { emitUpdate: true })
+          console.log(`[CollabEditor ${props.noteId}] ✅ Content loaded and synced to Y.Doc`)
+        } else {
+          console.log(`[CollabEditor ${props.noteId}] ♻️ Editor already has matching content, skipping initialization`)
+        }
       } else {
         console.log(`[CollabEditor ${props.noteId}] ℹ️ No initial content to set`)
       }

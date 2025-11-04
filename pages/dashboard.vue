@@ -41,6 +41,8 @@ const isLocked = ref(false);
 const collaborativeEditorRef = ref<{ getCurrentContent: () => string } | null>(null);
 const tiptapEditorRef = ref<{ getHTML: () => string } | null>(null);
 const showFolderDropdown = ref(false);
+// Flag to prevent auto-save when programmatically updating editForm (e.g., switching tabs/spaces)
+const isProgrammaticUpdate = ref(false);
 const folderDropdownPos = ref({ top: 0, left: 0 });
 const folderButtonRef = ref<HTMLButtonElement | null>(null);
 const isPolishing = ref(false);
@@ -562,16 +564,27 @@ watch(activeNote, (note, oldNote) => {
     
     if (isNowCollaborative && !transitioningToRegular) {
       console.log('[Dashboard] Loading collaborative note, skipping content sync to editForm');
-      editForm.title = note.title;
-      editForm.tags = note.tags || [];
-      editForm.folder = note.folder || '';
-      editForm.folder_id = note.folder_id || null;
-      // Don't update editForm.content - CollaborativeEditor manages it via Y.Doc
       
-      // Initialize previous values for change detection
-      prevTitle.value = note.title;
-      prevContent.value = editForm.content; // Keep current content value
-      prevFolderId.value = note.folder_id || null;
+      // Set flag to prevent auto-save during programmatic update
+      isProgrammaticUpdate.value = true;
+      
+      try {
+        editForm.title = note.title;
+        editForm.tags = note.tags || [];
+        editForm.folder = note.folder || '';
+        editForm.folder_id = note.folder_id || null;
+        // Don't update editForm.content - CollaborativeEditor manages it via Y.Doc
+        
+        // Initialize previous values for change detection
+        prevTitle.value = note.title;
+        prevContent.value = editForm.content; // Keep current content value
+        prevFolderId.value = note.folder_id || null;
+      } finally {
+        // Clear flag after update
+        nextTick(() => {
+          isProgrammaticUpdate.value = false;
+        });
+      }
     } else {
       // For regular notes, ALWAYS update if it's a different note
       // OR if content/folder changed (even if same note)
@@ -595,32 +608,44 @@ watch(activeNote, (note, oldNote) => {
       if (isDifferentNote || contentChanged || folderChanged) {
         console.log('[Dashboard] Updating editForm with note data', {
           folder_id: note.folder_id,
-          folder: note.folder
+          folder: note.folder,
+          isShared: note.is_shared || note.share_permission
         });
         
-        // Update editForm - use folder name from foldersStore if available
-        const folderName = note.folder_id 
-          ? foldersStore.getFolderById(note.folder_id)?.name || note.folder || null
-          : null;
+        // Set flag to prevent auto-save from triggering during programmatic update
+        // This is critical for shared notes to prevent overwriting collaborative edits
+        isProgrammaticUpdate.value = true;
         
-        Object.assign(editForm, {
-          title: note.title,
-          content: note.content || '',
-          tags: note.tags || [],
-          folder: folderName || '',
-          folder_id: note.folder_id || null
-        });
-        
-        // Initialize previous values for change detection
-        prevTitle.value = note.title;
-        prevContent.value = note.content || '';
-        prevFolderId.value = note.folder_id || null;
-        
-        console.log('[Dashboard] editForm updated', {
-          folder_id: editForm.folder_id,
-          folder: editForm.folder,
-          folderName
-        });
+        try {
+          // Update editForm - use folder name from foldersStore if available
+          const folderName = note.folder_id 
+            ? foldersStore.getFolderById(note.folder_id)?.name || note.folder || null
+            : null;
+          
+          Object.assign(editForm, {
+            title: note.title,
+            content: note.content || '',
+            tags: note.tags || [],
+            folder: folderName || '',
+            folder_id: note.folder_id || null
+          });
+          
+          // Initialize previous values for change detection
+          prevTitle.value = note.title;
+          prevContent.value = note.content || '';
+          prevFolderId.value = note.folder_id || null;
+          
+          console.log('[Dashboard] editForm updated', {
+            folder_id: editForm.folder_id,
+            folder: editForm.folder,
+            folderName
+          });
+        } finally {
+          // Clear flag after a tick to allow user-initiated edits to trigger saves
+          nextTick(() => {
+            isProgrammaticUpdate.value = false;
+          });
+        }
       }
     }
     
@@ -634,10 +659,17 @@ watch(activeNote, (note, oldNote) => {
 
 // Auto-save on content change (only when not locked)
 // IMPORTANT: Skip auto-save for collaborative notes title/content (Y.Doc handles syncing)
-// But ALWAYS save folder_id changes (Y.Doc doesn't handle metadata)
+// LOCK DOWN: Never auto-save shared notes unless it's a user-initiated change
 watch([() => editForm.title, () => editForm.content, () => editForm.folder_id], 
   ([newTitle, newContent, newFolderId]) => {
     if (isLocked.value || !activeNote.value) return;
+    
+    // CRITICAL: Skip auto-save if this is a programmatic update (e.g., switching tabs/spaces)
+    // This prevents overwriting shared notes when switching contexts
+    if (isProgrammaticUpdate.value) {
+      console.log('[Dashboard] Skipping auto-save - programmatic update in progress');
+      return;
+    }
     
     // Detect what changed
     const titleChanged = newTitle !== prevTitle.value;
@@ -649,11 +681,13 @@ watch([() => editForm.title, () => editForm.content, () => editForm.folder_id],
     prevContent.value = (newContent as string) || '';
     prevFolderId.value = (newFolderId as number | null) ?? null;
     
-    // For collaborative notes: skip auto-save for title/content (Y.Doc handles it)
-    // BUT always save folder changes (Y.Doc doesn't handle metadata)
+    // For collaborative/shared notes: NEVER auto-save title/content (Y.Doc handles it)
+    // Only allow folder changes if they're user-initiated (not from programmatic updates)
     const isCollaborative = activeNote.value.is_shared || activeNote.value.share_permission;
-    if (isCollaborative && (titleChanged || contentChanged) && !folderChanged) {
-      console.log('[Dashboard] Skipping auto-save for collaborative note title/content');
+    if (isCollaborative) {
+      // For shared notes, skip ALL auto-saves - only user-initiated saves should work
+      // Y.Doc handles content sync, and we don't want to overwrite collaborative edits
+      console.log('[Dashboard] Skipping auto-save for shared/collaborative note - Y.Doc handles syncing');
       return;
     }
     
@@ -1524,6 +1558,14 @@ async function shareNote() {
     // Store the content we just saved - this is what we want to preserve
     const savedContent = currentContent;
     const savedTitle = currentTitle;
+    
+    // CRITICAL: Also update editForm.content to ensure it's available for CollaborativeEditor
+    // This is especially important for task lists where content might not be in activeNote yet
+    editForm.content = savedContent;
+    console.log('[Dashboard] Updated editForm.content with saved content before sharing', {
+      contentLength: savedContent.length,
+      preview: savedContent.substring(0, 200)
+    });
 
     const sharePromises = selectedUsersToShare.value.map(user =>
       sharedNotesStore.shareNote(
@@ -1538,9 +1580,9 @@ async function shareNote() {
     // Refresh notes to update the is_shared field
     await notesStore.fetchNotes();
     
-    // CRITICAL: Restore the saved content after fetchNotes() - this is essential for list notes
+    // CRITICAL: Restore the saved content IMMEDIATELY after fetchNotes() - this is essential for list notes
     // fetchNotes() might return stale/empty content, especially for list notes with TaskItemWithStrike
-    // We must restore the content we just saved to ensure it's preserved
+    // We must restore the content we just saved to ensure it's preserved BEFORE CollaborativeEditor initializes
     const noteIndex = notesStore.notes.findIndex(n => n.id === currentNoteId);
     if (noteIndex !== -1 && notesStore.notes[noteIndex]) {
       // Always restore the content we just saved, regardless of what fetchNotes returned
@@ -1550,32 +1592,65 @@ async function shareNote() {
       console.log('[Dashboard] Restored saved content after fetchNotes', {
         contentLength: savedContent.length,
         restored: true,
-        noteIndex
+        noteIndex,
+        preview: savedContent.substring(0, 200) // Debug preview
       });
     }
     
     // Also update currentNote if it exists (this affects activeNote computed property)
+    // This MUST happen BEFORE CollaborativeEditor initializes
     if (notesStore.currentNote && notesStore.currentNote.id === currentNoteId) {
       notesStore.currentNote.content = savedContent;
       notesStore.currentNote.title = savedTitle || notesStore.currentNote.title || '';
       console.log('[Dashboard] Updated currentNote with saved content', {
-        contentLength: savedContent.length
+        contentLength: savedContent.length,
+        preview: savedContent.substring(0, 200)
       });
     }
     
-    // Force a refetch of the active note to ensure CollaborativeEditor gets the correct initialContent
-    // This is critical because CollaborativeEditor uses activeNote.content as initialContent
+    // CRITICAL: Update activeNote.value directly if it's the same note
+    // This ensures CollaborativeEditor gets the correct initialContent prop
+    if (activeNote.value && activeNote.value.id === currentNoteId) {
+      activeNote.value.content = savedContent;
+      activeNote.value.title = savedTitle || activeNote.value.title || '';
+      console.log('[Dashboard] Updated activeNote.value directly with saved content', {
+        contentLength: savedContent.length,
+        hasContent: !!savedContent,
+        preview: savedContent.substring(0, 200)
+      });
+    }
+    
+    // Wait for Vue reactivity to update before CollaborativeEditor initializes
+    await nextTick();
+    // Give an extra tick to ensure all reactive updates have propagated
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
+    // Force a refetch of the active note to ensure database has the latest content
+    // But we'll restore the saved content again after fetching
     try {
       await notesStore.fetchNote(currentNoteId);
       // After fetching, restore the content again (in case fetchNote returned stale data)
       const freshNoteIndex = notesStore.notes.findIndex(n => n.id === currentNoteId);
       if (freshNoteIndex !== -1 && notesStore.notes[freshNoteIndex]) {
-        notesStore.notes[freshNoteIndex].content = savedContent;
-        notesStore.notes[freshNoteIndex].title = savedTitle || notesStore.notes[freshNoteIndex].title || '';
+        // Only restore if the fetched content is empty or significantly different
+        const fetchedContent = notesStore.notes[freshNoteIndex].content || '';
+        if (!fetchedContent || Math.abs(fetchedContent.length - savedContent.length) > 10) {
+          notesStore.notes[freshNoteIndex].content = savedContent;
+          notesStore.notes[freshNoteIndex].title = savedTitle || notesStore.notes[freshNoteIndex].title || '';
+          console.log('[Dashboard] Restored content after fetchNote (fetched was empty/different)', {
+            fetchedLength: fetchedContent.length,
+            savedLength: savedContent.length
+          });
+        }
       }
       if (notesStore.currentNote && notesStore.currentNote.id === currentNoteId) {
         notesStore.currentNote.content = savedContent;
         notesStore.currentNote.title = savedTitle || notesStore.currentNote.title || '';
+      }
+      // Update activeNote.value again after fetch
+      if (activeNote.value && activeNote.value.id === currentNoteId) {
+        activeNote.value.content = savedContent;
+        activeNote.value.title = savedTitle || activeNote.value.title || '';
       }
       console.log('[Dashboard] Refetched and restored note content', {
         contentLength: savedContent.length
@@ -1584,9 +1659,6 @@ async function shareNote() {
       console.error('[Dashboard] Failed to refetch note after sharing:', fetchError);
       // Continue anyway - we've already restored the content
     }
-    
-    // Wait for Vue reactivity to update
-    await nextTick();
 
     const userNames = selectedUsersToShare.value.map(u => u.name || u.email).join(', ');
     toast.add({
@@ -2147,6 +2219,37 @@ async function handleFolderNoteClick(noteId: string) {
 // Note editing functions
 async function saveNote(silent = false) {
   if (!activeNote.value) return;
+  
+  // LOCK DOWN: Never auto-save shared/collaborative notes content/title
+  // Only allow metadata updates (tags, folder) and explicit user saves
+  const isCollaborative = activeNote.value.is_shared || activeNote.value.share_permission;
+  
+  // Block auto-saves (silent) for shared notes - Y.Doc handles content sync
+  if (isCollaborative && silent) {
+    // Check if this is just a metadata change (tags/folder) that we should allow
+    const titleChanged = editForm.title !== activeNote.value.title;
+    const contentChanged = editForm.content !== activeNote.value.content;
+    const tagsChanged = JSON.stringify(editForm.tags || []) !== JSON.stringify(activeNote.value.tags || []);
+    const folderChanged = editForm.folder_id !== activeNote.value.folder_id;
+    
+    // Only allow metadata changes (tags/folder) for shared notes, not content/title
+    if (titleChanged || contentChanged) {
+      console.log('[Dashboard] BLOCKED: Attempted to auto-save shared note content/title - Y.Doc handles this');
+      return;
+    }
+    
+    // Allow metadata changes (tags/folder) even if silent
+    if (tagsChanged || folderChanged) {
+      console.log('[Dashboard] Allowing metadata update for shared note (tags/folder)');
+    }
+  }
+  
+  // Also block if this is a programmatic update (e.g., from switching tabs/spaces)
+  if (isProgrammaticUpdate.value && silent) {
+    console.log('[Dashboard] BLOCKED: Attempted to save during programmatic update');
+    return;
+  }
+  
   if (!editForm.title?.trim()) {
     if (!silent) {
       toast.add({
@@ -2161,9 +2264,15 @@ async function saveNote(silent = false) {
   isSaving.value = true;
 
   try {
+    // For shared notes, only save metadata (tags, folder) - content is managed by Y.Doc
+    // Use the note's current content from the database to avoid overwriting Y.Doc changes
     const updateData: UpdateNoteDto = {
       title: editForm.title,
-      content: editForm.content,
+      // For shared notes with silent saves, use the note's current content (from Y.Doc)
+      // This prevents overwriting collaborative edits when saving metadata
+      content: (isCollaborative && silent) 
+        ? (activeNote.value.content || '') 
+        : editForm.content,
       tags: editForm.tags || [],
       folder: editForm.folder || null,
       folder_id: editForm.folder_id || null
@@ -4021,7 +4130,7 @@ onMounted(() => {
                 :editable="!isLocked && (activeNote.share_permission === 'editor' || activeNote.user_id === authStore.currentUser?.id)"
                 :user-name="authStore.currentUser?.name || authStore.currentUser?.email || 'Anonymous'"
                 :user-color="generateUserColor(authStore.currentUser?.id)"
-                :initial-content="activeNote.content || ''"
+                :initial-content="activeNote.content || editForm.content || ''"
                 placeholder="Start writing... Right-click for options or press ? for keyboard shortcuts"
                 @update:content="(content) => { if (activeNote) activeNote.content = content }"
               />
