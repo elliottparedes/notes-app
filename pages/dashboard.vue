@@ -263,7 +263,9 @@ async function loadData() {
 watch(() => spacesStore.currentSpaceId, async (newSpaceId, oldSpaceId) => {
   if (hasInitialized.value && newSpaceId !== oldSpaceId && newSpaceId !== null) {
     try {
-      await foldersStore.fetchFolders();
+      // Use silent=true to avoid showing full-screen loading spinner
+      // The folders will update smoothly without blocking the UI
+      await foldersStore.fetchFolders(undefined, true);
       await sharedNotesStore.fetchSharedNotes();
       
       // Update open tabs when switching spaces
@@ -1081,11 +1083,8 @@ async function handleMoveUp(folderId: number) {
     const siblings = foldersStore.getSiblings(folderId);
     const currentIndex = siblings.findIndex(f => f.id === folderId);
     if (currentIndex > 0) {
-      // Batch all updates together to prevent flickering
+      // reorderFolder already calls fetchFolders() internally, so no need to call it again
       await foldersStore.reorderFolder(folderId, currentIndex - 1);
-      
-      // Refresh in one go after reorder completes
-      await foldersStore.fetchFolders();
       
       toast.add({
         title: 'Success',
@@ -1108,11 +1107,8 @@ async function handleMoveDown(folderId: number) {
     const siblings = foldersStore.getSiblings(folderId);
     const currentIndex = siblings.findIndex(f => f.id === folderId);
     if (currentIndex !== -1 && currentIndex < siblings.length - 1) {
-      // Batch all updates together to prevent flickering
+      // reorderFolder already calls fetchFolders() internally, so no need to call it again
       await foldersStore.reorderFolder(folderId, currentIndex + 1);
-      
-      // Refresh in one go after reorder completes
-      await foldersStore.fetchFolders();
       
       toast.add({
         title: 'Success',
@@ -1133,10 +1129,8 @@ async function handleMoveDown(folderId: number) {
 async function handleFolderReorder(folderId: number, newIndex: number) {
   try {
     console.log('[Dashboard] Reordering folder', { folderId, newIndex });
+    // reorderFolder already calls fetchFolders() internally, so no need to call it again
     await foldersStore.reorderFolder(folderId, newIndex);
-    
-    // Refresh folder tree to update UI
-    await foldersStore.fetchFolders();
   } catch (error) {
     console.error('Reorder folder error:', error);
     toast.add({
@@ -1417,6 +1411,28 @@ async function shareNote() {
   if (!activeNote.value || selectedUsersToShare.value.length === 0) return;
 
   try {
+    // Save the current note content BEFORE sharing to prevent data loss
+    // This ensures any unsaved edits are preserved
+    const currentNoteId = activeNote.value.id;
+    const currentContent = editForm.content || activeNote.value.content || '';
+    const currentTitle = editForm.title || activeNote.value.title || '';
+    
+    // Save current state to database before sharing
+    if (currentContent || currentTitle) {
+      try {
+        await notesStore.updateNote(currentNoteId, {
+          title: currentTitle,
+          content: currentContent,
+          tags: editForm.tags || activeNote.value.tags || [],
+          folder_id: editForm.folder_id ?? activeNote.value.folder_id ?? null
+        });
+        console.log('[Dashboard] Note content saved before sharing');
+      } catch (saveError) {
+        console.error('[Dashboard] Failed to save note before sharing:', saveError);
+        // Continue with sharing even if save fails
+      }
+    }
+
     const sharePromises = selectedUsersToShare.value.map(user =>
       sharedNotesStore.shareNote(
         activeNote.value!.id,
@@ -1428,7 +1444,29 @@ async function shareNote() {
     await Promise.all(sharePromises);
 
     // Refresh notes to update the is_shared field
+    // But preserve the active note's content if it's currently being edited
+    const preservedContent = editForm.content;
+    const preservedTitle = editForm.title;
+    
     await notesStore.fetchNotes();
+    
+    // Restore the active note's content if it was being edited
+    // This prevents fetchNotes() from overwriting unsaved content
+    if (activeNote.value && activeNote.value.id === currentNoteId) {
+      // If the fetched note has empty/different content, restore what we had
+      if (preservedContent && (!activeNote.value.content || activeNote.value.content !== preservedContent)) {
+        const noteIndex = notesStore.notes.findIndex(n => n.id === currentNoteId);
+        if (noteIndex !== -1 && notesStore.notes[noteIndex]) {
+          notesStore.notes[noteIndex].content = preservedContent;
+          notesStore.notes[noteIndex].title = preservedTitle || notesStore.notes[noteIndex].title || '';
+        }
+        // Also update currentNote if it exists
+        if (notesStore.currentNote && notesStore.currentNote.id === currentNoteId) {
+          notesStore.currentNote.content = preservedContent;
+          notesStore.currentNote.title = preservedTitle || notesStore.currentNote.title || '';
+        }
+      }
+    }
 
     const userNames = selectedUsersToShare.value.map(u => u.name || u.email).join(', ');
     toast.add({
@@ -1960,20 +1998,17 @@ async function handleNoteSelected(note: Note) {
       noteSpaceId = folder.space_id;
     }
     
-    // Switch to the note's space if it's different from current space
-    if (noteSpaceId && noteSpaceId !== spacesStore.currentSpaceId) {
-      // Switch to the note's space
-      console.log('[Dashboard] Switching to space', noteSpaceId, 'for note', note.id);
-      spacesStore.setCurrentSpace(noteSpaceId);
-      
-      // Wait for folders to be refetched for the new space
-      // This ensures the folder structure is loaded before opening the note
-      await foldersStore.fetchFolders(noteSpaceId);
-      await sharedNotesStore.fetchSharedNotes();
-      
-      // Wait for next tick to ensure space change has propagated
-      await nextTick();
-    }
+      // Switch to the note's space if it's different from current space
+      if (noteSpaceId && noteSpaceId !== spacesStore.currentSpaceId) {
+        // Switch to the note's space
+        console.log('[Dashboard] Switching to space', noteSpaceId, 'for note', note.id);
+        spacesStore.setCurrentSpace(noteSpaceId);
+        
+        // The space watcher will automatically fetch folders (silently) when currentSpaceId changes
+        // Wait for folders to be loaded (the watcher handles this)
+        await foldersStore.fetchFolders(noteSpaceId, true);
+        await sharedNotesStore.fetchSharedNotes();
+      }
   }
   
   // Now open the note (it will be in the correct space)
@@ -2600,7 +2635,8 @@ onMounted(() => {
 <template>
   <div>
     <!-- Loading screen while auth is initializing, during SSR, or data is loading -->
-    <div v-if="!isMounted || !authStore.currentUser || !authStore.initialized || loading || !hasInitialized || foldersStore.loading || spacesStore.loading" class="flex items-center justify-center h-screen bg-gray-50 dark:bg-gray-900">
+    <!-- Exclude folder reordering from loading check - reordering should be instant -->
+    <div v-if="!isMounted || !authStore.currentUser || !authStore.initialized || loading || !hasInitialized || (foldersStore.loading && !foldersStore.isReordering) || spacesStore.loading" class="flex items-center justify-center h-screen bg-gray-50 dark:bg-gray-900">
       <div class="text-center">
         <UIcon name="i-heroicons-arrow-path" class="w-8 h-8 animate-spin mx-auto text-primary-600 mb-4" />
         <p class="text-sm text-gray-600 dark:text-gray-400">Loading...</p>

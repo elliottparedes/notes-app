@@ -36,8 +36,8 @@ async function handleSelectSpace(spaceId: number) {
 
   spacesStore.setCurrentSpace(spaceId);
   
-  // Refetch folders for the new space
-  await foldersStore.fetchFolders();
+  // The dashboard watcher will automatically fetch folders when currentSpaceId changes
+  // No need to call fetchFolders() here to avoid duplicate calls
   
   isDropdownOpen.value = false;
 }
@@ -84,9 +84,9 @@ async function confirmDelete() {
   try {
     await spacesStore.deleteSpace(deletingSpace.value.id);
     
-    // Refetch folders if we deleted the current space
+    // Refetch folders if we deleted the current space (silently to avoid full-screen loading)
     if (spacesStore.currentSpaceId) {
-      await foldersStore.fetchFolders();
+      await foldersStore.fetchFolders(undefined, true);
     }
     
     toast.add({

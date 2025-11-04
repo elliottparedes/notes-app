@@ -681,10 +681,10 @@ async function initializeNotesSortable() {
             
             // Force reactivity update for note count changes
             await nextTick();
-            console.log('[FolderTreeItem] Move complete, refreshing folder tree');
+            console.log('[FolderTreeItem] Move complete');
             
-            // Refresh folder tree in background to update positions (non-blocking)
-            foldersStore.fetchFolders().catch(err => console.error('[FolderTreeItem] Failed to refresh folders:', err));
+            // No need to refresh folder tree - moving a note doesn't change folder structure
+            // The note's folder_id has already been updated in the store, and the UI will reactively update
             
           } catch (error) {
             console.error('[FolderTreeItem] Failed to move note:', error);

@@ -493,6 +493,62 @@ export const useNotesStore = defineStore('notes', {
           });
         }
 
+        // Optimistically update noteOrder BEFORE the API call so the note appears in the correct position immediately
+        if (newIndex !== undefined) {
+          const oldFolderKey = oldFolderId === null ? 'root' : `folder_${oldFolderId}`;
+          const newFolderKey = newFolderId === null ? 'root' : `folder_${newFolderId}`;
+          
+          // Get current noteOrder (clone to avoid mutating the original)
+          const optimisticNoteOrder = { ...this.noteOrder };
+          
+          // Remove note from old folder's order (if it's in a different folder)
+          if (oldFolderKey !== newFolderKey && optimisticNoteOrder[oldFolderKey]) {
+            optimisticNoteOrder[oldFolderKey] = optimisticNoteOrder[oldFolderKey].filter(id => id !== noteId);
+            // Remove key if folder is now empty
+            if (optimisticNoteOrder[oldFolderKey].length === 0) {
+              delete optimisticNoteOrder[oldFolderKey];
+            }
+          }
+          
+          // Get notes in the new folder BEFORE updating folder_id (to get current state)
+          // Filter notes that will be in the new folder after the move
+          const notesInNewFolder = this.notes.filter(n => {
+            // If this is the note being moved, use the new folder_id
+            if (n.id === noteId) {
+              return false; // Exclude the note being moved
+            }
+            // Otherwise check if it's already in the target folder
+            return n.folder_id === newFolderId;
+          });
+          
+          // Initialize new folder order if it doesn't exist
+          if (!optimisticNoteOrder[newFolderKey]) {
+            // Create initial order from existing notes in the folder
+            optimisticNoteOrder[newFolderKey] = notesInNewFolder.map(n => n.id);
+          }
+          
+          // Insert note at the correct position
+          const newFolderOrder = [...optimisticNoteOrder[newFolderKey]];
+          // Remove note if it's already in the array (in case of same-folder reorder)
+          const existingIndex = newFolderOrder.indexOf(noteId);
+          if (existingIndex !== -1) {
+            newFolderOrder.splice(existingIndex, 1);
+          }
+          // Insert at the specified index
+          newFolderOrder.splice(newIndex, 0, noteId);
+          optimisticNoteOrder[newFolderKey] = newFolderOrder;
+          
+          // Update noteOrder immediately for instant UI feedback
+          this.noteOrder = optimisticNoteOrder;
+          console.log('[NotesStore] Optimistically updated noteOrder', {
+            newFolderKey,
+            newIndex,
+            orderLength: newFolderOrder.length,
+            notePosition: newFolderOrder.indexOf(noteId),
+            noteId
+          });
+        }
+
         console.log('[NotesStore] Calling API /api/notes/' + noteId + '/move', {
           newFolderId,
           newIndex

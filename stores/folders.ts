@@ -7,6 +7,7 @@ interface FoldersState {
   folders: Folder[]; // Flat array of all folders
   folderTree: Folder[]; // Tree structure (root folders with children)
   loading: boolean;
+  isReordering: boolean; // Track if we're reordering (shouldn't show loading screen)
   error: string | null;
   expandedFolderIds: Set<number>;
 }
@@ -14,8 +15,9 @@ interface FoldersState {
 export const useFoldersStore = defineStore('folders', {
   state: (): FoldersState => ({
     folders: [], // Flat array
-    folderTree: [], // Tree structure  
+    folderTree: [], // Tree structure
     loading: false,
+    isReordering: false, // Track if we're reordering (prevents loading screen)
     error: null,
     expandedFolderIds: new Set()
   }),
@@ -96,8 +98,10 @@ export const useFoldersStore = defineStore('folders', {
   },
 
   actions: {
-    async fetchFolders(spaceId?: number | null): Promise<void> {
-      this.loading = true;
+    async fetchFolders(spaceId?: number | null, silent: boolean = false): Promise<void> {
+      if (!silent) {
+        this.loading = true;
+      }
       this.error = null;
 
       try {
@@ -158,7 +162,9 @@ export const useFoldersStore = defineStore('folders', {
         this.error = err instanceof Error ? err.message : 'Failed to fetch folders';
         throw err;
       } finally {
-        this.loading = false;
+        if (!silent) {
+          this.loading = false;
+        }
       }
     },
 
@@ -294,7 +300,10 @@ export const useFoldersStore = defineStore('folders', {
     },
 
     async reorderFolder(folderId: number, newIndex: number): Promise<void> {
-      this.loading = true;
+      // Mark that we're reordering - this prevents the loading screen from showing
+      // We'll update locally for instant UI feedback
+      this.isReordering = true;
+      this.loading = false; // Ensure loading is false
       this.error = null;
 
       try {
@@ -304,6 +313,62 @@ export const useFoldersStore = defineStore('folders', {
           throw new Error('Not authenticated');
         }
 
+        // Get the folder to find its parent and siblings
+        const folder = this.getFolderById(folderId);
+        if (!folder) {
+          throw new Error('Folder not found');
+        }
+
+        // Update locally first for instant feedback
+        const updateFolderOrder = (folders: Folder[]): Folder[] => {
+          if (folder.parent_id === null) {
+            // Root level - reorder in folderTree
+            const siblings = [...folders];
+            const currentIndex = siblings.findIndex(f => f.id === folderId);
+            if (currentIndex !== -1 && currentIndex !== newIndex) {
+              const [moved] = siblings.splice(currentIndex, 1);
+              siblings.splice(newIndex, 0, moved);
+              return siblings;
+            }
+            return folders;
+          } else {
+            // Nested folder - find parent and update its children
+            return folders.map(f => {
+              if (f.id === folder.parent_id && f.children) {
+                const siblings = [...f.children];
+                const currentIndex = siblings.findIndex(child => child.id === folderId);
+                if (currentIndex !== -1 && currentIndex !== newIndex) {
+                  const [moved] = siblings.splice(currentIndex, 1);
+                  siblings.splice(newIndex, 0, moved);
+                  return { ...f, children: siblings };
+                }
+                return f;
+              }
+              if (f.children) {
+                return { ...f, children: updateFolderOrder(f.children) };
+              }
+              return f;
+            });
+          }
+        };
+
+        // Update folderTree optimistically for instant UI feedback
+        this.folderTree = updateFolderOrder(this.folderTree);
+
+        // Update flat folders array by regenerating from tree (simple and reliable)
+        const flattenFolders = (folders: Folder[]): Folder[] => {
+          const result: Folder[] = [];
+          folders.forEach(folder => {
+            result.push({ ...folder, children: undefined });
+            if (folder.children && folder.children.length > 0) {
+              result.push(...flattenFolders(folder.children));
+            }
+          });
+          return result;
+        };
+        this.folders = flattenFolders(this.folderTree);
+
+        // Make the API call
         await $fetch(`/api/folders/${folderId}/reorder`, {
           method: 'PUT',
           headers: {
@@ -314,13 +379,16 @@ export const useFoldersStore = defineStore('folders', {
           }
         });
 
-        // Refresh folder tree to reflect new order
-        await this.fetchFolders();
+        // No need to refetch - we've already updated local state optimistically
+        // The API call confirmed the change was saved, so we're in sync
       } catch (err: unknown) {
         this.error = err instanceof Error ? err.message : 'Failed to reorder folder';
+        // On error, revert by refetching to get correct state from server
+        this.fetchFolders(undefined, true).catch(console.error);
         throw err;
       } finally {
-        this.loading = false;
+        // Always clear the reordering flag
+        this.isReordering = false;
       }
     }
   }
