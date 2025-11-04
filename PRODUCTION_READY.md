@@ -66,7 +66,7 @@
 - [x] bcrypt password hashing
 
 ### ✅ Features
-- [x] Offline-first PWA
+- [x] PWA with offline support
 - [x] IndexedDB caching
 - [x] Auto-sync when online
 - [x] AI note generation

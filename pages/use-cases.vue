@@ -285,7 +285,7 @@ setPageSEO({
               <img src="/folder.png" alt="Unfold Notes" class="w-6 h-6" />
               <span class="text-white font-bold">Unfold Notes</span>
             </div>
-            <p class="text-sm">Organize your thoughts with a modern, offline-first note-taking app.</p>
+            <p class="text-sm">Organize your thoughts with a modern note-taking app.</p>
           </div>
           <div>
             <h3 class="text-white font-semibold mb-4">Product</h3>

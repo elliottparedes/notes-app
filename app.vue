@@ -27,7 +27,7 @@ useHead({
         name: 'Unfold Notes',
         url: baseUrl,
         logo: `${baseUrl}/folder.png`,
-        description: 'Modern offline-first note-taking app with AI-powered features and real-time collaboration',
+        description: 'Modern note-taking app with AI-powered features and real-time collaboration',
         sameAs: [
           // Add social media links when available
         ],

@@ -62,7 +62,7 @@ export default defineNuxtConfig({
     manifest: {
       name: 'Unfold',
       short_name: 'Unfold',
-      description: 'Unfold your thinking - Offline-first markdown notes app',
+      description: 'Unfold your thinking - Modern markdown notes app',
       background_color: '#ffffff',
       theme_color: '#ffffff',
       display: 'standalone',

@@ -2,8 +2,8 @@
 const { setPageSEO, baseUrl } = useSEO()
 
 setPageSEO({
-  title: 'Unfold Notes - Free Offline Note-Taking App with AI | Organize Your Thoughts',
-  description: 'Unfold Notes is a free, offline-first note-taking app with AI-powered features, real-time collaboration, and beautiful organization. Works everywhere - desktop, mobile, offline. Start organizing your thoughts today.',
+  title: 'Unfold Notes - Free Note-Taking App with AI | Organize Your Thoughts',
+  description: 'Unfold Notes is a free note-taking app with AI-powered features, real-time collaboration, and beautiful organization. Works everywhere - desktop and mobile. Start organizing your thoughts today.',
   path: '/',
   keywords: [
     'note taking app',
@@ -27,7 +27,7 @@ setPageSEO({
     name: 'Unfold Notes',
     applicationCategory: 'ProductivityApplication',
     operatingSystem: 'Web, PWA, iOS, Android',
-    description: 'Modern offline-first note-taking app with AI-powered features, real-time collaboration, and beautiful organization. Works completely offline.',
+    description: 'Modern note-taking app with AI-powered features, real-time collaboration, and beautiful organization.',
     offers: {
       '@type': 'Offer',
       price: '0',
@@ -40,7 +40,7 @@ setPageSEO({
       ratingCount: '150'
     },
     featureList: [
-      'Offline-first PWA - Works without internet',
+      'PWA Support - Install on any device',
       'AI-powered note generation with Google Gemini',
       'Real-time collaboration with live cursors',
       'Rich text editing with markdown support',
@@ -119,7 +119,7 @@ onMounted(() => {
             </span>
           </h1>
           <p class="text-xl md:text-2xl text-gray-600 dark:text-gray-300 mb-8 max-w-3xl mx-auto">
-            A modern, offline-first note-taking app that works everywhere. Organize your thoughts with AI-powered features and seamless collaboration. Free forever with 500MB storage included.
+            A modern note-taking app that works everywhere. Organize your thoughts with AI-powered features and seamless collaboration. Free forever with 500MB storage included.
           </p>
           <div class="flex flex-col sm:flex-row gap-4 justify-center">
             <UButton to="/signup" size="lg" color="primary" class="font-semibold px-6">
@@ -150,7 +150,7 @@ onMounted(() => {
             Everything You Need to Organize Your Thoughts
           </h2>
           <p class="text-xl text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
-            Built for modern workflows with offline-first architecture and powerful features. Perfect for students, professionals, teams, and anyone who wants to capture ideas instantly.
+            Built for modern workflows with powerful features. Perfect for students, professionals, teams, and anyone who wants to capture ideas instantly.
           </p>
         </div>
         
@@ -159,9 +159,9 @@ onMounted(() => {
             <div class="w-12 h-12 bg-primary-100 dark:bg-primary-900 rounded-lg flex items-center justify-center mb-4">
               <UIcon name="i-heroicons-wifi" class="w-6 h-6 text-primary-600 dark:text-primary-400" />
             </div>
-            <h3 class="text-xl font-semibold text-gray-900 dark:text-white mb-2">Offline-First</h3>
+            <h3 class="text-xl font-semibold text-gray-900 dark:text-white mb-2">Works Offline</h3>
             <p class="text-gray-600 dark:text-gray-400">
-              Works completely offline. Your notes sync automatically when you're back online. Perfect for travel, commuting, or unreliable connections.
+              Continue working even without internet. Your notes sync automatically when you're back online. Perfect for travel, commuting, or unreliable connections.
             </p>
           </div>
           
@@ -304,7 +304,7 @@ onMounted(() => {
               <span class="text-white font-bold">Unfold Notes</span>
             </div>
             <p class="text-sm">
-              Organize your thoughts with a modern, offline-first note-taking app.
+              Organize your thoughts with a modern note-taking app.
             </p>
           </div>
           

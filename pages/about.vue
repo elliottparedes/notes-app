@@ -3,7 +3,7 @@ const { setPageSEO, baseUrl } = useSEO()
 
 setPageSEO({
   title: 'About Unfold Notes - Our Mission, Story & Values',
-  description: 'Learn about Unfold Notes - a modern note-taking app built with a focus on offline-first architecture, collaboration, and beautiful design. Created by Elliott with a mission to make note-taking accessible everywhere.',
+  description: 'Learn about Unfold Notes - a modern note-taking app built with a focus on collaboration and beautiful design. Created by Elliott with a mission to make note-taking accessible everywhere.',
   path: '/about',
   keywords: [
     'about unfold notes',
@@ -91,7 +91,7 @@ setPageSEO({
           <div>
             <h2 class="text-3xl font-bold text-gray-900 dark:text-white mb-4">Why We Built It</h2>
             <p class="text-lg text-gray-600 dark:text-gray-400 leading-relaxed mb-4">
-              Traditional note-taking apps often fail when you need them most - on flights, in remote locations, or during internet outages. Unfold Notes was built from the ground up with offline-first architecture, ensuring your notes are always accessible.
+              Traditional note-taking apps often fail when you need them most - on flights, in remote locations, or during internet outages. Unfold Notes includes offline support, helping ensure your notes are accessible when you need them.
             </p>
             <p class="text-lg text-gray-600 dark:text-gray-400 leading-relaxed">
               We also wanted to combine the best of both worlds: the power of modern AI assistance with the simplicity of clean, distraction-free writing. Add real-time collaboration and beautiful organization, and you have Unfold Notes.
@@ -108,9 +108,9 @@ setPageSEO({
                 </p>
               </div>
               <div class="p-6 bg-gray-50 dark:bg-gray-800 rounded-xl">
-                <h3 class="text-xl font-semibold text-gray-900 dark:text-white mb-2">Offline First</h3>
+                <h3 class="text-xl font-semibold text-gray-900 dark:text-white mb-2">Offline Support</h3>
                 <p class="text-gray-600 dark:text-gray-400">
-                  Built to work everywhere, even without internet. Your notes sync automatically when you're back online.
+                  Works everywhere, even without internet. Your notes sync automatically when you're back online.
                 </p>
               </div>
               <div class="p-6 bg-gray-50 dark:bg-gray-800 rounded-xl">
@@ -171,7 +171,7 @@ setPageSEO({
               <img src="/folder.png" alt="Unfold Notes" class="w-6 h-6" />
               <span class="text-white font-bold">Unfold Notes</span>
             </div>
-            <p class="text-sm">Organize your thoughts with a modern, offline-first note-taking app.</p>
+            <p class="text-sm">Organize your thoughts with a modern note-taking app.</p>
           </div>
           <div>
             <h3 class="text-white font-semibold mb-4">Product</h3>

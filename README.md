@@ -1,13 +1,13 @@
 # Markdown Notes App
 
-A modern, offline-first Progressive Web App (PWA) for creating, viewing, and managing markdown notes with user authentication.
+A modern Progressive Web App (PWA) for creating, viewing, and managing markdown notes with user authentication.
 
 ## Features
 
 - 🔐 **User authentication** - Secure signup, login, and JWT-based sessions
 - 📝 **Rich text editing** - TipTap editor with markdown support
 - 🤖 **AI-powered notes** - Generate notes with Google Gemini 2.5 Flash
-- 📱 **Offline-first** - Full PWA support with IndexedDB caching
+- 📱 **PWA Support** - Installable app with offline capabilities
 - 🔄 **Automatic sync** - Changes sync when you're back online
 - 🎨 **Beautiful UI** - Modern design with NuxtUI components
 - 🏷️ **Organization** - Folders and tags for easy note management
