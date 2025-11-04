@@ -1,5 +1,6 @@
 import { executeQuery } from '~/server/utils/db';
 import { requireAuth } from '~/server/utils/auth';
+import { getBaseUrl } from '~/server/utils/url';
 
 interface PublishStatusRow {
   share_id: string;
@@ -41,8 +42,7 @@ export default defineEventHandler(async (event) => {
     return { is_published: false };
   }
 
-  const config = useRuntimeConfig();
-  const baseUrl = process.env.NUXT_PUBLIC_BASE_URL || config.public?.baseUrl || 'http://localhost:3000';
+  const baseUrl = getBaseUrl(event);
   const shareUrl = `${baseUrl}/p/${published.share_id}`;
 
   return {

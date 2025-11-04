@@ -1,5 +1,6 @@
 import { executeQuery } from '~/server/utils/db';
 import { requireAuth } from '~/server/utils/auth';
+import { getBaseUrl } from '~/server/utils/url';
 import type { PublishResponse } from '~/models';
 import { randomUUID } from 'crypto';
 
@@ -101,8 +102,7 @@ export default defineEventHandler(async (event): Promise<PublishResponse> => {
       publishedAt = newPublishResults[0].created_at;
     }
 
-    const config = useRuntimeConfig();
-    const baseUrl = process.env.NUXT_PUBLIC_BASE_URL || config.public?.baseUrl || 'http://localhost:3000';
+    const baseUrl = getBaseUrl(event);
     const shareUrl = `${baseUrl}/p/${shareId}`;
 
     return {

@@ -1,5 +1,6 @@
 import { requireAuth } from '~/server/utils/auth';
 import { executeQuery } from '~/server/utils/db';
+import { getBaseUrl } from '~/server/utils/url';
 
 interface PublishedNoteRow {
   id: number;
@@ -66,8 +67,7 @@ export default defineEventHandler(async (event) => {
       ORDER BY ps.updated_at DESC
     `, [userId]);
 
-    const config = useRuntimeConfig();
-    const baseUrl = process.env.NUXT_PUBLIC_BASE_URL || config.public?.baseUrl || 'http://localhost:3000';
+    const baseUrl = getBaseUrl(event);
 
     return {
       notes: publishedNotes.map(pn => ({
