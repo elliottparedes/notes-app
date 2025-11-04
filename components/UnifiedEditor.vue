@@ -995,6 +995,7 @@ onMounted(() => {
     }
 
       // Initialize content from database if YJS doc is empty (first time sync)
+      // CRITICAL: Use Y.Doc config map to track initialization (prevents overwriting collaborative content)
       syncedHandler = () => {
         if (isDestroying.value) {
           console.log(`[UnifiedEditor ${props.noteId}] ⚠️ Synced event during destroy, ignoring`)
@@ -1003,87 +1004,115 @@ onMounted(() => {
         
         console.log(`[UnifiedEditor ${props.noteId}] 🔄 Synced event fired`)
     
-    try {
-        // Don't try to initialize if already done - prevents race conditions
-        if (isInitialized.value) {
-          console.log(`[UnifiedEditor ${props.noteId}] ✅ Already initialized, skipping`)
-          return
-        }
-        
-        // Check if editor still exists
-        if (!editor.value) {
-          console.log(`[UnifiedEditor ${props.noteId}] ⚠️ Editor not available, skipping initialization`)
-          return
-        }
-        
-        // Check if editor has content by using the editor's state, NOT Y.Doc directly
-        // This avoids the "Type already defined" error
-        const editorIsEmpty = editor.value.isEmpty
-        const editorText = editor.value.state.doc.textContent
-        
-        console.log(`[UnifiedEditor ${props.noteId}] 📏 Editor empty: ${editorIsEmpty}, text length: ${editorText.length}`)
-        console.log(`[UnifiedEditor ${props.noteId}] 📦 Initial content length: ${props.initialContent?.length || 0}`)
-        console.log(`[UnifiedEditor ${props.noteId}] 📦 Initial content preview: ${props.initialContent?.substring(0, 200) || 'empty'}`)
-        
-        // CRITICAL: For task lists, we need to ensure content is set even if editor appears non-empty
-        // The editor might appear non-empty if Y.Doc has some structure, but we still need to set the actual content
-        if (props.initialContent && props.initialContent.trim().length > 0) {
-          // Check if the content actually matches what's in the editor
-          const currentHTML = editor.value.getHTML();
-          // More lenient matching - if initialContent is significantly longer, it's likely the correct content
-          const contentMatches = currentHTML === props.initialContent || 
-                                 (currentHTML.length > props.initialContent.length * 0.9 && 
-                                  currentHTML.length < props.initialContent.length * 1.1);
+        try {
+          // Check if editor still exists
+          if (!editor.value || !ydoc) {
+            console.log(`[UnifiedEditor ${props.noteId}] ⚠️ Editor or Y.Doc not available, skipping initialization`)
+            return
+          }
           
-          // If editor is empty OR content doesn't match OR initialContent is significantly longer, initialize
-          // This ensures we always use the provided initialContent when it's available
-          if (editorIsEmpty || !contentMatches || props.initialContent.length > currentHTML.length + 10) {
-            // Only initialize if the editor is empty OR if content doesn't match OR initialContent is longer
-            console.log(`[UnifiedEditor ${props.noteId}] 📝 Initializing editor with database content`, {
-              editorIsEmpty,
-              contentMatches,
-              currentHTMLLength: currentHTML.length,
-              initialContentLength: props.initialContent.length,
-              willInitialize: true
-            });
-            // Use emitUpdate: true to sync content to Y.Doc for other collaborators
+          // Use Y.Doc config map to track if initial content was already loaded (prevents overwriting)
+          // This is the recommended approach from Tiptap collaboration docs
+          const config = ydoc.getMap('config')
+          const initialContentLoaded = config.get('initialContentLoaded')
+          
+          if (initialContentLoaded) {
+            console.log(`[UnifiedEditor ${props.noteId}] ✅ Initial content already loaded (from Y.Doc config), skipping`)
+            isInitialized.value = true
+            return
+          }
+          
+          // Check if editor has meaningful content (more than just empty paragraph)
+          const editorIsEmpty = editor.value.isEmpty
+          const editorText = editor.value.state.doc.textContent.trim()
+          const hasContent = editorText.length > 0
+          
+          console.log(`[UnifiedEditor ${props.noteId}] 📏 Editor state:`, {
+            isEmpty: editorIsEmpty,
+            textLength: editorText.length,
+            hasContent,
+            initialContentLength: props.initialContent?.length || 0
+          })
+          
+          // Only set initial content if:
+          // 1. Editor is truly empty (no text content)
+          // 2. We have initial content from database
+          // 3. Initial content hasn't been loaded before (tracked in Y.Doc config)
+          if (hasContent) {
+            // Y.Doc already has content (from another client or previous session)
+            // Mark as initialized and trust Y.Doc's content
+            console.log(`[UnifiedEditor ${props.noteId}] 📦 Y.Doc already has content, trusting collaborative state`)
+            config.set('initialContentLoaded', true)
+            isInitialized.value = true
+            return
+          }
+          
+          // Editor is empty, check if we should initialize from database
+          if (props.initialContent && props.initialContent.trim().length > 0) {
+            console.log(`[UnifiedEditor ${props.noteId}] 📝 Initializing editor with database content (first time)`)
+            
+            // Set content with emitUpdate: true to sync to Y.Doc for other collaborators
             editor.value.commands.setContent(props.initialContent, { emitUpdate: true })
+            
+            // Mark as initialized in Y.Doc config map (prevents re-initialization)
+            config.set('initialContentLoaded', true)
+            
             console.log(`[UnifiedEditor ${props.noteId}] ✅ Content loaded and synced to Y.Doc`)
           } else {
-            console.log(`[UnifiedEditor ${props.noteId}] ♻️ Editor already has matching content, skipping initialization`, {
-              currentHTMLLength: currentHTML.length,
-              initialContentLength: props.initialContent.length
-            })
+            console.log(`[UnifiedEditor ${props.noteId}] ℹ️ No initial content to set, marking as initialized`)
+            config.set('initialContentLoaded', true)
           }
-        } else {
-          console.log(`[UnifiedEditor ${props.noteId}] ℹ️ No initial content to set`)
+          
+          isInitialized.value = true
+        } catch (error) {
+          console.error(`[UnifiedEditor ${props.noteId}] ❌ Error in synced handler:`, error)
+          // Mark as initialized to prevent retrying
+          isInitialized.value = true
+          // Also mark in Y.Doc config to prevent retries
+          if (ydoc) {
+            try {
+              ydoc.getMap('config').set('initialContentLoaded', true)
+            } catch (e) {
+              // Ignore config errors
+            }
+          }
         }
-        
-        isInitialized.value = true
-      } catch (error) {
-        console.error(`[UnifiedEditor ${props.noteId}] ❌ Error in synced handler:`, error)
-        // Mark as initialized to prevent retrying
-        isInitialized.value = true
       }
-    }
     if (provider.value) {
       provider.value.on('synced', syncedHandler)
     }
 
-    // Track Y.Doc updates for debugging (only if collaborative)
+    // Track Y.Doc updates for debugging and ensure updates are reflected (only if collaborative)
     if (ydoc) {
       updateHandler = (update: Uint8Array, origin: any) => {
         if (isDestroying.value) return
         
         try {
-          // Don't access Y.Doc text directly - just log the update
+          // Log the update for debugging
+          const editorLength = editor.value?.state.doc.textContent.length || 0
+          const isLocalUpdate = origin === editor.value || origin?.constructor?.name === 'Collaboration'
+          
           console.log(`[UnifiedEditor ${props.noteId}] 🔄 Y.Doc update received`, {
             updateSize: update.length,
             origin: origin?.constructor?.name || 'unknown',
-            editorLength: editor.value?.state.doc.textContent.length || 0
+            editorLength,
+            isLocalUpdate
           })
+          
+          // If this is a remote update (not from our editor), ensure UI reflects it
+          // The Collaboration extension should handle this automatically, but we can verify
+          if (!isLocalUpdate && editor.value) {
+            // Wait a tick to ensure Collaboration extension has processed the update
+            nextTick(() => {
+              if (editor.value && !isDestroying.value) {
+                const newContent = editor.value.getHTML()
+                // Emit update to ensure parent component knows content changed
+                emit('update:content', newContent)
+              }
+            })
+          }
         } catch (error) {
-          // Ignore errors during destruction
+          console.error(`[UnifiedEditor ${props.noteId}] ❌ Error handling Y.Doc update:`, error)
         }
       }
       ydoc.on('update', updateHandler)
