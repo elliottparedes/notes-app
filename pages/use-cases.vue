@@ -1,4 +1,32 @@
 <script setup lang="ts">
+const selectedImage = ref<string | null>(null);
+
+function openImageModal(imageSrc: string) {
+  selectedImage.value = imageSrc;
+  document.body.style.overflow = 'hidden';
+}
+
+function closeImageModal() {
+  selectedImage.value = null;
+  document.body.style.overflow = '';
+}
+
+// Close on ESC key
+const handleEscape = (e: KeyboardEvent) => {
+  if (e.key === 'Escape' && selectedImage.value) {
+    closeImageModal();
+  }
+};
+
+onMounted(() => {
+  window.addEventListener('keydown', handleEscape);
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', handleEscape);
+  document.body.style.overflow = '';
+});
+
 useHead({
   title: 'Use Cases - How to Use Unfold Notes | Productivity Solutions',
   meta: [
@@ -75,14 +103,14 @@ useHead({
               </li>
             </ul>
           </div>
-          <div class="bg-gray-100 dark:bg-gray-800 rounded-xl p-8 min-h-[300px] flex items-center justify-center">
-            <p class="text-gray-500 dark:text-gray-400">Personal Notes Preview</p>
+          <div class="bg-gray-100 dark:bg-gray-800 rounded-xl overflow-hidden shadow-2xl ring-1 ring-gray-200 dark:ring-gray-700 cursor-pointer transition-transform hover:scale-[1.02]" @click="openImageModal('/personal-notes.png')">
+            <img src="/personal-notes.png" alt="Personal Notes Preview" class="w-full h-full object-cover" />
           </div>
         </div>
 
         <div class="grid md:grid-cols-2 gap-12 items-center">
-          <div class="order-2 md:order-1 bg-gray-100 dark:bg-gray-800 rounded-xl p-8 min-h-[300px] flex items-center justify-center">
-            <p class="text-gray-500 dark:text-gray-400">Team Collaboration Preview</p>
+          <div class="order-2 md:order-1 bg-gray-100 dark:bg-gray-800 rounded-xl overflow-hidden shadow-2xl ring-1 ring-gray-200 dark:ring-gray-700 cursor-pointer transition-transform hover:scale-[1.02]" @click="openImageModal('/collab.png')">
+            <img src="/collab.png" alt="Team Collaboration Preview" class="w-full h-full object-cover" />
           </div>
           <div class="order-1 md:order-2">
             <div class="w-12 h-12 bg-green-100 dark:bg-green-900 rounded-lg flex items-center justify-center mb-4">
@@ -133,14 +161,14 @@ useHead({
               </li>
             </ul>
           </div>
-          <div class="bg-gray-100 dark:bg-gray-800 rounded-xl p-8 min-h-[300px] flex items-center justify-center">
-            <p class="text-gray-500 dark:text-gray-400">Research Preview</p>
+          <div class="bg-gray-100 dark:bg-gray-800 rounded-xl overflow-hidden shadow-2xl ring-1 ring-gray-200 dark:ring-gray-700 cursor-pointer transition-transform hover:scale-[1.02]" @click="openImageModal('/research.png')">
+            <img src="/research.png" alt="Research Preview" class="w-full h-full object-cover" />
           </div>
         </div>
 
         <div class="grid md:grid-cols-2 gap-12 items-center">
-          <div class="order-2 md:order-1 bg-gray-100 dark:bg-gray-800 rounded-xl p-8 min-h-[300px] flex items-center justify-center">
-            <p class="text-gray-500 dark:text-gray-400">Meeting Notes Preview</p>
+          <div class="order-2 md:order-1 bg-gray-100 dark:bg-gray-800 rounded-xl overflow-hidden shadow-2xl ring-1 ring-gray-200 dark:ring-gray-700 cursor-pointer transition-transform hover:scale-[1.02]" @click="openImageModal('/meeting-notes.png')">
+            <img src="/meeting-notes.png" alt="Meeting Notes Preview" class="w-full h-full object-cover" />
           </div>
           <div class="order-1 md:order-2">
             <div class="w-12 h-12 bg-orange-100 dark:bg-orange-900 rounded-lg flex items-center justify-center mb-4">
@@ -191,8 +219,8 @@ useHead({
               </li>
             </ul>
           </div>
-          <div class="bg-gray-100 dark:bg-gray-800 rounded-xl p-8 min-h-[300px] flex items-center justify-center">
-            <p class="text-gray-500 dark:text-gray-400">Project Planning Preview</p>
+          <div class="bg-gray-100 dark:bg-gray-800 rounded-xl overflow-hidden shadow-2xl ring-1 ring-gray-200 dark:ring-gray-700 cursor-pointer transition-transform hover:scale-[1.02]" @click="openImageModal('/project-planning.png')">
+            <img src="/project-planning.png" alt="Project Planning Preview" class="w-full h-full object-cover" />
           </div>
         </div>
       </div>
@@ -254,6 +282,55 @@ useHead({
         </div>
       </div>
     </footer>
+
+    <!-- Fullscreen Image Modal -->
+    <Teleport to="body">
+      <Transition
+        enter-active-class="transition-opacity duration-300"
+        enter-from-class="opacity-0"
+        enter-to-class="opacity-100"
+        leave-active-class="transition-opacity duration-300"
+        leave-from-class="opacity-100"
+        leave-to-class="opacity-0"
+      >
+        <div
+          v-if="selectedImage"
+          class="fixed inset-0 z-[9999] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4"
+          @click="closeImageModal"
+        >
+          <!-- Close Button -->
+          <button
+            @click="closeImageModal"
+            class="absolute top-4 right-4 z-10 p-3 bg-white/10 hover:bg-white/20 backdrop-blur-sm rounded-full text-white transition-all hover:scale-110"
+            aria-label="Close image"
+          >
+            <UIcon name="i-heroicons-x-mark" class="w-6 h-6" />
+          </button>
+
+          <!-- Image Container -->
+          <div
+            @click.stop
+            class="relative max-w-7xl w-full h-full flex items-center justify-center"
+          >
+            <Transition
+              enter-active-class="transition-all duration-300"
+              enter-from-class="opacity-0 scale-95"
+              enter-to-class="opacity-100 scale-100"
+              leave-active-class="transition-all duration-300"
+              leave-from-class="opacity-100 scale-100"
+              leave-to-class="opacity-0 scale-95"
+            >
+              <img
+                v-if="selectedImage"
+                :src="selectedImage"
+                alt="Fullscreen preview"
+                class="max-w-full max-h-[90vh] w-auto h-auto object-contain rounded-lg shadow-2xl"
+              />
+            </Transition>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
   </div>
 </template>
 

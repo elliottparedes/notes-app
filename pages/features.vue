@@ -1,10 +1,38 @@
 <script setup lang="ts">
+const selectedImage = ref<string | null>(null);
+
+function openImageModal(imageSrc: string) {
+  selectedImage.value = imageSrc;
+  document.body.style.overflow = 'hidden';
+}
+
+function closeImageModal() {
+  selectedImage.value = null;
+  document.body.style.overflow = '';
+}
+
+// Close on ESC key
+const handleEscape = (e: KeyboardEvent) => {
+  if (e.key === 'Escape' && selectedImage.value) {
+    closeImageModal();
+  }
+};
+
+onMounted(() => {
+  window.addEventListener('keydown', handleEscape);
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', handleEscape);
+  document.body.style.overflow = '';
+});
+
 useHead({
   title: 'Features - Unfold Notes | Powerful Note-Taking Capabilities',
   meta: [
     {
       name: 'description',
-      content: 'Discover all the powerful features of Unfold Notes: AI-powered writing, offline-first architecture, real-time collaboration, file attachments, PDF export, and more.'
+      content: 'Discover all the powerful features of Unfold Notes: AI-powered writing, real-time collaboration, file attachments, PDF export, and more.'
     }
   ]
 });
@@ -76,15 +104,15 @@ useHead({
               </li>
             </ul>
           </div>
-          <div class="bg-gray-100 dark:bg-gray-800 rounded-xl p-8 min-h-[300px] flex items-center justify-center">
-            <p class="text-gray-500 dark:text-gray-400">Editor Preview</p>
+          <div class="bg-gray-100 dark:bg-gray-800 rounded-xl overflow-hidden shadow-2xl ring-1 ring-gray-200 dark:ring-gray-700 cursor-pointer transition-transform hover:scale-[1.02]" @click="openImageModal('/rich-text.png')">
+            <img src="/rich-text.png" alt="Rich Text Editor Preview" class="w-full h-full object-cover" />
           </div>
         </div>
 
         <!-- Feature 2: AI-Powered -->
         <div class="grid md:grid-cols-2 gap-12 items-center">
-          <div class="order-2 md:order-1 bg-gray-100 dark:bg-gray-800 rounded-xl p-8 min-h-[300px] flex items-center justify-center">
-            <p class="text-gray-500 dark:text-gray-400">AI Preview</p>
+          <div class="order-2 md:order-1 bg-gray-100 dark:bg-gray-800 rounded-xl overflow-hidden shadow-2xl ring-1 ring-gray-200 dark:ring-gray-700 cursor-pointer transition-transform hover:scale-[1.02]" @click="openImageModal('/ai-note.png')">
+            <img src="/ai-note.png" alt="AI-Powered Writing Preview" class="w-full h-full object-cover" />
           </div>
           <div class="order-1 md:order-2">
             <div class="w-12 h-12 bg-purple-100 dark:bg-purple-900 rounded-lg flex items-center justify-center mb-4">
@@ -111,40 +139,10 @@ useHead({
           </div>
         </div>
 
-        <!-- Feature 3: Offline-First -->
+        <!-- Feature 3: Collaboration -->
         <div class="grid md:grid-cols-2 gap-12 items-center">
-          <div>
-            <div class="w-12 h-12 bg-green-100 dark:bg-green-900 rounded-lg flex items-center justify-center mb-4">
-              <UIcon name="i-heroicons-wifi" class="w-6 h-6 text-green-600 dark:text-green-400" />
-            </div>
-            <h2 class="text-3xl font-bold text-gray-900 dark:text-white mb-4">Offline-First Architecture</h2>
-            <p class="text-lg text-gray-600 dark:text-gray-400 mb-4">
-              Your notes work everywhere, even without internet. Built as a Progressive Web App (PWA) with full offline support.
-            </p>
-            <ul class="space-y-2 text-gray-600 dark:text-gray-400">
-              <li class="flex items-start gap-2">
-                <UIcon name="i-heroicons-check" class="w-5 h-5 text-primary-600 dark:text-primary-400 flex-shrink-0 mt-0.5" />
-                <span>Full functionality without internet connection</span>
-              </li>
-              <li class="flex items-start gap-2">
-                <UIcon name="i-heroicons-check" class="w-5 h-5 text-primary-600 dark:text-primary-400 flex-shrink-0 mt-0.5" />
-                <span>Automatic sync when connection is restored</span>
-              </li>
-              <li class="flex items-start gap-2">
-                <UIcon name="i-heroicons-check" class="w-5 h-5 text-primary-600 dark:text-primary-400 flex-shrink-0 mt-0.5" />
-                <span>Install as a native app on any device</span>
-              </li>
-            </ul>
-          </div>
-          <div class="bg-gray-100 dark:bg-gray-800 rounded-xl p-8 min-h-[300px] flex items-center justify-center">
-            <p class="text-gray-500 dark:text-gray-400">Offline Preview</p>
-          </div>
-        </div>
-
-        <!-- Feature 4: Collaboration -->
-        <div class="grid md:grid-cols-2 gap-12 items-center">
-          <div class="order-2 md:order-1 bg-gray-100 dark:bg-gray-800 rounded-xl p-8 min-h-[300px] flex items-center justify-center">
-            <p class="text-gray-500 dark:text-gray-400">Collaboration Preview</p>
+          <div class="order-2 md:order-1 bg-gray-100 dark:bg-gray-800 rounded-xl overflow-hidden shadow-2xl ring-1 ring-gray-200 dark:ring-gray-700 cursor-pointer transition-transform hover:scale-[1.02]" @click="openImageModal('/collab.png')">
+            <img src="/collab.png" alt="Real-Time Collaboration Preview" class="w-full h-full object-cover" />
           </div>
           <div class="order-1 md:order-2">
             <div class="w-12 h-12 bg-blue-100 dark:bg-blue-900 rounded-lg flex items-center justify-center mb-4">
@@ -196,15 +194,15 @@ useHead({
               </li>
             </ul>
           </div>
-          <div class="bg-gray-100 dark:bg-gray-800 rounded-xl p-8 min-h-[300px] flex items-center justify-center">
-            <p class="text-gray-500 dark:text-gray-400">Organization Preview</p>
+          <div class="bg-gray-100 dark:bg-gray-800 rounded-xl overflow-hidden shadow-2xl ring-1 ring-gray-200 dark:ring-gray-700 cursor-pointer transition-transform hover:scale-[1.02]" @click="openImageModal('/smart-org.png')">
+            <img src="/smart-org.png" alt="Smart Organization Preview" class="w-full h-full object-cover" />
           </div>
         </div>
 
-        <!-- Feature 6: File Attachments & Export -->
+        <!-- Feature 5: File Attachments & Export -->
         <div class="grid md:grid-cols-2 gap-12 items-center">
-          <div class="order-2 md:order-1 bg-gray-100 dark:bg-gray-800 rounded-xl p-8 min-h-[300px] flex items-center justify-center">
-            <p class="text-gray-500 dark:text-gray-400">Attachments Preview</p>
+          <div class="order-2 md:order-1 bg-gray-100 dark:bg-gray-800 rounded-xl overflow-hidden shadow-2xl ring-1 ring-gray-200 dark:ring-gray-700 cursor-pointer transition-transform hover:scale-[1.02]" @click="openImageModal('/file-attachments.png')">
+            <img src="/file-attachments.png" alt="File Attachments Preview" class="w-full h-full object-cover" />
           </div>
           <div class="order-1 md:order-2">
             <div class="w-12 h-12 bg-indigo-100 dark:bg-indigo-900 rounded-lg flex items-center justify-center mb-4">
@@ -260,7 +258,7 @@ useHead({
               <img src="/folder.png" alt="Unfold Notes" class="w-6 h-6" />
               <span class="text-white font-bold">Unfold Notes</span>
             </div>
-            <p class="text-sm">Organize your thoughts with a modern, offline-first note-taking app.</p>
+            <p class="text-sm">Organize your thoughts with a modern note-taking app.</p>
           </div>
           <div>
             <h3 class="text-white font-semibold mb-4">Product</h3>
@@ -289,6 +287,55 @@ useHead({
         </div>
       </div>
     </footer>
+
+    <!-- Fullscreen Image Modal -->
+    <Teleport to="body">
+      <Transition
+        enter-active-class="transition-opacity duration-300"
+        enter-from-class="opacity-0"
+        enter-to-class="opacity-100"
+        leave-active-class="transition-opacity duration-300"
+        leave-from-class="opacity-100"
+        leave-to-class="opacity-0"
+      >
+        <div
+          v-if="selectedImage"
+          class="fixed inset-0 z-[9999] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4"
+          @click="closeImageModal"
+        >
+          <!-- Close Button -->
+          <button
+            @click="closeImageModal"
+            class="absolute top-4 right-4 z-10 p-3 bg-white/10 hover:bg-white/20 backdrop-blur-sm rounded-full text-white transition-all hover:scale-110"
+            aria-label="Close image"
+          >
+            <UIcon name="i-heroicons-x-mark" class="w-6 h-6" />
+          </button>
+
+          <!-- Image Container -->
+          <div
+            @click.stop
+            class="relative max-w-7xl w-full h-full flex items-center justify-center"
+          >
+            <Transition
+              enter-active-class="transition-all duration-300"
+              enter-from-class="opacity-0 scale-95"
+              enter-to-class="opacity-100 scale-100"
+              leave-active-class="transition-all duration-300"
+              leave-from-class="opacity-100 scale-100"
+              leave-to-class="opacity-0 scale-95"
+            >
+              <img
+                v-if="selectedImage"
+                :src="selectedImage"
+                alt="Fullscreen preview"
+                class="max-w-full max-h-[90vh] w-auto h-auto object-contain rounded-lg shadow-2xl"
+              />
+            </Transition>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
   </div>
 </template>
 
