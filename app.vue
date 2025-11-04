@@ -6,8 +6,8 @@ const { baseUrl } = useSEO()
 // Global Organization schema
 useHead({
   link: [
-    { rel: 'icon', type: 'image/png', href: '/folder.png' },
-    { rel: 'apple-touch-icon', href: '/folder.png', sizes: '192x192' },
+    { rel: 'icon', type: 'image/png', href: '/swan-unfold.png' },
+    { rel: 'apple-touch-icon', href: '/swan-unfold.png', sizes: '192x192' },
     { rel: 'alternate', type: 'application/rss+xml', href: `${baseUrl}/rss.xml` }
   ],
   meta: [
@@ -26,7 +26,7 @@ useHead({
         '@type': 'Organization',
         name: 'Unfold Notes',
         url: baseUrl,
-        logo: `${baseUrl}/folder.png`,
+        logo: `${baseUrl}/swan-unfold.png`,
         description: 'Modern note-taking app with AI-powered features and real-time collaboration',
         sameAs: [
           // Add social media links when available

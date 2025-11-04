@@ -76,7 +76,7 @@ setPageSEO({
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="flex justify-between items-center h-16">
           <NuxtLink to="/" class="flex items-center gap-2">
-            <img src="/folder.png" alt="Unfold Notes" class="w-8 h-8" />
+            <img src="/swan-unfold.png" alt="Unfold Notes" class="w-8 h-8" />
             <span class="text-xl font-bold text-gray-900 dark:text-white">Unfold Notes</span>
           </NuxtLink>
           
@@ -286,7 +286,7 @@ setPageSEO({
         <div class="grid md:grid-cols-4 gap-8 mb-8">
           <div>
             <div class="flex items-center gap-2 mb-4">
-              <img src="/folder.png" alt="Unfold Notes" class="w-6 h-6" />
+              <img src="/swan-unfold.png" alt="Unfold Notes" class="w-6 h-6" />
               <span class="text-white font-bold">Unfold Notes</span>
             </div>
             <p class="text-sm">Organize your thoughts with a modern note-taking app.</p>

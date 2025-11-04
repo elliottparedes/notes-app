@@ -71,19 +71,19 @@ export default defineNuxtConfig({
       start_url: '/dashboard',
       icons: [
         {
-          src: '/folder.png',
+          src: '/swan-unfold.png',
           sizes: '192x192',
           type: 'image/png',
           purpose: 'any'
         },
         {
-          src: '/folder.png',
+          src: '/swan-unfold.png',
           sizes: '512x512',
           type: 'image/png',
           purpose: 'any'
         },
         {
-          src: '/folder.png',
+          src: '/swan-unfold.png',
           sizes: '512x512',
           type: 'image/png',
           purpose: 'maskable'

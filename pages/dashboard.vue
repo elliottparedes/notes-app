@@ -38,8 +38,9 @@ const editForm = reactive<UpdateNoteDto & { content: string }>({
 const isSaving = ref(false);
 const autoSaveTimeout = ref<NodeJS.Timeout | null>(null);
 const isLocked = ref(false);
-const collaborativeEditorRef = ref<{ getCurrentContent: () => string } | null>(null);
-const tiptapEditorRef = ref<{ getHTML: () => string } | null>(null);
+// UnifiedEditor exposes both getHTML and getCurrentContent for both modes
+const collaborativeEditorRef = ref<{ getCurrentContent: () => string; getHTML: () => string } | null>(null);
+const tiptapEditorRef = ref<{ getHTML: () => string; getCurrentContent: () => string } | null>(null);
 const showFolderDropdown = ref(false);
 // Flag to prevent auto-save when programmatically updating editForm (e.g., switching tabs/spaces)
 const isProgrammaticUpdate = ref(false);
@@ -563,7 +564,7 @@ watch(activeNote, (note, oldNote) => {
     const transitioningToRegular = wasCollaborative && !isNowCollaborative;
     
     if (isNowCollaborative && !transitioningToRegular) {
-      console.log('[Dashboard] Loading collaborative note, skipping content sync to editForm');
+      console.log('[Dashboard] Loading collaborative note');
       
       // Set flag to prevent auto-save during programmatic update
       isProgrammaticUpdate.value = true;
@@ -573,11 +574,19 @@ watch(activeNote, (note, oldNote) => {
         editForm.tags = note.tags || [];
         editForm.folder = note.folder || '';
         editForm.folder_id = note.folder_id || null;
-        // Don't update editForm.content - CollaborativeEditor manages it via Y.Doc
+        // CRITICAL: Update editForm.content with note.content so UnifiedEditor gets it as initialContent
+        // This is especially important when sharing a note - the content must be available
+        if (note.content) {
+          editForm.content = note.content;
+          console.log('[Dashboard] Updated editForm.content for collaborative note', {
+            contentLength: note.content.length,
+            preview: note.content.substring(0, 100)
+          });
+        }
         
         // Initialize previous values for change detection
         prevTitle.value = note.title;
-        prevContent.value = editForm.content; // Keep current content value
+        prevContent.value = editForm.content || note.content || ''; // Use note content if editForm is empty
         prevFolderId.value = note.folder_id || null;
       } finally {
         // Clear flag after update
@@ -1609,7 +1618,7 @@ async function shareNote() {
     }
     
     // CRITICAL: Update activeNote.value directly if it's the same note
-    // This ensures CollaborativeEditor gets the correct initialContent prop
+    // This ensures UnifiedEditor gets the correct initialContent prop
     if (activeNote.value && activeNote.value.id === currentNoteId) {
       activeNote.value.content = savedContent;
       activeNote.value.title = savedTitle || activeNote.value.title || '';
@@ -1620,45 +1629,18 @@ async function shareNote() {
       });
     }
     
-    // Wait for Vue reactivity to update before CollaborativeEditor initializes
+    // CRITICAL: Also update editForm.content so UnifiedEditor gets it as initialContent
+    // This is the most reliable way to ensure content is passed to UnifiedEditor
+    editForm.content = savedContent;
+    console.log('[Dashboard] Updated editForm.content with saved content for UnifiedEditor', {
+      contentLength: savedContent.length,
+      preview: savedContent.substring(0, 200)
+    });
+    
+    // Wait for Vue reactivity to update before UnifiedEditor initializes
     await nextTick();
     // Give an extra tick to ensure all reactive updates have propagated
-    await new Promise(resolve => setTimeout(resolve, 100));
-    
-    // Force a refetch of the active note to ensure database has the latest content
-    // But we'll restore the saved content again after fetching
-    try {
-      await notesStore.fetchNote(currentNoteId);
-      // After fetching, restore the content again (in case fetchNote returned stale data)
-      const freshNoteIndex = notesStore.notes.findIndex(n => n.id === currentNoteId);
-      if (freshNoteIndex !== -1 && notesStore.notes[freshNoteIndex]) {
-        // Only restore if the fetched content is empty or significantly different
-        const fetchedContent = notesStore.notes[freshNoteIndex].content || '';
-        if (!fetchedContent || Math.abs(fetchedContent.length - savedContent.length) > 10) {
-          notesStore.notes[freshNoteIndex].content = savedContent;
-          notesStore.notes[freshNoteIndex].title = savedTitle || notesStore.notes[freshNoteIndex].title || '';
-          console.log('[Dashboard] Restored content after fetchNote (fetched was empty/different)', {
-            fetchedLength: fetchedContent.length,
-            savedLength: savedContent.length
-          });
-        }
-      }
-      if (notesStore.currentNote && notesStore.currentNote.id === currentNoteId) {
-        notesStore.currentNote.content = savedContent;
-        notesStore.currentNote.title = savedTitle || notesStore.currentNote.title || '';
-      }
-      // Update activeNote.value again after fetch
-      if (activeNote.value && activeNote.value.id === currentNoteId) {
-        activeNote.value.content = savedContent;
-        activeNote.value.title = savedTitle || activeNote.value.title || '';
-      }
-      console.log('[Dashboard] Refetched and restored note content', {
-        contentLength: savedContent.length
-      });
-    } catch (fetchError) {
-      console.error('[Dashboard] Failed to refetch note after sharing:', fetchError);
-      // Continue anyway - we've already restored the content
-    }
+    await nextTick();
 
     const userNames = selectedUsersToShare.value.map(u => u.name || u.email).join(', ');
     toast.add({
@@ -1690,13 +1672,13 @@ async function removeShare(shareId: number) {
     if (wasShared && activeNote.value) {
       console.log('[Dashboard] Saving CollaborativeEditor content before unsharing');
       try {
-        // Get the current content directly from CollaborativeEditor
+        // Get the current content directly from UnifiedEditor (collaborative mode)
         let contentToSave = '';
         if (collaborativeEditorRef.value?.getCurrentContent) {
           contentToSave = collaborativeEditorRef.value.getCurrentContent();
-          console.log('[Dashboard] Got content from CollaborativeEditor, length:', contentToSave.length);
+          console.log('[Dashboard] Got content from UnifiedEditor (collaborative), length:', contentToSave.length);
         } else {
-          // Fallback: use content from activeNote (updated by CollaborativeEditor's @update:content)
+          // Fallback: use content from activeNote (updated by UnifiedEditor's @update:content)
           contentToSave = activeNote.value.content || '';
           console.log('[Dashboard] Using content from activeNote, length:', contentToSave.length);
         }
@@ -2887,7 +2869,7 @@ onMounted(() => {
           <!-- Sidebar Header -->
           <div class="flex items-center justify-between h-14 px-3 flex-shrink-0">
             <div class="flex items-center gap-1 min-w-0">
-              <img src="/folder.png" alt="Unfold" class="w-16 h-16 flex-shrink-0" />
+              <img src="/swan-unfold.png" alt="Unfold" class="w-16 h-16 flex-shrink-0" />
               <h1 class="text-lg font-extrabold text-gray-900 dark:text-white tracking-wide truncate">Unfold</h1>
             </div>
             <!-- Hide Sidebar Button (Notability-style) -->
@@ -3318,7 +3300,7 @@ onMounted(() => {
               <!-- Drawer Header -->
               <div class="flex items-center justify-between px-6 py-5 border-b border-gray-200 dark:border-gray-700">
                 <div class="flex items-center gap-2">
-                  <img src="/folder.png" alt="Unfold" class="w-20 h-20" />
+                  <img src="/swan-unfold.png" alt="Unfold" class="w-20 h-20" />
                   <h1 class="text-2xl font-extrabold text-gray-900 dark:text-white tracking-wide">Unfold</h1>
                 </div>
                 <button
@@ -4121,29 +4103,31 @@ onMounted(() => {
                 @change="handleFileUpload"
               />
               
-              <!-- Use CollaborativeEditor for shared notes -->
-              <CollaborativeEditor
-                v-if="activeNote.is_shared || activeNote.share_permission"
-                ref="collaborativeEditorRef"
-                :key="`collab-${activeNote.id}-${authStore.currentUser?.id || 'anon'}`"
-                :note-id="activeNote.id"
-                :editable="!isLocked && (activeNote.share_permission === 'editor' || activeNote.user_id === authStore.currentUser?.id)"
-                :user-name="authStore.currentUser?.name || authStore.currentUser?.email || 'Anonymous'"
-                :user-color="generateUserColor(authStore.currentUser?.id)"
-                :initial-content="activeNote.content || editForm.content || ''"
-                placeholder="Start writing... Right-click for options or press ? for keyboard shortcuts"
-                @update:content="(content) => { if (activeNote) activeNote.content = content }"
-              />
-              
-              <!-- Use regular TiptapEditor for non-shared notes -->
-              <ClientOnly v-else>
-                <TiptapEditor
-                  ref="tiptapEditorRef"
-                  v-model="editForm.content"
+              <!-- Use UnifiedEditor for all notes (collaborative or regular) -->
+              <ClientOnly>
+                <UnifiedEditor
+                  v-if="activeNote.is_shared || activeNote.share_permission"
+                  ref="collaborativeEditorRef"
+                  :key="`collab-${activeNote.id}-${authStore.currentUser?.id || 'anon'}`"
+                  :is-collaborative="true"
+                  :note-id="activeNote.id"
+                  :editable="!isLocked && (activeNote.share_permission === 'editor' || activeNote.user_id === authStore.currentUser?.id)"
+                  :user-name="authStore.currentUser?.name || authStore.currentUser?.email || 'Anonymous'"
+                  :user-color="generateUserColor(authStore.currentUser?.id)"
+                  :initial-content="activeNote.content || editForm.content || ''"
                   placeholder="Start writing... Right-click for options or press ? for keyboard shortcuts"
+                  @update:content="(content) => { if (activeNote) activeNote.content = content }"
+                />
+                <UnifiedEditor
+                  v-else
+                  ref="tiptapEditorRef"
+                  :key="`regular-${activeNote.id}`"
+                  v-model="editForm.content"
+                  :is-collaborative="false"
+                  :note-id="activeNote?.id"
                   :editable="!isLocked"
-                  :showToolbar="false"
-                  :noteId="activeNote?.id"
+                  :show-toolbar="false"
+                  placeholder="Start writing... Right-click for options or press ? for keyboard shortcuts"
                 />
               </ClientOnly>
             </div>

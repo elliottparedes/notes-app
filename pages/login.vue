@@ -179,7 +179,7 @@ async function handleLogin() {
         <div class="flex justify-center mb-8">
           <div class="relative">
             <div class="absolute inset-0 bg-gradient-to-br from-primary-400 via-emerald-500 to-teal-600 rounded-3xl blur-xl opacity-30"></div>
-            <img src="/folder.png" alt="Markdown Notes" class="relative w-20 h-20 drop-shadow-lg" />
+            <img src="/swan-unfold.png" alt="Unfold Notes" class="relative w-20 h-20 drop-shadow-lg" />
           </div>
         </div>
 
