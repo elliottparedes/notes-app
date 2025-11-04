@@ -1,2 +1,5 @@
 User-Agent: *
 Disallow:
+
+# Update the domain below with your actual domain (e.g., https://unfoldnotes.com)
+Sitemap: https://yourdomain.com/sitemap.xml
