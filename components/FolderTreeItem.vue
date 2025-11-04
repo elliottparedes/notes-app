@@ -1047,19 +1047,6 @@ onMounted(() => {
                   </div>
                 </button>
 
-                <!-- New List -->
-                <button
-                  type="button"
-                  @click="emit('create-list-note', folder.id); showContextMenu = false; showNewNoteSubmenu = false"
-                  class="w-full text-left px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-orange-50 dark:hover:bg-orange-900/20 flex items-center gap-3"
-                >
-                  <UIcon name="i-heroicons-list-bullet" class="w-5 h-5 text-orange-500" />
-                  <div class="flex-1">
-                    <div class="font-medium text-gray-900 dark:text-white">New List</div>
-                    <div class="text-xs text-gray-500 dark:text-gray-400">With checkbox ready</div>
-                  </div>
-                </button>
-
                 <!-- From Template -->
                 <button
                   type="button"
