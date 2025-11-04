@@ -100,9 +100,9 @@ async function parseRecipeWithAI(html: string, url: string, apiKey: string): Pro
     .replace(/\s+/g, ' ')
     .trim();
 
-  // Limit HTML length to avoid token limits (roughly 20k characters)
-  if (cleanHtml.length > 20000) {
-    cleanHtml = cleanHtml.substring(0, 20000) + '...';
+  // Limit HTML length to avoid token limits (increased to 50k characters for better context)
+  if (cleanHtml.length > 150000) {
+    cleanHtml = cleanHtml.substring(0, 150000) + '...';
   }
 
   const prompt = `HTML Content:
@@ -120,7 +120,7 @@ Extract ONLY the recipe information as valid JSON. No explanations, no markdown,
         'X-Title': 'Markdown Notes App'
       },
       body: {
-        model: 'microsoft/phi-4',
+        model: 'google/gemini-2.5-flash',
         messages: [
           {
             role: 'system',
@@ -149,7 +149,7 @@ CRITICAL RULES:
           }
         ],
         temperature: 0.2,
-        max_tokens: 4000
+        max_tokens: 20000
       }
     });
 
