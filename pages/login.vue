@@ -25,8 +25,9 @@ const form = reactive<UserLoginDto>({
 const loading = ref(false);
 const showForgotPasswordModal = ref(false);
 
-// Check synchronously on client side to prevent flash
-const checkingAuth = ref(true);
+// Default to false - only show loading if we actually have a token to check
+// On Netlify, this prevents hanging on the loading screen
+const checkingAuth = ref(false);
 
 // Immediate synchronous check for token (runs before first render)
 // On Netlify, this must be synchronous to prevent hanging
@@ -47,8 +48,9 @@ if (process.client) {
     authStore.initialized = true;
   }
 } else {
-  // On server, always check (will be determined on client)
-  checkingAuth.value = true;
+  // On server, default to false - will be determined on client hydration
+  // This prevents showing loading spinner on server render
+  checkingAuth.value = false;
 }
 
 // Also check after mount to handle async auth initialization
@@ -138,23 +140,9 @@ async function handleLogin() {
 
 <template>
   <div>
-    <!-- Show loading state while checking auth -->
+    <!-- Show loading state while checking auth (only if token exists) -->
     <div v-if="checkingAuth" class="min-h-screen flex items-center justify-center bg-white dark:bg-gray-900">
       <div class="text-center">
-        <!-- Show logo even during loading so it can start loading immediately -->
-        <div class="flex justify-center mb-6">
-          <div class="relative">
-            <div class="absolute inset-0 bg-gradient-to-br from-primary-400 via-emerald-500 to-teal-600 rounded-3xl blur-xl opacity-30"></div>
-            <img 
-              src="/swan-unfold.png" 
-              alt="Unfold Notes" 
-              class="relative w-20 h-20 drop-shadow-lg" 
-              loading="eager"
-              fetchpriority="high"
-              decoding="async"
-            />
-          </div>
-        </div>
         <UIcon name="i-heroicons-arrow-path" class="w-8 h-8 animate-spin mx-auto text-primary-600 mb-4" />
         <p class="text-sm text-gray-600 dark:text-gray-400">Checking authentication...</p>
       </div>
