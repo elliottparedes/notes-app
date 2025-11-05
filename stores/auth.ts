@@ -189,11 +189,17 @@ export const useAuthStore = defineStore('auth', {
       this.loading = true;
 
       try {
-        const response = await $fetch<User>('/api/auth/me', {
-          headers: {
-            Authorization: `Bearer ${this.token}`
-          }
-        });
+        // Add timeout to prevent hanging in production
+        const response = await Promise.race([
+          $fetch<User>('/api/auth/me', {
+            headers: {
+              Authorization: `Bearer ${this.token}`
+            }
+          }),
+          new Promise<never>((_, reject) => 
+            setTimeout(() => reject(new Error('Request timeout')), 3000)
+          )
+        ]);
 
         this.user = response;
         
@@ -256,10 +262,26 @@ export const useAuthStore = defineStore('auth', {
             }
             
             // Try to fetch fresh user data (will fallback to cached on server error)
-            await this.fetchCurrentUser();
+            // Add timeout to prevent hanging in production
+            try {
+              await Promise.race([
+                this.fetchCurrentUser(),
+                new Promise((_, reject) => 
+                  setTimeout(() => reject(new Error('Auth initialization timeout')), 5000)
+                )
+              ]);
+            } catch (error) {
+              // If timeout or other error, mark as initialized anyway with cached data
+              console.warn('Auth initialization timeout or error, using cached data:', error);
+              this.initialized = true;
+            }
           } else {
+            // No token - mark as initialized immediately
             this.initialized = true;
           }
+        } else {
+          // Server side - mark as initialized
+          this.initialized = true;
         }
       })();
 

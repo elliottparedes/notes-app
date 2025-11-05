@@ -41,12 +41,26 @@ onMounted(async () => {
   // Quick check - if no token in localStorage, skip initialization and show page immediately
   if (process.client && !localStorage.getItem('auth_token')) {
     checkingAuth.value = false;
+    // Ensure auth store is marked as initialized if no token
+    if (!authStore.initialized) {
+      authStore.initialized = true;
+    }
     return;
   }
 
-  // Wait for auth store to initialize if it hasn't already
+  // Wait for auth store to initialize if it hasn't already, but with timeout
   if (!authStore.initialized) {
-    await authStore.initializeAuth();
+    try {
+      // Race the initialization with a timeout to prevent hanging
+      await Promise.race([
+        authStore.initializeAuth(),
+        new Promise((resolve) => setTimeout(resolve, 3000))
+      ]);
+    } catch (error) {
+      console.warn('Auth initialization error:', error);
+      // Mark as initialized anyway to show login page
+      authStore.initialized = true;
+    }
   }
   
   // Check if user is already authenticated
