@@ -5,6 +5,18 @@ const authStore = useAuthStore();
 const toast = useToast();
 const router = useRouter();
 
+// Preload the logo image to ensure it loads immediately
+useHead({
+  link: [
+    {
+      rel: 'preload',
+      as: 'image',
+      href: '/swan-unfold.png',
+      fetchpriority: 'high'
+    }
+  ]
+});
+
 const form = reactive<UserLoginDto>({
   email: '',
   password: ''
@@ -17,6 +29,7 @@ const showForgotPasswordModal = ref(false);
 const checkingAuth = ref(true);
 
 // Immediate synchronous check for token (runs before first render)
+// On Netlify, this must be synchronous to prevent hanging
 if (process.client) {
   const token = localStorage.getItem('auth_token');
   if (token) {
@@ -30,6 +43,8 @@ if (process.client) {
     // No token found, allow page to render immediately
     // This handles the case after logout where we want to show the login page right away
     checkingAuth.value = false;
+    // Immediately mark auth as initialized to prevent any waiting
+    authStore.initialized = true;
   }
 } else {
   // On server, always check (will be determined on client)
@@ -126,6 +141,20 @@ async function handleLogin() {
     <!-- Show loading state while checking auth -->
     <div v-if="checkingAuth" class="min-h-screen flex items-center justify-center bg-white dark:bg-gray-900">
       <div class="text-center">
+        <!-- Show logo even during loading so it can start loading immediately -->
+        <div class="flex justify-center mb-6">
+          <div class="relative">
+            <div class="absolute inset-0 bg-gradient-to-br from-primary-400 via-emerald-500 to-teal-600 rounded-3xl blur-xl opacity-30"></div>
+            <img 
+              src="/swan-unfold.png" 
+              alt="Unfold Notes" 
+              class="relative w-20 h-20 drop-shadow-lg" 
+              loading="eager"
+              fetchpriority="high"
+              decoding="async"
+            />
+          </div>
+        </div>
         <UIcon name="i-heroicons-arrow-path" class="w-8 h-8 animate-spin mx-auto text-primary-600 mb-4" />
         <p class="text-sm text-gray-600 dark:text-gray-400">Checking authentication...</p>
       </div>
@@ -200,7 +229,14 @@ async function handleLogin() {
         <div class="flex justify-center mb-8">
           <div class="relative">
             <div class="absolute inset-0 bg-gradient-to-br from-primary-400 via-emerald-500 to-teal-600 rounded-3xl blur-xl opacity-30"></div>
-            <img src="/swan-unfold.png" alt="Unfold Notes" class="relative w-20 h-20 drop-shadow-lg" />
+            <img 
+              src="/swan-unfold.png" 
+              alt="Unfold Notes" 
+              class="relative w-20 h-20 drop-shadow-lg" 
+              loading="eager"
+              fetchpriority="high"
+              decoding="async"
+            />
           </div>
         </div>
 
