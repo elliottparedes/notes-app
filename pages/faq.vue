@@ -19,7 +19,7 @@ const faqSchema = {
       name: 'Is Unfold Notes free to use?',
       acceptedAnswer: {
         '@type': 'Answer',
-        text: 'Yes! Unfold Notes is completely free to use. We provide 500MB of free storage per user, which is perfect for most note-taking needs. You can attach files, export PDFs, and use all features without any payment required.'
+        text: 'Yes! Unfold Notes is completely free to use. We provide 500MB of free storage per user, which is perfect for most note-taking needs. You can attach files and use all features without any payment required.'
       }
     },
     {
@@ -36,14 +36,6 @@ const faqSchema = {
       acceptedAnswer: {
         '@type': 'Answer',
         text: 'Yes, your data is secure and private. All authentication is handled securely with JWT tokens, and passwords are hashed using bcrypt. We don\'t sell your data or track your content. Your notes belong to you.'
-      }
-    },
-    {
-      '@type': 'Question',
-      name: 'Can I export my notes?',
-      acceptedAnswer: {
-        '@type': 'Answer',
-        text: 'Yes! You can export any note as a professionally formatted PDF. Just click the PDF export button when viewing a note, and it will download instantly.'
       }
     },
     {
@@ -85,7 +77,7 @@ const faqs = [
   },
   {
     question: 'Is Unfold Notes free to use?',
-    answer: 'Yes! Unfold Notes is completely free to use. We provide 500MB of free storage per user, which is perfect for most note-taking needs. You can attach files, export PDFs, and use all features without any payment required.'
+    answer: 'Yes! Unfold Notes is completely free to use. We provide 500MB of free storage per user, which is perfect for most note-taking needs. You can attach files and use all features without any payment required.'
   },
   {
     question: 'What file types can I attach?',
@@ -98,10 +90,6 @@ const faqs = [
   {
     question: 'Is my data secure?',
     answer: 'Yes, your data is secure and private. All authentication is handled securely with JWT tokens, and passwords are encrypted using bcrypt. We don\'t sell your data or track your content. Your notes belong to you.'
-  },
-  {
-    question: 'Can I export my notes?',
-    answer: 'Yes! You can export any note as a professionally formatted PDF. Just click the PDF export button when viewing a note, and it will download instantly.'
   },
   {
     question: 'Does Unfold Notes have AI features?',
@@ -117,7 +105,7 @@ const faqs = [
   },
   {
     question: 'What happens to my notes if I stop using Unfold Notes?',
-    answer: 'Your notes are always yours. You can export them as PDFs or download your data at any time. If you decide to leave, your data won\'t be deleted automatically - you maintain full control.'
+    answer: 'Your notes are always yours. You can download your data at any time. If you decide to leave, your data won\'t be deleted automatically - you maintain full control.'
   }
 ];
 

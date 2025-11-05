@@ -29,7 +29,6 @@ const publishStatus = ref<{ is_published: boolean; share_url?: string } | null>(
 const showPublishModal = ref(false);
 const attachments = ref<Array<import('~/models').Attachment>>([]);
 const isLoadingAttachments = ref(false);
-const isExportingPdf = ref(false);
 const fileUploadInputRef = ref<HTMLInputElement | null>(null);
 
 const editForm = reactive<UpdateNoteDto & { content: string }>({
@@ -315,43 +314,6 @@ async function handleFileUpload(event: Event) {
       description: error.data?.message || 'Failed to upload file',
       color: 'error',
     });
-  }
-}
-
-// Export note as PDF
-async function exportAsPdf() {
-  if (isExportingPdf.value) return;
-  
-  try {
-    isExportingPdf.value = true;
-    const authStore = useAuthStore();
-    if (!authStore.token) {
-      toast.add({
-        title: 'Error',
-        description: 'Not authenticated',
-        color: 'error',
-      });
-      return;
-    }
-    
-    // Open PDF in new tab (will trigger download)
-    const url = `/api/notes/${noteId.value}/export.pdf`;
-    window.open(url, '_blank');
-    
-    toast.add({
-      title: 'PDF Export Started',
-      description: 'Your PDF is being generated',
-      color: 'success',
-    });
-  } catch (error: any) {
-    console.error('PDF export error:', error);
-    toast.add({
-      title: 'Error',
-      description: error.data?.message || 'Failed to export PDF',
-      color: 'error',
-    });
-  } finally {
-    isExportingPdf.value = false;
   }
 }
 
@@ -742,18 +704,6 @@ onUnmounted(() => {
             size="sm"
             @click="triggerFileUpload"
             title="Upload File"
-          />
-          
-          <!-- PDF Export Button -->
-          <UButton
-            :icon="isExportingPdf ? 'i-heroicons-arrow-path' : 'i-heroicons-document-arrow-down'"
-            color="neutral"
-            variant="ghost"
-            size="sm"
-            :disabled="isExportingPdf"
-            :class="isExportingPdf ? 'animate-pulse opacity-70' : ''"
-            @click="exportAsPdf"
-            :title="isExportingPdf ? 'Exporting PDF...' : 'Export as PDF'"
           />
           
           <!-- Publish/Unpublish Button -->

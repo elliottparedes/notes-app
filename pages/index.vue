@@ -41,7 +41,6 @@ setPageSEO({
       'AI-powered note generation with Google Gemini',
       'Rich text editing with markdown support',
       'File attachments up to 500MB free',
-      'PDF export',
       'Dark mode',
       'Full-text search',
       'Organize with folders and spaces',
@@ -198,14 +197,6 @@ onMounted(() => {
             <div>
               <h3 class="font-semibold text-gray-900 dark:text-white mb-1">File Attachments</h3>
               <p class="text-sm text-gray-600 dark:text-gray-400">Attach files, images, and documents</p>
-            </div>
-          </div>
-          
-          <div class="flex items-start gap-3">
-            <UIcon name="i-heroicons-document-arrow-down" class="w-6 h-6 text-primary-600 dark:text-primary-400 flex-shrink-0 mt-1" />
-            <div>
-              <h3 class="font-semibold text-gray-900 dark:text-white mb-1">PDF Export</h3>
-              <p class="text-sm text-gray-600 dark:text-gray-400">Export your notes as beautiful PDFs</p>
             </div>
           </div>
           

@@ -52,7 +52,6 @@ const publishStatus = ref<{ is_published: boolean; share_url?: string } | null>(
 const showPublishModal = ref(false);
 const attachments = ref<Array<import('~/models').Attachment>>([]);
 const isLoadingAttachments = ref(false);
-const isExportingPdf = ref(false);
 const fileUploadInputRef = ref<HTMLInputElement | null>(null);
 
 // Folder publish status
@@ -241,19 +240,74 @@ async function loadData() {
   }
 }
 
+// Animation state for space switching
+const isSwitchingSpace = ref(false);
+
 // Watch for space changes and refetch folders, update tabs
 watch(() => spacesStore.currentSpaceId, async (newSpaceId, oldSpaceId) => {
   if (hasInitialized.value && newSpaceId !== oldSpaceId && newSpaceId !== null) {
     try {
-      // Use silent=true to avoid showing full-screen loading spinner
-      // The folders will update smoothly without blocking the UI
+      // Start space switching animation
+      isSwitchingSpace.value = true;
+      
+      // First, filter tabs BEFORE animation starts to prevent flashing
+      // We'll use the old folders to determine which tabs to close
+      const oldSpaceFolderIds = new Set(
+        foldersStore.folders.map(f => f.id)
+      );
+      
+      // Pre-filter tabs based on current folder state (before fetching new folders)
+      const tabsToClose = notesStore.openTabs.filter(noteId => {
+        const note = notesStore.notes.find(n => n.id === noteId);
+        if (!note) return true; // Remove if note not found
+        
+        // Keep shared notes and notes without folders
+        if (note.share_permission || note.folder_id === null) {
+          return false; // Keep these tabs
+        }
+        
+        // Close tabs that belong to old space folders
+        return oldSpaceFolderIds.has(note.folder_id);
+      });
+      
+      // If we have tabs to close, close them immediately before animation
+      if (tabsToClose.length > 0) {
+        // Remove tabs that should close
+        notesStore.openTabs = notesStore.openTabs.filter(id => !tabsToClose.includes(id));
+        
+        // Update active tab if it's being closed
+        if (notesStore.activeTabId && tabsToClose.includes(notesStore.activeTabId)) {
+          const remainingTabs = notesStore.openTabs.filter(id => !tabsToClose.includes(id));
+          if (remainingTabs.length > 0 && remainingTabs[0]) {
+            notesStore.setActiveTab(remainingTabs[0]);
+          } else {
+            notesStore.activeTabId = null;
+          }
+        }
+        
+        notesStore.saveTabsToStorage();
+      }
+      
+      // Wait for tab fade out animation
+      await nextTick();
+      await new Promise(resolve => setTimeout(resolve, 250));
+      
+      // Scroll folders up (wrap up animation)
+      if (foldersContainerRef.value) {
+        foldersContainerRef.value.style.transition = 'transform 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease-out';
+        foldersContainerRef.value.style.transform = 'translateY(-100%)';
+        foldersContainerRef.value.style.opacity = '0';
+      }
+      
+      // Wait for scroll up animation
+      await new Promise(resolve => setTimeout(resolve, 400));
+      
+      // Fetch new folders (silently)
       await foldersStore.fetchFolders(undefined, true);
       await sharedNotesStore.fetchSharedNotes();
       
-      // Update open tabs when switching spaces
-      // Close tabs that belong to folders in other spaces, but preserve:
-      // - Notes without folders (folder_id === null) - these are global
-      // - Shared notes (share_permission) - preserve for collaborative editing
+      // Final tab validation after folders are loaded
+      // This ensures tabs that should stay are still valid
       const currentSpaceFolderIds = new Set(
         foldersStore.folders.map(f => f.id)
       );
@@ -261,47 +315,31 @@ watch(() => spacesStore.currentSpaceId, async (newSpaceId, oldSpaceId) => {
       const validTabs = notesStore.openTabs.filter(noteId => {
         const note = notesStore.notes.find(n => n.id === noteId);
         if (!note) {
-          console.log('[Dashboard] Tab note not found:', noteId);
           return false;
         }
         
-        // Keep shared notes for collaborative editing (preserve collaboration sessions)
+        // Keep shared notes for collaborative editing
         if (note.share_permission) {
-          console.log('[Dashboard] Keeping shared note tab:', noteId, note.title);
           return true;
         }
         
-        // Keep notes without folders (global notes, not tied to any space)
+        // Keep notes without folders (global notes)
         if (note.folder_id === null) {
-          console.log('[Dashboard] Keeping note without folder:', noteId, note.title);
           return true;
         }
         
         // Check if note's folder belongs to current space
         const noteFolder = foldersStore.getFolderById(note.folder_id);
         if (!noteFolder) {
-          console.log('[Dashboard] Note folder not found:', noteId, note.folder_id);
           return false;
         }
         
-        const folderBelongsToCurrentSpace = currentSpaceFolderIds.has(note.folder_id);
-        if (!folderBelongsToCurrentSpace) {
-          console.log('[Dashboard] Closing tab - note folder not in current space:', noteId, note.title, 'folder_id:', note.folder_id);
-        }
-        
-        return folderBelongsToCurrentSpace;
+        return currentSpaceFolderIds.has(note.folder_id);
       });
       
-      // Update tabs if they changed
+      // Only update if there's a difference (to avoid unnecessary reactivity)
       if (validTabs.length !== notesStore.openTabs.length || 
           validTabs.some((id, i) => notesStore.openTabs[i] !== id)) {
-        console.log('[Dashboard] Filtering tabs for space change:', {
-          before: notesStore.openTabs.length,
-          after: validTabs.length,
-          currentSpaceId: newSpaceId
-        });
-        
-        // Update tabs in store
         notesStore.openTabs = validTabs;
         
         // Update active tab if it's no longer valid
@@ -315,8 +353,50 @@ watch(() => spacesStore.currentSpaceId, async (newSpaceId, oldSpaceId) => {
         
         notesStore.saveTabsToStorage();
       }
+      
+      // Wait for next tick to ensure DOM is updated with new folders
+      await nextTick();
+      
+      // Scroll folders down (wrap down animation) - start from above
+      if (foldersContainerRef.value) {
+        foldersContainerRef.value.style.transform = 'translateY(-100%)';
+        foldersContainerRef.value.style.opacity = '0';
+        
+        // Force reflow
+        await nextTick();
+        await new Promise(resolve => setTimeout(resolve, 50));
+        
+        // Animate down
+        foldersContainerRef.value.style.transition = 'transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.4s ease-in';
+        foldersContainerRef.value.style.transform = 'translateY(0)';
+        foldersContainerRef.value.style.opacity = '1';
+      }
+      
+      // Wait for scroll down animation
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Clean up animation styles
+      if (foldersContainerRef.value) {
+        foldersContainerRef.value.style.transition = '';
+        foldersContainerRef.value.style.transform = '';
+        foldersContainerRef.value.style.opacity = '';
+      }
+      
+      // Wait a bit more to ensure smooth transition
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // End space switching animation - this will restore activeNote if it's valid
+      isSwitchingSpace.value = false;
     } catch (error) {
       console.error('Failed to fetch folders for new space:', error);
+      isSwitchingSpace.value = false;
+      
+      // Clean up on error
+      if (foldersContainerRef.value) {
+        foldersContainerRef.value.style.transition = '';
+        foldersContainerRef.value.style.transform = '';
+        foldersContainerRef.value.style.opacity = '';
+      }
     }
   }
 });
@@ -413,11 +493,24 @@ watch(() => route.path, async (newPath) => {
 
 
 // Active note from store - ensure reactivity for folder_id changes
+// Hide note during space switching to prevent flashing
 const activeNote = computed(() => {
-  const note = notesStore.activeNote;
-  // Return note directly - Vue reactivity will track folder_id changes
-  // The spread was breaking the reference equality check
-  return note;
+  // Don't show active note if we're switching spaces and it's being closed
+  if (isSwitchingSpace.value) {
+    // Check if current active note is valid
+    const note = notesStore.activeNote;
+    if (note) {
+      // During space switch, only show if it's a shared note or has no folder (global)
+      // Otherwise, hide it to prevent flashing
+      if (note.share_permission || note.folder_id === null) {
+        return note;
+      }
+      // Check if note's folder belongs to the new space (we'll verify after folders load)
+      // For now, hide it during transition to prevent flash
+      return null;
+    }
+  }
+  return notesStore.activeNote;
 });
 
 // Notes without folders (for "Quick Notes" section)
@@ -2247,73 +2340,6 @@ async function handleFileUpload(event: Event) {
   }
 }
 
-// Export note as PDF
-async function exportAsPdf() {
-  if (!activeNote.value || isExportingPdf.value) return;
-  
-  try {
-    isExportingPdf.value = true;
-    const authStore = useAuthStore();
-    if (!authStore.token) {
-      toast.add({
-        title: 'Error',
-        description: 'Not authenticated',
-        color: 'error',
-      });
-      return;
-    }
-    
-    // Fetch PDF with auth header
-    const response = await fetch(`/api/notes/${activeNote.value.id}/export.pdf`, {
-      headers: {
-        Authorization: `Bearer ${authStore.token}`,
-      },
-    });
-    
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ message: 'Failed to generate PDF' }));
-      throw new Error(error.message || 'Failed to generate PDF');
-    }
-    
-    // Get PDF blob
-    const blob = await response.blob();
-    
-    // Create download link with better Brave browser compatibility
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `${activeNote.value.title || 'note'}.pdf`;
-    link.style.display = 'none'; // Hide the link
-    link.setAttribute('download', `${activeNote.value.title || 'note'}.pdf`);
-    document.body.appendChild(link);
-    
-    // Use a small delay to ensure Brave recognizes the download
-    setTimeout(() => {
-      link.click();
-      // Cleanup after a delay to ensure download starts
-      setTimeout(() => {
-        document.body.removeChild(link);
-        window.URL.revokeObjectURL(url);
-      }, 100);
-    }, 10);
-    
-    toast.add({
-      title: 'PDF Export Complete',
-      description: 'Your PDF has been downloaded',
-      color: 'success',
-    });
-  } catch (error: any) {
-    console.error('PDF export error:', error);
-    toast.add({
-      title: 'Error',
-      description: error.message || 'Failed to export PDF',
-      color: 'error',
-    });
-  } finally {
-    isExportingPdf.value = false;
-  }
-}
-
 // Handle publish button click
 async function handlePublishButtonClick() {
   if (!activeNote.value) return;
@@ -2811,36 +2837,38 @@ onMounted(() => {
               </button>
             </div>
 
-            <!-- Folder Tree with Notes -->
-            <div v-else ref="foldersContainerRef" class="space-y-0.5" id="root-folders-container">
-              <FolderTreeItem
-                v-for="folder in foldersStore.folderTree"
-                :key="folder.id"
-                :folder="folder"
-                :selected-id="selectedFolderId"
-                :is-expanded="foldersStore.expandedFolderIds.has(folder.id)"
-                :publish-status="folderPublishStatuses.get(folder.id)"
-                @select="selectFolder"
-                @toggle="handleToggleFolder"
-                @create-subfolder="handleCreateSubfolder"
-                @create-note="handleCreateNoteInFolder"
-                @create-quick-note="handleQuickNoteInFolder"
-                @create-list-note="handleListNoteInFolder"
-                @create-template-note="handleTemplateNoteInFolder"
-                @create-ai-note="handleAiGenerateInFolder"
-                @import-recipe="handleRecipeImportInFolder"
-                @rename="handleRenameFolder"
-                @delete="handleDeleteFolder"
-                @publish="handlePublishFolder"
-                @unpublish="handleUnpublishFolder"
-                @copy-link="handleCopyFolderLink"
-                @check-publish-status="checkFolderPublishStatus"
-                @move-up="handleMoveUp"
-                @move-down="handleMoveDown"
-                @reorder-folder="handleFolderReorder"
-                @open-note="handleFolderNoteClick"
-                @delete-note="(noteId) => handleDeleteNote(notesStore.notes.find(n => n.id === noteId)!)"
-              />
+            <!-- Folder Tree with Notes - Wrapped in overflow container to clip animation at header -->
+            <div v-else class="overflow-hidden" style="min-height: 0;">
+              <div ref="foldersContainerRef" class="space-y-0.5 transition-all duration-300" id="root-folders-container">
+                <FolderTreeItem
+                  v-for="folder in foldersStore.folderTree"
+                  :key="folder.id"
+                  :folder="folder"
+                  :selected-id="selectedFolderId"
+                  :is-expanded="foldersStore.expandedFolderIds.has(folder.id)"
+                  :publish-status="folderPublishStatuses.get(folder.id)"
+                  @select="selectFolder"
+                  @toggle="handleToggleFolder"
+                  @create-subfolder="handleCreateSubfolder"
+                  @create-note="handleCreateNoteInFolder"
+                  @create-quick-note="handleQuickNoteInFolder"
+                  @create-list-note="handleListNoteInFolder"
+                  @create-template-note="handleTemplateNoteInFolder"
+                  @create-ai-note="handleAiGenerateInFolder"
+                  @import-recipe="handleRecipeImportInFolder"
+                  @rename="handleRenameFolder"
+                  @delete="handleDeleteFolder"
+                  @publish="handlePublishFolder"
+                  @unpublish="handleUnpublishFolder"
+                  @copy-link="handleCopyFolderLink"
+                  @check-publish-status="checkFolderPublishStatus"
+                  @move-up="handleMoveUp"
+                  @move-down="handleMoveDown"
+                  @reorder-folder="handleFolderReorder"
+                  @open-note="handleFolderNoteClick"
+                  @delete-note="(noteId) => handleDeleteNote(notesStore.notes.find(n => n.id === noteId)!)"
+                />
+              </div>
             </div>
           </div>
 
@@ -3172,17 +3200,18 @@ onMounted(() => {
                     </button>
                   </div>
 
-                  <!-- Folder Tree with Notes -->
-                  <div v-else class="space-y-0.5">
-                    <FolderTreeItem
-                      v-for="folder in foldersStore.folderTree"
-                      :key="folder.id"
-                      :folder="folder"
-                      :selected-id="selectedFolderId"
-                      :is-expanded="foldersStore.expandedFolderIds.has(folder.id)"
-                      :publish-status="folderPublishStatuses.get(folder.id)"
-                      @select="selectFolder"
-                      @toggle="handleToggleFolder"
+                  <!-- Folder Tree with Notes - Wrapped in overflow container to clip animation at header -->
+                  <div v-else class="overflow-hidden" style="min-height: 0;">
+                    <div class="space-y-0.5">
+                      <FolderTreeItem
+                        v-for="folder in foldersStore.folderTree"
+                        :key="folder.id"
+                        :folder="folder"
+                        :selected-id="selectedFolderId"
+                        :is-expanded="foldersStore.expandedFolderIds.has(folder.id)"
+                        :publish-status="folderPublishStatuses.get(folder.id)"
+                        @select="selectFolder"
+                        @toggle="handleToggleFolder"
                       @create-subfolder="handleCreateSubfolder"
                       @create-note="handleCreateNoteInFolder"
                       @create-list-note="handleListNoteInFolder"
@@ -3201,6 +3230,7 @@ onMounted(() => {
                 @open-note="handleFolderNoteClick"
                 @delete-note="(noteId) => handleDeleteNote(notesStore.notes.find(n => n.id === noteId)!)"
               />
+                    </div>
                   </div>
                 </div>
 
@@ -3313,21 +3343,6 @@ onMounted(() => {
                 title="Upload File"
               >
                 <UIcon name="i-heroicons-paper-clip" class="w-4 h-4" />
-              </button>
-              
-              <!-- PDF Export Button -->
-              <button
-                v-if="activeNote.user_id === authStore.currentUser?.id"
-                @click="exportAsPdf"
-                :disabled="isExportingPdf"
-                class="p-2 rounded-lg transition-colors hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 disabled:opacity-50"
-                title="Export as PDF"
-              >
-                <UIcon 
-                  :name="isExportingPdf ? 'i-heroicons-arrow-path' : 'i-heroicons-document-arrow-down'" 
-                  :class="isExportingPdf ? 'animate-pulse opacity-70' : ''"
-                  class="w-4 h-4 transition-opacity" 
-                />
               </button>
               
               <!-- Keyboard Shortcuts Info -->
@@ -3457,44 +3472,31 @@ onMounted(() => {
                   <UIcon name="i-heroicons-paper-clip" class="w-5 h-5" />
                 </button>
                 
-                <!-- PDF Export Button -->
-                <button
-                  v-if="activeNote.user_id === authStore.currentUser?.id"
-                  @click="exportAsPdf"
-                  :disabled="isExportingPdf"
-                  class="p-2 rounded-lg transition-colors hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 disabled:opacity-50"
-                  title="Export as PDF"
-                >
-                  <UIcon 
-                    :name="isExportingPdf ? 'i-heroicons-arrow-path' : 'i-heroicons-document-arrow-down'" 
-                    :class="isExportingPdf ? 'animate-pulse opacity-70' : ''" 
-                    class="w-5 h-5 transition-opacity" 
-                  />
-                </button>
               </div>
         </div>
 
         <!-- Note Editor Area - Fully Scrollable -->
         <div class="flex-1 overflow-y-auto" :class="activeNote ? (isLocked ? 'bg-white dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-900') : 'bg-gray-50 dark:bg-gray-900'">
           <!-- No tabs open state -->
-          <div v-if="!activeNote" class="min-h-full flex items-center justify-center">
-            <div class="text-center">
-              <UIcon name="i-heroicons-document-text" class="w-20 h-20 mx-auto text-gray-300 dark:text-gray-600 mb-4" />
-              <h3 class="text-xl font-semibold text-gray-900 dark:text-white mb-2">No note selected</h3>
-              <p class="text-gray-500 dark:text-gray-400 mb-6">Select a note from the sidebar or create a new one by right-clicking on a folder</p>
-              <!-- <UButton 
-                @click="handleCreateNote" 
-                icon="i-heroicons-plus"
-                :loading="isCreating"
-                :disabled="isCreating"
-              >
-                Create Note
-              </UButton> -->
+          <Transition name="fade-out" mode="out-in">
+            <div v-if="!activeNote" key="no-note" class="min-h-full flex items-center justify-center">
+              <div class="text-center">
+                <UIcon name="i-heroicons-document-text" class="w-20 h-20 mx-auto text-gray-300 dark:text-gray-600 mb-4" />
+                <h3 class="text-xl font-semibold text-gray-900 dark:text-white mb-2">No note selected</h3>
+                <p class="text-gray-500 dark:text-gray-400 mb-6">Select a note from the sidebar or create a new one by right-clicking on a folder</p>
+                <!-- <UButton 
+                  @click="handleCreateNote" 
+                  icon="i-heroicons-plus"
+                  :loading="isCreating"
+                  :disabled="isCreating"
+                >
+                  Create Note
+                </UButton> -->
+              </div>
             </div>
-          </div>
 
-          <!-- Note Editor - Everything Scrolls Together -->
-          <div v-else>
+            <!-- Note Editor - Everything Scrolls Together -->
+            <div v-else :key="`note-${activeNote?.id || 'empty'}-space-${spacesStore.currentSpaceId}`">
             <!-- Header Section - Full Width -->
             <div class="border-b border-gray-200 dark:border-gray-700 shadow-sm bg-gradient-to-b from-transparent to-gray-50/50 dark:to-gray-800/50">
               <div class="max-w-5xl xl:max-w-7xl 2xl:max-w-[1600px] mx-auto px-4 md:px-6 pt-6 pb-4">
@@ -3713,6 +3715,7 @@ onMounted(() => {
               </ClientOnly>
             </div>
           </div>
+          </Transition>
         </div>
 
         <!-- Floating Action Button with Menu - Commented Out -->
@@ -4599,6 +4602,23 @@ onMounted(() => {
 
 .expand-shared-leave-to {
   grid-template-rows: 0fr;
+  opacity: 0;
+}
+
+/* Space switching animations - fade out tabs */
+.fade-out-enter-active {
+  transition: opacity 0.3s ease-in;
+}
+
+.fade-out-enter-from {
+  opacity: 0;
+}
+
+.fade-out-leave-active {
+  transition: opacity 0.25s ease-out;
+}
+
+.fade-out-leave-to {
   opacity: 0;
 }
 </style>

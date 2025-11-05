@@ -31,7 +31,7 @@ const { setPageSEO, baseUrl } = useSEO()
 
 setPageSEO({
   title: 'Features - Powerful Note-Taking Capabilities | Unfold Notes',
-  description: 'Discover all the powerful features of Unfold Notes: AI-powered writing, file attachments, PDF export, and more. See what makes Unfold Notes the best free note-taking app.',
+  description: 'Discover all the powerful features of Unfold Notes: AI-powered writing, file attachments, and more. See what makes Unfold Notes the best free note-taking app.',
   path: '/features',
   keywords: [
     'note taking features',
@@ -207,9 +207,9 @@ setPageSEO({
             <div class="w-12 h-12 bg-indigo-100 dark:bg-indigo-900 rounded-lg flex items-center justify-center mb-4">
               <UIcon name="i-heroicons-paper-clip" class="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
             </div>
-            <h2 class="text-3xl font-bold text-gray-900 dark:text-white mb-4">File Attachments & Export</h2>
+            <h2 class="text-3xl font-bold text-gray-900 dark:text-white mb-4">File Attachments</h2>
             <p class="text-lg text-gray-600 dark:text-gray-400 mb-4">
-              Attach files to your notes and export them as beautiful PDFs. 500MB of storage included free.
+              Attach files to your notes - images, documents, and more. 500MB of storage included free.
             </p>
             <ul class="space-y-2 text-gray-600 dark:text-gray-400">
               <li class="flex items-start gap-2">
@@ -218,7 +218,7 @@ setPageSEO({
               </li>
               <li class="flex items-start gap-2">
                 <UIcon name="i-heroicons-check" class="w-5 h-5 text-primary-600 dark:text-primary-400 flex-shrink-0 mt-0.5" />
-                <span>Export notes as professionally formatted PDFs</span>
+                <span>Organize all your attachments in one place</span>
               </li>
               <li class="flex items-start gap-2">
                 <UIcon name="i-heroicons-check" class="w-5 h-5 text-primary-600 dark:text-primary-400 flex-shrink-0 mt-0.5" />

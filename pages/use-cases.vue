@@ -160,10 +160,6 @@ setPageSEO({
                 <UIcon name="i-heroicons-check" class="w-5 h-5 text-primary-600 dark:text-primary-400 flex-shrink-0 mt-0.5" />
                 <span>Attach PDFs and source materials</span>
               </li>
-              <li class="flex items-start gap-2">
-                <UIcon name="i-heroicons-check" class="w-5 h-5 text-primary-600 dark:text-primary-400 flex-shrink-0 mt-0.5" />
-                <span>Export research as PDFs</span>
-              </li>
             </ul>
           </div>
         </div>
@@ -175,7 +171,7 @@ setPageSEO({
             </div>
             <h2 class="text-3xl font-bold text-gray-900 dark:text-white mb-4">Meeting Notes</h2>
             <p class="text-lg text-gray-600 dark:text-gray-400 mb-4">
-              Take comprehensive meeting notes and share them instantly with your team. Attach files, export as PDFs, and keep everyone aligned.
+              Take comprehensive meeting notes and share them instantly with your team. Attach files and keep everyone aligned.
             </p>
             <ul class="space-y-2 text-gray-600 dark:text-gray-400">
               <li class="flex items-start gap-2">
