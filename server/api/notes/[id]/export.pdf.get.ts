@@ -36,6 +36,9 @@ export default defineEventHandler(async (event) => {
 
   const note = noteRows[0];
 
+  // Variables that need to be accessible in catch block for cleanup
+  let userDataDir: string | undefined;
+
   try {
     // Determine if we're in a serverless/production environment
     // Check for various serverless platforms
@@ -90,12 +93,29 @@ export default defineEventHandler(async (event) => {
           throw new Error('Failed to get valid executablePath from @sparticuz/chromium');
         }
         
+        // Create a unique user data directory to avoid ETXTBSY errors from concurrent requests
+        const { mkdtemp } = await import('fs/promises');
+        const { join } = await import('path');
+        const { tmpdir } = await import('os');
+        userDataDir = await mkdtemp(join(tmpdir(), 'chromium-'));
+        
         browserOptions = {
-          args: chromium.args || [],
+          args: [
+            ...(chromium.args || []),
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-accelerated-2d-canvas',
+            '--no-first-run',
+            '--no-zygote',
+            '--single-process',
+            '--disable-gpu',
+          ],
           defaultViewport: chromium.defaultViewport || { width: 1280, height: 720 },
           executablePath: executablePath,
           headless: chromium.headless !== false,
           ignoreHTTPSErrors: true,
+          userDataDir: userDataDir,
         };
       } catch (chromiumError: any) {
         console.error('Failed to load @sparticuz/chromium:', chromiumError);
@@ -151,8 +171,43 @@ export default defineEventHandler(async (event) => {
       }
     }
 
-    // Launch browser
-    const browser = await puppeteer.launch(browserOptions);
+    // Launch browser with retry logic for ETXTBSY errors
+    let browser;
+    let retries = 3;
+    let lastError: any;
+    
+    while (retries > 0) {
+      try {
+        browser = await puppeteer.launch(browserOptions);
+        break;
+      } catch (launchError: any) {
+        lastError = launchError;
+        // Check if it's an ETXTBSY error
+        if (launchError.code === 'ETXTBSY' || launchError.message?.includes('ETXTBSY')) {
+          retries--;
+          if (retries > 0) {
+            // Wait a bit before retrying (exponential backoff)
+            const delay = (4 - retries) * 100; // 100ms, 200ms, 300ms
+            await new Promise(resolve => setTimeout(resolve, delay));
+            // Create a new userDataDir for retry
+            if (isServerless) {
+              const { mkdtemp } = await import('fs/promises');
+              const { join } = await import('path');
+              const { tmpdir } = await import('os');
+              userDataDir = await mkdtemp(join(tmpdir(), 'chromium-'));
+              browserOptions.userDataDir = userDataDir;
+            }
+          }
+        } else {
+          // Not an ETXTBSY error, throw immediately
+          throw launchError;
+        }
+      }
+    }
+    
+    if (!browser) {
+      throw lastError || new Error('Failed to launch browser after retries');
+    }
 
     const page = await browser.newPage();
 
@@ -275,6 +330,17 @@ export default defineEventHandler(async (event) => {
     });
 
     await browser.close();
+    
+    // Clean up userDataDir if it was created
+    if (userDataDir && isServerless) {
+      try {
+        const { rm } = await import('fs/promises');
+        await rm(userDataDir, { recursive: true, force: true });
+      } catch (cleanupError) {
+        // Ignore cleanup errors, but log them
+        console.warn('Failed to cleanup userDataDir:', cleanupError);
+      }
+    }
 
     // Set response headers
     setHeader(event, 'Content-Type', 'application/pdf');
@@ -287,6 +353,18 @@ export default defineEventHandler(async (event) => {
     return pdfBuffer;
   } catch (error: any) {
     console.error('PDF generation error:', error);
+    
+    // Clean up userDataDir if it was created, even on error
+    if (typeof userDataDir !== 'undefined' && userDataDir) {
+      try {
+        const { rm } = await import('fs/promises');
+        await rm(userDataDir, { recursive: true, force: true });
+      } catch (cleanupError) {
+        // Ignore cleanup errors, but log them
+        console.warn('Failed to cleanup userDataDir on error:', cleanupError);
+      }
+    }
+    
     throw createError({
       statusCode: 500,
       message: error.message || 'Failed to generate PDF'
