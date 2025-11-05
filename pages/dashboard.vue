@@ -2278,17 +2278,24 @@ async function exportAsPdf() {
     // Get PDF blob
     const blob = await response.blob();
     
-    // Create download link
+    // Create download link with better Brave browser compatibility
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
     link.download = `${activeNote.value.title || 'note'}.pdf`;
+    link.style.display = 'none'; // Hide the link
+    link.setAttribute('download', `${activeNote.value.title || 'note'}.pdf`);
     document.body.appendChild(link);
-    link.click();
     
-    // Cleanup
-    document.body.removeChild(link);
-    window.URL.revokeObjectURL(url);
+    // Use a small delay to ensure Brave recognizes the download
+    setTimeout(() => {
+      link.click();
+      // Cleanup after a delay to ensure download starts
+      setTimeout(() => {
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+      }, 100);
+    }, 10);
     
     toast.add({
       title: 'PDF Export Complete',

@@ -65,14 +65,19 @@ export default defineEventHandler(async (event) => {
           throw new Error('Failed to load @sparticuz/chromium module');
         }
         
-        // Set graphics mode if available
-        if (typeof chromium.setGraphicsMode === 'function') {
-          chromium.setGraphicsMode(false);
+        // Set graphics mode if available (wrap in try-catch to handle any errors)
+        try {
+          if (chromium && typeof chromium.setGraphicsMode === 'function') {
+            chromium.setGraphicsMode(false);
+          }
+        } catch (graphicsError) {
+          // Ignore graphics mode errors, it's not critical
+          console.warn('Could not set graphics mode:', graphicsError);
         }
         
         // Get executablePath - check what type it is
         let executablePath: string;
-        const executablePathValue = chromium.executablePath;
+        const executablePathValue = chromium?.executablePath;
         
         if (!executablePathValue) {
           throw new Error('chromium.executablePath is not available in @sparticuz/chromium module');
@@ -99,9 +104,14 @@ export default defineEventHandler(async (event) => {
         const { tmpdir } = await import('os');
         userDataDir = await mkdtemp(join(tmpdir(), 'chromium-'));
         
+        // Safely get chromium args and viewport
+        const chromiumArgs = chromium?.args || [];
+        const chromiumViewport = chromium?.defaultViewport || { width: 1280, height: 720 };
+        const chromiumHeadless = chromium?.headless !== false;
+        
         browserOptions = {
           args: [
-            ...(chromium.args || []),
+            ...chromiumArgs,
             '--no-sandbox',
             '--disable-setuid-sandbox',
             '--disable-dev-shm-usage',
@@ -111,9 +121,9 @@ export default defineEventHandler(async (event) => {
             '--single-process',
             '--disable-gpu',
           ],
-          defaultViewport: chromium.defaultViewport || { width: 1280, height: 720 },
+          defaultViewport: chromiumViewport,
           executablePath: executablePath,
-          headless: chromium.headless !== false,
+          headless: chromiumHeadless,
           ignoreHTTPSErrors: true,
           userDataDir: userDataDir,
         };
@@ -173,7 +183,8 @@ export default defineEventHandler(async (event) => {
 
     // Launch browser with retry logic for ETXTBSY errors
     let browser;
-    let retries = 3;
+    const maxRetries = 5;
+    let retries = maxRetries;
     let lastError: any;
     
     while (retries > 0) {
@@ -182,21 +193,44 @@ export default defineEventHandler(async (event) => {
         break;
       } catch (launchError: any) {
         lastError = launchError;
-        // Check if it's an ETXTBSY error
-        if (launchError.code === 'ETXTBSY' || launchError.message?.includes('ETXTBSY')) {
+        const errorCode = launchError.code || '';
+        const errorMessage = launchError.message || '';
+        const isETXTBSY = errorCode === 'ETXTBSY' || errorMessage.includes('ETXTBSY') || errorMessage.includes('text file busy');
+        
+        // Check if it's an ETXTBSY error or similar file lock error
+        if (isETXTBSY) {
           retries--;
           if (retries > 0) {
-            // Wait a bit before retrying (exponential backoff)
-            const delay = (4 - retries) * 100; // 100ms, 200ms, 300ms
+            // Wait longer before retrying (exponential backoff with longer delays)
+            const delay = Math.min((maxRetries - retries) * 500, 2000); // 500ms, 1000ms, 1500ms, 2000ms, 2000ms
+            console.warn(`ETXTBSY error encountered, retrying in ${delay}ms (${retries} retries remaining)`);
             await new Promise(resolve => setTimeout(resolve, delay));
-            // Create a new userDataDir for retry
-            if (isServerless) {
+            
+            // Create a new userDataDir for retry to avoid the same locked file
+            if (isServerless && userDataDir) {
+              try {
+                // Try to clean up the old directory first
+                const { rm } = await import('fs/promises');
+                await rm(userDataDir, { recursive: true, force: true }).catch(() => {
+                  // Ignore cleanup errors
+                });
+              } catch {
+                // Ignore cleanup errors
+              }
+              
+              // Create a new unique directory
               const { mkdtemp } = await import('fs/promises');
               const { join } = await import('path');
               const { tmpdir } = await import('os');
-              userDataDir = await mkdtemp(join(tmpdir(), 'chromium-'));
+              userDataDir = await mkdtemp(join(tmpdir(), `chromium-${Date.now()}-`));
               browserOptions.userDataDir = userDataDir;
             }
+          } else {
+            // Out of retries
+            throw createError({
+              statusCode: 500,
+              message: `PDF generation failed: Chromium executable is busy. Please try again in a moment.`
+            });
           }
         } else {
           // Not an ETXTBSY error, throw immediately
@@ -342,13 +376,19 @@ export default defineEventHandler(async (event) => {
       }
     }
 
-    // Set response headers
+    // Set response headers for proper download
+    // Use both filename and filename* for better browser compatibility (especially Brave)
+    const filename = escapeFilename(note.title || 'note');
     setHeader(event, 'Content-Type', 'application/pdf');
     setHeader(
       event,
       'Content-Disposition',
-      `attachment; filename="${escapeFilename(note.title || 'note')}.pdf"`
+      `attachment; filename="${filename}.pdf"; filename*=UTF-8''${encodeURIComponent(note.title || 'note')}.pdf`
     );
+    // Add additional headers for better browser compatibility
+    setHeader(event, 'Cache-Control', 'no-cache, no-store, must-revalidate');
+    setHeader(event, 'Pragma', 'no-cache');
+    setHeader(event, 'Expires', '0');
 
     return pdfBuffer;
   } catch (error: any) {
