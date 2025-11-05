@@ -1182,7 +1182,7 @@ onMounted(() => {
           <!-- Note Delete Button -->
           <button
             @click.stop="$emit('delete-note', note.id)"
-              class="no-drag flex-shrink-0 p-2.5 md:p-1.5 mr-2 rounded-md opacity-0 group-hover/note:opacity-100 hover:bg-red-100 dark:hover:bg-red-900/20 transition-all"
+              class="no-drag flex-shrink-0 p-2.5 md:p-1.5 mr-2 rounded-md opacity-100 md:opacity-0 md:group-hover/note:opacity-100 hover:bg-red-100 dark:hover:bg-red-900/20 transition-all"
             title="Delete note"
           >
             <UIcon name="i-heroicons-trash" class="w-5 h-5 md:w-3.5 md:h-3.5 text-red-600 dark:text-red-400" />
