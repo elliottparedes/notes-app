@@ -37,8 +37,13 @@ export default defineEventHandler(async (event) => {
   const note = noteRows[0];
 
   try {
-    // Determine if we're in a serverless environment
-    const isServerless = process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.VERCEL;
+    // Determine if we're in a serverless/production environment
+    // Check for various serverless platforms
+    // Note: Only use @sparticuz/chromium on actual serverless platforms
+    const isServerless = 
+      process.env.AWS_LAMBDA_FUNCTION_NAME || 
+      process.env.VERCEL || 
+      process.env.NETLIFY;
     
     let browserOptions: any = {
       headless: true,
@@ -47,19 +52,63 @@ export default defineEventHandler(async (event) => {
 
     if (isServerless) {
       // Use serverless chromium in production/serverless
-      const chromium = await import('@sparticuz/chromium');
-      if (typeof chromium.setGraphicsMode === 'function') {
-        chromium.setGraphicsMode(false);
+      try {
+        const chromiumModule = await import('@sparticuz/chromium');
+        // Handle both default and named exports
+        // @sparticuz/chromium can export as default or as named exports
+        const chromium = (chromiumModule as any).default || chromiumModule;
+        
+        if (!chromium) {
+          throw new Error('Failed to load @sparticuz/chromium module');
+        }
+        
+        // Set graphics mode if available
+        if (typeof chromium.setGraphicsMode === 'function') {
+          chromium.setGraphicsMode(false);
+        }
+        
+        // Get executablePath - check what type it is
+        let executablePath: string;
+        const executablePathValue = chromium.executablePath;
+        
+        if (!executablePathValue) {
+          throw new Error('chromium.executablePath is not available in @sparticuz/chromium module');
+        }
+        
+        if (typeof executablePathValue === 'function') {
+          // It's a function, call it (it returns a Promise)
+          executablePath = await executablePathValue();
+        } else if (typeof executablePathValue === 'string') {
+          // It's already a string
+          executablePath = executablePathValue;
+        } else {
+          // Try to convert to string or use as-is
+          executablePath = String(executablePathValue);
+        }
+        
+        if (!executablePath || typeof executablePath !== 'string') {
+          throw new Error('Failed to get valid executablePath from @sparticuz/chromium');
+        }
+        
+        browserOptions = {
+          args: chromium.args || [],
+          defaultViewport: chromium.defaultViewport || { width: 1280, height: 720 },
+          executablePath: executablePath,
+          headless: chromium.headless !== false,
+          ignoreHTTPSErrors: true,
+        };
+      } catch (chromiumError: any) {
+        console.error('Failed to load @sparticuz/chromium:', chromiumError);
+        console.error('Error details:', {
+          message: chromiumError.message,
+          stack: chromiumError.stack,
+          name: chromiumError.name
+        });
+        throw createError({
+          statusCode: 500,
+          message: `PDF generation failed: ${chromiumError.message || 'Chromium initialization error'}`
+        });
       }
-      const executablePath = await chromium.executablePath();
-      
-      browserOptions = {
-        args: chromium.args,
-        defaultViewport: chromium.defaultViewport,
-        executablePath: executablePath,
-        headless: chromium.headless,
-        ignoreHTTPSErrors: true,
-      };
     } else {
       // Local development - use system Chrome/Chromium or download puppeteer's Chromium
       // Try to find Chrome/Chromium in common locations
@@ -88,6 +137,7 @@ export default defineEventHandler(async (event) => {
         // Fallback to using puppeteer's bundled chromium if available
         // In local dev, you might have puppeteer installed which includes chromium
         try {
+          // @ts-ignore - puppeteer is optional, only used in local dev
           const puppeteerFull = await import('puppeteer');
           executablePath = (puppeteerFull as any).executablePath();
         } catch {
