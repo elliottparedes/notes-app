@@ -3,12 +3,11 @@ const { setPageSEO, baseUrl } = useSEO()
 
 setPageSEO({
   title: 'About Unfold Notes - Our Mission, Story & Values',
-  description: 'Learn about Unfold Notes - a modern note-taking app built with a focus on collaboration and beautiful design. Created by Elliott with a mission to make note-taking accessible everywhere.',
+  description: 'Learn about Unfold Notes - a modern note-taking app built with a focus on beautiful design and AI-powered features. Created by Elliott with a mission to make note-taking accessible everywhere.',
   path: '/about',
   keywords: [
     'about unfold notes',
     'note taking app story',
-    'offline notes mission',
     'note app creator',
     'unfold notes about'
   ],
@@ -84,17 +83,14 @@ setPageSEO({
           <div>
             <h2 class="text-3xl font-bold text-gray-900 dark:text-white mb-4">Our Mission</h2>
             <p class="text-lg text-gray-600 dark:text-gray-400 leading-relaxed">
-              Unfold Notes was created to solve a simple problem: note-taking apps shouldn't require constant internet connection, and they should work beautifully everywhere. We believe that your thoughts are too important to be locked behind slow connections or confusing interfaces.
+              Unfold Notes was created to solve a simple problem: note-taking apps should work beautifully everywhere with powerful AI assistance. We believe that your thoughts are too important to be locked behind confusing interfaces or expensive subscriptions.
             </p>
           </div>
 
           <div>
             <h2 class="text-3xl font-bold text-gray-900 dark:text-white mb-4">Why We Built It</h2>
-            <p class="text-lg text-gray-600 dark:text-gray-400 leading-relaxed mb-4">
-              Traditional note-taking apps often fail when you need them most - on flights, in remote locations, or during internet outages. Unfold Notes includes offline support, helping ensure your notes are accessible when you need them.
-            </p>
             <p class="text-lg text-gray-600 dark:text-gray-400 leading-relaxed">
-              We also wanted to combine the best of both worlds: the power of modern AI assistance with the simplicity of clean, distraction-free writing. Add real-time collaboration and beautiful organization, and you have Unfold Notes.
+              We wanted to combine the best of both worlds: the power of modern AI assistance with the simplicity of clean, distraction-free writing. Add beautiful organization and you have Unfold Notes.
             </p>
           </div>
 
@@ -104,13 +100,13 @@ setPageSEO({
               <div class="p-6 bg-gray-50 dark:bg-gray-800 rounded-xl">
                 <h3 class="text-xl font-semibold text-gray-900 dark:text-white mb-2">Privacy First</h3>
                 <p class="text-gray-600 dark:text-gray-400">
-                  Your notes are yours. We don't sell your data, and we don't track your content. Everything is encrypted and secure.
+                  Your notes are yours. We don't sell your data, and we don't track your content. Your passwords are securely encrypted using bcrypt.
                 </p>
               </div>
               <div class="p-6 bg-gray-50 dark:bg-gray-800 rounded-xl">
-                <h3 class="text-xl font-semibold text-gray-900 dark:text-white mb-2">Offline Support</h3>
+                <h3 class="text-xl font-semibold text-gray-900 dark:text-white mb-2">Free Forever</h3>
                 <p class="text-gray-600 dark:text-gray-400">
-                  Works everywhere, even without internet. Your notes sync automatically when you're back online.
+                  Unfold Notes is completely free to use with 500MB of storage included. No hidden fees, no premium tiers, just powerful note-taking for everyone.
                 </p>
               </div>
               <div class="p-6 bg-gray-50 dark:bg-gray-800 rounded-xl">

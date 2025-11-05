@@ -24,14 +24,6 @@ const faqSchema = {
     },
     {
       '@type': 'Question',
-      name: 'Does Unfold Notes work offline?',
-      acceptedAnswer: {
-        '@type': 'Answer',
-        text: 'Yes! Unfold Notes is built as a Progressive Web App (PWA) with offline support. After the initial load, you can continue working even without an internet connection. You can create, edit, and organize notes offline. When you reconnect to the internet, all your changes sync automatically.'
-      }
-    },
-    {
-      '@type': 'Question',
       name: 'How much storage do I get?',
       acceptedAnswer: {
         '@type': 'Answer',
@@ -75,12 +67,11 @@ const faqSchema = {
 
 setPageSEO({
   title: 'FAQ - Frequently Asked Questions | Unfold Notes Help',
-  description: 'Frequently asked questions about Unfold Notes. Learn about features, pricing, offline support, security, AI features, mobile support, and more. Get answers to common questions.',
+  description: 'Frequently asked questions about Unfold Notes. Learn about features, pricing, security, AI features, mobile support, and more. Get answers to common questions.',
   path: '/faq',
   keywords: [
     'unfold notes faq',
     'note taking app questions',
-    'offline notes help',
     'note app support',
     'unfold notes help'
   ],
@@ -97,10 +88,6 @@ const faqs = [
     answer: 'Yes! Unfold Notes is completely free to use. We provide 500MB of free storage per user, which is perfect for most note-taking needs. You can attach files, export PDFs, and use all features without any payment required.'
   },
   {
-    question: 'Does Unfold Notes work offline?',
-    answer: 'Yes! Unfold Notes is built as a Progressive Web App (PWA) with offline support. After the initial load, you can continue working even without an internet connection. You can create, edit, and organize notes offline. When you reconnect to the internet, all your changes sync automatically.'
-  },
-  {
     question: 'What file types can I attach?',
     answer: 'You can attach any file type to your notes - images, documents, PDFs, and more. Each user gets 500MB of free storage space to use for attachments.'
   },
@@ -110,7 +97,7 @@ const faqs = [
   },
   {
     question: 'Is my data secure?',
-    answer: 'Yes, your data is secure and private. All authentication is handled securely with JWT tokens, and passwords are hashed using bcrypt. We don\'t sell your data or track your content. Your notes belong to you.'
+    answer: 'Yes, your data is secure and private. All authentication is handled securely with JWT tokens, and passwords are encrypted using bcrypt. We don\'t sell your data or track your content. Your notes belong to you.'
   },
   {
     question: 'Can I export my notes?',

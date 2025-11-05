@@ -31,12 +31,11 @@ const { setPageSEO, baseUrl } = useSEO()
 
 setPageSEO({
   title: 'Use Cases - How to Use Unfold Notes for Productivity | Personal & Team',
-  description: 'Discover how Unfold Notes helps with personal note-taking, team collaboration, research documentation, meeting notes, project planning, and knowledge management. See real examples of how people use Unfold Notes.',
+  description: 'Discover how Unfold Notes helps with personal note-taking, research documentation, meeting notes, project planning, and knowledge management. See real examples of how people use Unfold Notes.',
   path: '/use-cases',
   keywords: [
     'note taking use cases',
     'personal note taking',
-    'team collaboration notes',
     'research note taking',
     'meeting notes app',
     'project planning notes',
@@ -47,7 +46,7 @@ setPageSEO({
     '@context': 'https://schema.org',
     '@type': 'WebPage',
     name: 'Use Cases - Unfold Notes',
-    description: 'Learn how Unfold Notes can be used for personal note-taking, team collaboration, research, meetings, and project planning.',
+    description: 'Learn how Unfold Notes can be used for personal note-taking, research, meetings, and project planning.',
     url: `${baseUrl}/use-cases`,
     breadcrumb: {
       '@type': 'BreadcrumbList',
@@ -118,7 +117,7 @@ setPageSEO({
             </div>
             <h2 class="text-3xl font-bold text-gray-900 dark:text-white mb-4">Personal Note-Taking</h2>
             <p class="text-lg text-gray-600 dark:text-gray-400 mb-4">
-              Capture your thoughts, ideas, and inspiration wherever you are. Whether you're journaling, brainstorming, or keeping personal notes, Unfold Notes works offline so you never lose an idea.
+              Capture your thoughts, ideas, and inspiration wherever you are. Whether you're journaling, brainstorming, or keeping personal notes, Unfold Notes helps you organize your ideas effortlessly.
             </p>
             <ul class="space-y-2 text-gray-600 dark:text-gray-400">
               <li class="flex items-start gap-2">
@@ -141,7 +140,10 @@ setPageSEO({
         </div>
 
         <div class="grid md:grid-cols-2 gap-12 items-center">
-          <div>
+          <div class="order-2 md:order-1 bg-gray-100 dark:bg-gray-800 rounded-xl overflow-hidden shadow-2xl ring-1 ring-gray-200 dark:ring-gray-700 cursor-pointer transition-transform hover:scale-[1.02]" @click="openImageModal('/research.png')">
+            <img src="/research.png" alt="Research Preview" class="w-full h-full object-cover" />
+          </div>
+          <div class="order-1 md:order-2">
             <div class="w-12 h-12 bg-purple-100 dark:bg-purple-900 rounded-lg flex items-center justify-center mb-4">
               <UIcon name="i-heroicons-academic-cap" class="w-6 h-6 text-purple-600 dark:text-purple-400" />
             </div>
@@ -164,16 +166,10 @@ setPageSEO({
               </li>
             </ul>
           </div>
-          <div class="bg-gray-100 dark:bg-gray-800 rounded-xl overflow-hidden shadow-2xl ring-1 ring-gray-200 dark:ring-gray-700 cursor-pointer transition-transform hover:scale-[1.02]" @click="openImageModal('/research.png')">
-            <img src="/research.png" alt="Research Preview" class="w-full h-full object-cover" />
-          </div>
         </div>
 
         <div class="grid md:grid-cols-2 gap-12 items-center">
-          <div class="order-2 md:order-1 bg-gray-100 dark:bg-gray-800 rounded-xl overflow-hidden shadow-2xl ring-1 ring-gray-200 dark:ring-gray-700 cursor-pointer transition-transform hover:scale-[1.02]" @click="openImageModal('/meeting-notes.png')">
-            <img src="/meeting-notes.png" alt="Meeting Notes Preview" class="w-full h-full object-cover" />
-          </div>
-          <div class="order-1 md:order-2">
+          <div>
             <div class="w-12 h-12 bg-orange-100 dark:bg-orange-900 rounded-lg flex items-center justify-center mb-4">
               <UIcon name="i-heroicons-calendar" class="w-6 h-6 text-orange-600 dark:text-orange-400" />
             </div>
@@ -196,10 +192,16 @@ setPageSEO({
               </li>
             </ul>
           </div>
+          <div class="bg-gray-100 dark:bg-gray-800 rounded-xl overflow-hidden shadow-2xl ring-1 ring-gray-200 dark:ring-gray-700 cursor-pointer transition-transform hover:scale-[1.02]" @click="openImageModal('/meeting-notes.png')">
+            <img src="/meeting-notes.png" alt="Meeting Notes Preview" class="w-full h-full object-cover" />
+          </div>
         </div>
 
         <div class="grid md:grid-cols-2 gap-12 items-center">
-          <div>
+          <div class="order-2 md:order-1 bg-gray-100 dark:bg-gray-800 rounded-xl overflow-hidden shadow-2xl ring-1 ring-gray-200 dark:ring-gray-700 cursor-pointer transition-transform hover:scale-[1.02]" @click="openImageModal('/project-planning.png')">
+            <img src="/project-planning.png" alt="Project Planning Preview" class="w-full h-full object-cover" />
+          </div>
+          <div class="order-1 md:order-2">
             <div class="w-12 h-12 bg-indigo-100 dark:bg-indigo-900 rounded-lg flex items-center justify-center mb-4">
               <UIcon name="i-heroicons-clipboard-document-check" class="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
             </div>
@@ -221,9 +223,6 @@ setPageSEO({
                 <span>Organize by spaces and folders</span>
               </li>
             </ul>
-          </div>
-          <div class="bg-gray-100 dark:bg-gray-800 rounded-xl overflow-hidden shadow-2xl ring-1 ring-gray-200 dark:ring-gray-700 cursor-pointer transition-transform hover:scale-[1.02]" @click="openImageModal('/project-planning.png')">
-            <img src="/project-planning.png" alt="Project Planning Preview" class="w-full h-full object-cover" />
           </div>
         </div>
       </div>

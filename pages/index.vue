@@ -3,21 +3,18 @@ const { setPageSEO, baseUrl } = useSEO()
 
 setPageSEO({
   title: 'Unfold Notes - Free Note-Taking App with AI | Organize Your Thoughts',
-  description: 'Unfold Notes is a free note-taking app with AI-powered features, real-time collaboration, and beautiful organization. Works everywhere - desktop and mobile. Start organizing your thoughts today.',
+  description: 'Unfold Notes is a free note-taking app with AI-powered features and beautiful organization. Works everywhere - desktop and mobile. Start organizing your thoughts today.',
   path: '/',
   keywords: [
     'note taking app',
-    'offline notes',
     'free note app',
     'markdown editor',
     'AI note taking',
-    'collaborative notes',
     'PWA notes',
     'note taking software',
     'organize notes',
     'productivity app',
     'note app free',
-    'offline note taking',
     'best note app',
     'note taking tool'
   ],
@@ -27,7 +24,7 @@ setPageSEO({
     name: 'Unfold Notes',
     applicationCategory: 'ProductivityApplication',
     operatingSystem: 'Web, PWA, iOS, Android',
-    description: 'Modern note-taking app with AI-powered features, real-time collaboration, and beautiful organization.',
+    description: 'Modern note-taking app with AI-powered features and beautiful organization.',
     offers: {
       '@type': 'Offer',
       price: '0',
@@ -42,7 +39,6 @@ setPageSEO({
     featureList: [
       'PWA Support - Install on any device',
       'AI-powered note generation with Google Gemini',
-      'Real-time collaboration with live cursors',
       'Rich text editing with markdown support',
       'File attachments up to 500MB free',
       'PDF export',
@@ -119,7 +115,7 @@ onMounted(() => {
             </span>
           </h1>
           <p class="text-xl md:text-2xl text-gray-600 dark:text-gray-300 mb-8 max-w-3xl mx-auto">
-            A modern note-taking app that works everywhere. Organize your thoughts with AI-powered features and seamless collaboration. Free forever with 500MB storage included.
+            A modern note-taking app that works everywhere. Organize your thoughts with AI-powered features and beautiful organization. Free forever with 500MB storage included.
           </p>
           <div class="flex flex-col sm:flex-row gap-4 justify-center">
             <UButton to="/signup" size="lg" color="primary" class="font-semibold px-6">
@@ -154,27 +150,16 @@ onMounted(() => {
           </p>
         </div>
         
-        <div class="grid md:grid-cols-3 gap-8">
-          <div class="bg-white dark:bg-gray-900 p-8 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700">
-            <div class="w-12 h-12 bg-primary-100 dark:bg-primary-900 rounded-lg flex items-center justify-center mb-4">
-              <UIcon name="i-heroicons-wifi" class="w-6 h-6 text-primary-600 dark:text-primary-400" />
-            </div>
-            <h3 class="text-xl font-semibold text-gray-900 dark:text-white mb-2">Works Offline</h3>
-            <p class="text-gray-600 dark:text-gray-400">
-              Continue working even without internet. Your notes sync automatically when you're back online. Perfect for travel, commuting, or unreliable connections.
-            </p>
-          </div>
-          
-          <div class="bg-white dark:bg-gray-900 p-8 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700">
-            <div class="w-12 h-12 bg-purple-100 dark:bg-purple-900 rounded-lg flex items-center justify-center mb-4">
+        <div class="flex justify-center">
+          <div class="bg-white dark:bg-gray-900 p-8 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 max-w-md">
+            <div class="w-12 h-12 bg-purple-100 dark:bg-purple-900 rounded-lg flex items-center justify-center mb-4 mx-auto">
               <UIcon name="i-heroicons-sparkles" class="w-6 h-6 text-purple-600 dark:text-purple-400" />
             </div>
-            <h3 class="text-xl font-semibold text-gray-900 dark:text-white mb-2">AI-Powered</h3>
-            <p class="text-gray-600 dark:text-gray-400">
+            <h3 class="text-xl font-semibold text-gray-900 dark:text-white mb-2 text-center">AI-Powered</h3>
+            <p class="text-gray-600 dark:text-gray-400 text-center">
               Generate notes with AI assistance. Polish your writing, organize thoughts, and get suggestions powered by Google Gemini.
             </p>
           </div>
-          
         </div>
       </div>
     </section>
@@ -187,7 +172,7 @@ onMounted(() => {
             Powerful Features for Modern Workflows
           </h2>
           <p class="text-xl text-gray-600 dark:text-gray-400">
-            Everything you need in one beautiful app. From AI-powered writing to real-time collaboration, Unfold Notes has all the features you need to stay productive.
+            Everything you need in one beautiful app. From AI-powered writing to smart organization, Unfold Notes has all the features you need to stay productive.
           </p>
         </div>
         

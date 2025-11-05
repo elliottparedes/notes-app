@@ -31,13 +31,11 @@ const { setPageSEO, baseUrl } = useSEO()
 
 setPageSEO({
   title: 'Features - Powerful Note-Taking Capabilities | Unfold Notes',
-  description: 'Discover all the powerful features of Unfold Notes: AI-powered writing, real-time collaboration, file attachments, PDF export, offline support, and more. See what makes Unfold Notes the best free note-taking app.',
+  description: 'Discover all the powerful features of Unfold Notes: AI-powered writing, file attachments, PDF export, and more. See what makes Unfold Notes the best free note-taking app.',
   path: '/features',
   keywords: [
     'note taking features',
     'AI note writing',
-    'collaborative note taking',
-    'offline note app features',
     'markdown editor features',
     'note app capabilities',
     'free note taking features'
@@ -46,7 +44,7 @@ setPageSEO({
     '@context': 'https://schema.org',
     '@type': 'WebPage',
     name: 'Features - Unfold Notes',
-    description: 'Comprehensive list of features in Unfold Notes including AI-powered writing, collaboration, offline support, and more.',
+    description: 'Comprehensive list of features in Unfold Notes including AI-powered writing and more.',
     url: `${baseUrl}/features`,
     breadcrumb: {
       '@type': 'BreadcrumbList',

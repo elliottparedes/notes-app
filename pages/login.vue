@@ -27,7 +27,8 @@ if (process.client) {
       router.replace('/dashboard');
     });
   } else {
-    // No token found, allow page to render
+    // No token found, allow page to render immediately
+    // This handles the case after logout where we want to show the login page right away
     checkingAuth.value = false;
   }
 } else {
@@ -37,6 +38,12 @@ if (process.client) {
 
 // Also check after mount to handle async auth initialization
 onMounted(async () => {
+  // Quick check - if no token in localStorage, skip initialization and show page immediately
+  if (process.client && !localStorage.getItem('auth_token')) {
+    checkingAuth.value = false;
+    return;
+  }
+
   // Wait for auth store to initialize if it hasn't already
   if (!authStore.initialized) {
     await authStore.initializeAuth();
