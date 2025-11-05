@@ -3275,8 +3275,8 @@ onMounted(() => {
               >
                 <UIcon 
                   name="i-heroicons-sparkles" 
-                  :class="isPolishing ? 'animate-spin' : ''" 
-                  class="w-4 h-4" 
+                  :class="isPolishing ? 'animate-pulse opacity-70' : ''" 
+                  class="w-4 h-4 transition-opacity" 
                 />
               </button>
               
@@ -3317,9 +3317,9 @@ onMounted(() => {
                 title="Export as PDF"
               >
                 <UIcon 
-                  name="i-heroicons-document-arrow-down" 
-                  :class="isExportingPdf ? 'animate-spin' : ''"
-                  class="w-4 h-4" 
+                  :name="isExportingPdf ? 'i-heroicons-arrow-path' : 'i-heroicons-document-arrow-down'" 
+                  :class="isExportingPdf ? 'animate-pulse opacity-70' : ''"
+                  class="w-4 h-4 transition-opacity" 
                 />
               </button>
               
@@ -3417,8 +3417,8 @@ onMounted(() => {
                 >
                   <UIcon 
                     name="i-heroicons-sparkles" 
-                    :class="isPolishing ? 'animate-spin' : ''" 
-                    class="w-5 h-5" 
+                    :class="isPolishing ? 'animate-pulse opacity-70' : ''" 
+                    class="w-5 h-5 transition-opacity" 
                   />
                 </button>
                 
@@ -3458,7 +3458,11 @@ onMounted(() => {
                   class="p-2 rounded-lg transition-colors hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 disabled:opacity-50"
                   title="Export as PDF"
                 >
-                  <UIcon :name="isExportingPdf ? 'i-heroicons-arrow-path' : 'i-heroicons-document-arrow-down'" :class="isExportingPdf ? 'animate-spin' : ''" class="w-5 h-5" />
+                  <UIcon 
+                    :name="isExportingPdf ? 'i-heroicons-arrow-path' : 'i-heroicons-document-arrow-down'" 
+                    :class="isExportingPdf ? 'animate-pulse opacity-70' : ''" 
+                    class="w-5 h-5 transition-opacity" 
+                  />
                 </button>
               </div>
         </div>

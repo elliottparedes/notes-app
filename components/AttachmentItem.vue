@@ -150,13 +150,14 @@ async function deleteFile() {
     <!-- Actions -->
     <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
       <UButton
-        icon="i-heroicons-arrow-down-tray"
+        :icon="isDownloading ? 'i-heroicons-arrow-path' : 'i-heroicons-arrow-down-tray'"
         color="neutral"
         variant="ghost"
         size="xs"
-        :loading="isDownloading"
+        :disabled="isDownloading"
+        :class="isDownloading ? 'animate-pulse opacity-70' : ''"
         @click="downloadFile"
-        title="Download"
+        :title="isDownloading ? 'Downloading...' : 'Download'"
       />
       <UButton
         icon="i-heroicons-trash"

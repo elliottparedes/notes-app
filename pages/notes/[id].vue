@@ -746,13 +746,14 @@ onUnmounted(() => {
           
           <!-- PDF Export Button -->
           <UButton
-            icon="i-heroicons-document-arrow-down"
+            :icon="isExportingPdf ? 'i-heroicons-arrow-path' : 'i-heroicons-document-arrow-down'"
             color="neutral"
             variant="ghost"
             size="sm"
-            :loading="isExportingPdf"
+            :disabled="isExportingPdf"
+            :class="isExportingPdf ? 'animate-pulse opacity-70' : ''"
             @click="exportAsPdf"
-            title="Export as PDF"
+            :title="isExportingPdf ? 'Exporting PDF...' : 'Export as PDF'"
           />
           
           <!-- Publish/Unpublish Button -->
@@ -866,8 +867,8 @@ onUnmounted(() => {
             >
               <UIcon 
                 name="i-heroicons-sparkles" 
-                :class="isPolishing ? 'animate-spin' : 'group-hover:animate-pulse'" 
-                class="w-3.5 h-3.5" 
+                :class="isPolishing ? 'animate-pulse opacity-70' : 'group-hover:animate-pulse'" 
+                class="w-3.5 h-3.5 transition-opacity" 
               />
               <span class="hidden sm:inline">{{ isPolishing ? 'Polishing...' : 'Polish' }}</span>
             </button>
