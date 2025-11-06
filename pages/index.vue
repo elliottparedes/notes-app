@@ -141,7 +141,7 @@ onMounted(() => {
     <section class="py-24 px-4 sm:px-6 lg:px-8 bg-gray-50 dark:bg-gray-800" aria-label="Key benefits">
       <div class="max-w-7xl mx-auto">
         <div class="text-center mb-16">
-          <h2 class="text-4xl font-bold text-gray-900 dark:text-white mb-4">
+          <h2 class="text-4xl md:text-5xl font-bold text-gray-900 dark:text-white mb-4">
             Everything You Need to Organize Your Thoughts
           </h2>
           <p class="text-xl text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
@@ -149,15 +149,44 @@ onMounted(() => {
           </p>
         </div>
         
-        <div class="flex justify-center">
-          <div class="bg-white dark:bg-gray-900 p-8 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 max-w-md">
-            <div class="w-12 h-12 bg-purple-100 dark:bg-purple-900 rounded-lg flex items-center justify-center mb-4 mx-auto">
-              <UIcon name="i-heroicons-sparkles" class="w-6 h-6 text-purple-600 dark:text-purple-400" />
+        <!-- Featured AI-Powered Section -->
+        <div class="max-w-4xl mx-auto">
+          <div class="relative bg-white dark:bg-gray-900 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+            <!-- Decorative gradient accent -->
+            <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-purple-500 via-primary-500 to-teal-500"></div>
+            
+            <div class="p-8 md:p-12">
+              <div class="flex flex-col items-center text-center">
+                <!-- Icon -->
+                <div class="w-16 h-16 bg-gradient-to-br from-purple-500 to-teal-500 rounded-2xl flex items-center justify-center mb-6 shadow-lg">
+                  <UIcon name="i-heroicons-sparkles" class="w-8 h-8 text-white" />
+                </div>
+                
+                <!-- Heading -->
+                <h3 class="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white mb-3">
+                  AI-Powered
+                </h3>
+                
+                <!-- Description -->
+                <p class="text-lg md:text-xl text-gray-600 dark:text-gray-400 mb-8 max-w-2xl leading-relaxed">
+                  Generate notes with AI assistance. Polish your writing and organize thoughts with the power of Google Gemini.
+                </p>
+                
+                <!-- Feature highlights -->
+                <div class="flex flex-col sm:flex-row gap-4 w-full max-w-xl justify-center">
+                  <div class="flex flex-col items-center p-6 bg-gradient-to-br from-teal-50 to-teal-100 dark:from-teal-900/20 dark:to-teal-800/20 rounded-xl border border-teal-200 dark:border-teal-800/50 flex-1">
+                    <UIcon name="i-heroicons-document-plus" class="w-8 h-8 text-teal-600 dark:text-teal-400 mb-3" />
+                    <span class="text-base font-semibold text-gray-900 dark:text-white">Content Generation</span>
+                    <p class="text-sm text-gray-600 dark:text-gray-400 text-center mt-1">Create notes instantly with AI</p>
+                  </div>
+                  <div class="flex flex-col items-center p-6 bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 rounded-xl border border-purple-200 dark:border-purple-800/50 flex-1">
+                    <UIcon name="i-heroicons-pencil-square" class="w-8 h-8 text-purple-600 dark:text-purple-400 mb-3" />
+                    <span class="text-base font-semibold text-gray-900 dark:text-white">Writing Polish</span>
+                    <p class="text-sm text-gray-600 dark:text-gray-400 text-center mt-1">Refine and improve your writing</p>
+                  </div>
+                </div>
+              </div>
             </div>
-            <h3 class="text-xl font-semibold text-gray-900 dark:text-white mb-2 text-center">AI-Powered</h3>
-            <p class="text-gray-600 dark:text-gray-400 text-center">
-              Generate notes with AI assistance. Polish your writing, organize thoughts, and get suggestions powered by Google Gemini.
-            </p>
           </div>
         </div>
       </div>
