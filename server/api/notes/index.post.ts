@@ -84,6 +84,24 @@ export default defineEventHandler(async (event): Promise<Note> => {
       share_permission: undefined // Creator has full ownership, not a shared permission
     };
 
+    // Track note creation in analytics (fire and forget)
+    try {
+      await executeQuery(
+        `INSERT INTO analytics_events (user_id, event_type, event_data, note_id, folder_id, created_at) 
+         VALUES (?, ?, ?, ?, ?, NOW())`,
+        [
+          userId,
+          'note_created',
+          JSON.stringify({ note_id: note.id, title: note.title }),
+          note.id,
+          note.folder_id || null,
+        ]
+      );
+    } catch (error) {
+      // Ignore analytics errors - don't break note creation
+      console.error('Analytics tracking error:', error);
+    }
+
     // Auto-publish note if parent folder or space is published
     if (body.folder_id) {
       // Check if folder is published

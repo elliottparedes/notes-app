@@ -1709,6 +1709,21 @@ async function generateAiNote() {
       }
     });
 
+    // Track analytics
+    try {
+      await $fetch('/api/analytics/track', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${authStore.token}` },
+        body: {
+          event_type: 'note_generated',
+          event_data: { note_id: response.id, prompt_length: prompt.length },
+          note_id: response.id,
+        },
+      });
+    } catch (e) {
+      // Ignore analytics errors
+    }
+
     toast.add({
       title: 'Success',
       description: 'AI-generated note created successfully',
@@ -2076,6 +2091,7 @@ async function saveNote(silent = false) {
     };
     
     await notesStore.updateNote(activeNote.value.id, updateData);
+    
     if (!silent) {
       toast.add({
         title: 'Success',
@@ -2124,6 +2140,11 @@ function toggleLock() {
 
 // Tags management
 const tagInput = ref('');
+
+// Computed for collaborative check (for template access)
+const isCollaborative = computed(() => {
+  return activeNote.value ? (activeNote.value.is_shared || activeNote.value.share_permission) : false;
+});
 
 function addTag() {
   const trimmedTag = tagInput.value.trim();
@@ -2502,6 +2523,21 @@ async function polishNote() {
 
     editForm.title = response.title;
     editForm.content = response.content;
+
+    // Track analytics
+    try {
+      await $fetch('/api/analytics/track', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${authStore.token}` },
+        body: {
+          event_type: 'note_polished',
+          event_data: { note_id: activeNote.value.id },
+          note_id: activeNote.value.id,
+        },
+      });
+    } catch (e) {
+      // Ignore analytics errors
+    }
 
     toast.add({
       title: 'Note Polished! ✨',
@@ -3591,7 +3627,7 @@ onMounted(() => {
               <!-- Tags -->
               <div class="flex items-center gap-2 flex-1 min-w-0">
                 <UIcon name="i-heroicons-tag" class="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-                <div class="flex items-center gap-1 flex-wrap">
+                <div class="flex items-center gap-1 flex-wrap flex-1">
                   <UBadge
                     v-for="tag in editForm.tags"
                     :key="tag"

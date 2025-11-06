@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import AnalyticsDashboard from '~/components/AnalyticsDashboard.vue';
+
 const authStore = useAuthStore();
 const toast = useToast();
 
@@ -588,6 +590,22 @@ function goBack() {
             Unable to load storage information
           </p>
         </div>
+      </UCard>
+
+      <!-- Analytics Dashboard -->
+      <UCard class="mb-6">
+        <template #header>
+          <div class="flex items-center justify-between w-full">
+            <div>
+              <h2 class="text-xl font-semibold text-gray-900 dark:text-white">Analytics</h2>
+              <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                Track your writing activity and productivity
+              </p>
+            </div>
+          </div>
+        </template>
+
+        <AnalyticsDashboard />
       </UCard>
 
       <!-- Published Content -->
