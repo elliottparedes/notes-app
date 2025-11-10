@@ -7,8 +7,8 @@
   },
   "scripts": {
     "build": "nuxt build",
-    "dev": "NODE_ENV=development nuxt dev",
-    "dev:quiet": "VITE_PLUGIN_PWA_LOG_LEVEL=silent nuxt dev",
+    "dev": "cross-env NODE_ENV=development nuxt dev",
+    "dev:quiet": "cross-env VITE_PLUGIN_PWA_LOG_LEVEL=silent nuxt dev",
     "typecheck": "vue-tsc --noEmit",
     "typecheck:watch": "vue-tsc --noEmit --watch",
     "generate": "nuxt generate",
@@ -64,6 +64,7 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/sortablejs": "^1.15.9",
     "@vite-pwa/nuxt": "^1.0.7",
+    "cross-env": "^10.1.0",
     "tailwindcss": "^4.1.16",
     "typescript": "^5.9.3",
     "vue-tsc": "^3.1.2",
