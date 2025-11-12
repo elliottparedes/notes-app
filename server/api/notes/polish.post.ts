@@ -39,7 +39,7 @@ Title: ${title}
 Content: ${content || '(empty)'}
 
 Please:
-1. Create a clear, concise title that captures the essence of the content
+1. Keep the original title exactly as provided - do NOT change or modify it
 2. Reorganize and clean up the content into well-structured HTML
 3. Fix any typos, grammar issues, and formatting problems
 4. If it's a to-do list, organize it with proper task list formatting
@@ -50,9 +50,11 @@ Please:
 
 Respond ONLY with a JSON object in this exact format:
 {
-  "title": "improved title here",
+  "title": "${title}",
   "content": "<p>improved HTML content here</p>"
 }
+
+IMPORTANT: Use the exact original title "${title}" in the response - do not modify it.
 
 Do not include any markdown formatting. Use HTML tags only.`;
 
@@ -111,15 +113,16 @@ Do not include any markdown formatting. Use HTML tags only.`;
     }
 
     // Validate the response has the expected structure
-    if (!polishedNote.title || !polishedNote.content) {
+    if (!polishedNote.content) {
       throw createError({
         statusCode: 500,
         message: 'Invalid AI response format'
       });
     }
 
+    // Always return the original title, not the AI-generated one
     return {
-      title: polishedNote.title,
+      title: title,
       content: polishedNote.content
     };
 
