@@ -31,6 +31,7 @@ import Image from '@tiptap/extension-image'
 import Gapcursor from '@tiptap/extension-gapcursor'
 import { Extension, Mark } from '@tiptap/core'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
+import { TextSelection } from '@tiptap/pm/state'
 import { WebsocketProvider } from 'y-websocket'
 import * as Y from 'yjs'
 import ydocManager from '~/utils/ydocManager.client'
@@ -126,6 +127,524 @@ const UserHighlight = Mark.create({
       }),
     ]
   },
+})
+
+// Custom TaskItem extension that applies strike formatting when checked
+const TaskItemWithStrike = TaskItem.extend({
+  addCommands() {
+    return {
+      ...this.parent?.(),
+      toggleTaskList: () => ({ tr, state, dispatch }) => {
+        const { selection } = state
+        const { $from, $to } = selection
+        
+        // Check if we're already in a task list
+        let inTaskList = false
+        for (let d = $from.depth; d > 0; d--) {
+          if ($from.node(d).type.name === 'taskList') {
+            inTaskList = true
+            break
+          }
+        }
+        
+        if (inTaskList) {
+          // Toggle off - convert task list back to paragraph
+          return this.parent?.()?.toggleTaskList()?.()
+        } else {
+          // Toggle on - wrap selection in task list
+          const taskListType = state.schema.nodes.taskList
+          const taskItemType = state.schema.nodes.taskItem
+          const paragraphType = state.schema.nodes.paragraph
+          
+          if (!taskListType || !taskItemType || !paragraphType) {
+            return false
+          }
+          
+          // Get the selected content
+          const selectedContent = state.doc.slice(selection.from, selection.to)
+          
+          // Create a paragraph with the selected content (or empty paragraph if no selection)
+          const paragraph = paragraphType.create(null, selectedContent.content.size > 0 ? selectedContent.content : [])
+          const taskItem = taskItemType.create({ checked: false }, paragraph)
+          const taskList = taskListType.create(null, taskItem)
+          
+          // Replace selection with task list
+          tr.replaceSelectionWith(taskList)
+          
+          // Set cursor inside the paragraph of the task item
+          // After taskList insertion, find the paragraph position
+          const newPos = selection.from
+          
+          // Use nextTick to ensure the document is updated, then find the paragraph
+          // Actually, we can find it immediately after replaceSelectionWith
+          const insertedNode = tr.doc.nodeAt(newPos)
+          if (insertedNode && insertedNode.firstChild) {
+            const taskItemNode = insertedNode.firstChild
+            // Find the paragraph node inside the task item
+            // TaskItem structure: taskItem -> content (paragraph)
+            let paragraphPos = newPos + 1 // After taskList start
+            taskItemNode.forEach((node, offset) => {
+              if (node.type.name === 'paragraph') {
+                // Position = taskList start + 1 (taskItem start) + offset + 1 (paragraph start)
+                paragraphPos = newPos + 1 + offset + 1
+              }
+            })
+            // Set cursor at the start of the paragraph (position 0 inside the paragraph)
+            tr.setSelection(TextSelection.create(tr.doc, paragraphPos))
+          } else {
+            // Fallback: try to find any paragraph position near the insertion
+            tr.setSelection(TextSelection.near(tr.doc.resolve(newPos + 2)))
+          }
+          
+          if (dispatch) {
+            dispatch(tr)
+          }
+          return true
+        }
+      }
+    }
+  },
+  addProseMirrorPlugins() {
+    const parentPlugins = this.parent?.() || []
+    
+    // Plugin to handle [] input anywhere (not just start of line)
+    // This MUST run before BulletList input rules
+    // Use append: false to ensure it runs BEFORE other plugins
+    const taskItemInputPlugin = new Plugin({
+      key: new PluginKey('taskItemInputHandler'),
+      append: false, // Run before other plugins
+      props: {
+        handleTextInput: (view, from, to, text) => {
+          // Only handle space after ]
+          if (text !== ' ') {
+            return false
+          }
+          
+          const { state } = view
+          const $from = state.doc.resolve(from)
+          
+          // Check if we're in a code block - don't interfere
+          for (let d = $from.depth; d > 0; d--) {
+            if ($from.node(d).type.name === 'codeBlock') {
+              return false
+            }
+          }
+          
+          // Look back to see if we have [] before the space
+          // Check more context to see if we're at start of line
+          const lineStart = $from.start($from.depth)
+          const textBefore = state.doc.textBetween(Math.max(lineStart, from - 10), from)
+          const match = textBefore.match(/\[([ x])\]$/)
+          
+          if (match) {
+            const checked = match[1] === 'x'
+            const startPos = from - match[0].length
+            const endPos = from + 1 // Include the space
+            
+            const { tr } = state
+            const $start = tr.doc.resolve(startPos)
+            
+            // Check if we're already in a task list
+            let inTaskList = false
+            for (let d = $start.depth; d > 0; d--) {
+              if ($start.node(d).type.name === 'taskList') {
+                inTaskList = true
+                break
+              }
+            }
+            
+            // Delete the [] and space
+            tr.delete(startPos, endPos)
+            
+            if (!inTaskList) {
+              // Create task list with task item
+              const taskListType = state.schema.nodes.taskList
+              const taskItemType = state.schema.nodes.taskItem
+              if (taskListType && taskItemType) {
+                // Create a paragraph inside the task item for the content
+                const paragraph = state.schema.nodes.paragraph.create()
+                const taskItem = taskItemType.create({ checked }, paragraph)
+                const taskList = taskListType.create(null, taskItem)
+                tr.replaceWith(startPos, startPos, taskList)
+                // Set cursor inside the paragraph within the task item
+                // After inserting, find the first text position inside the task item
+                // TaskList structure: <ul><li><p></p></li></ul>
+                // We want cursor inside the <p>
+                const insertedNode = tr.doc.nodeAt(startPos)
+                if (insertedNode) {
+                  // Find the first text position inside the task item's paragraph
+                  let textPos = startPos + 1 // Start after taskList
+                  insertedNode.descendants((node, pos) => {
+                    if (node.type.name === 'paragraph' && node.isBlock) {
+                      // Found the paragraph, set cursor at the start
+                      textPos = startPos + pos + 1
+                      return false // Stop searching
+                    }
+                  })
+                  tr.setSelection(TextSelection.near(tr.doc.resolve(textPos)))
+                } else {
+                  // Fallback: just after the task list
+                  tr.setSelection(TextSelection.near(tr.doc.resolve(startPos + 1)))
+                }
+                view.dispatch(tr)
+                return true // Return true to prevent other handlers (like BulletList) from running
+              }
+            } else {
+              // Already in task list, just create task item
+              const taskItemType = state.schema.nodes.taskItem
+              if (taskItemType) {
+                const paragraph = state.schema.nodes.paragraph.create()
+                const taskItem = taskItemType.create({ checked }, paragraph)
+                tr.replaceWith(startPos, startPos, taskItem)
+                // Set cursor inside the paragraph within the task item
+                const insertedNode = tr.doc.nodeAt(startPos)
+                if (insertedNode) {
+                  // Find the paragraph node inside the task item
+                  let paragraphPos = startPos + 1 // After taskItem start
+                  insertedNode.forEach((node, offset) => {
+                    if (node.type.name === 'paragraph') {
+                      paragraphPos = startPos + 1 + offset + 1 // taskItem + paragraph
+                    }
+                  })
+                  // Set cursor at the start of the paragraph
+                  tr.setSelection(TextSelection.create(tr.doc, paragraphPos))
+                } else {
+                  // Fallback: simple position calculation
+                  tr.setSelection(TextSelection.create(tr.doc, startPos + 2))
+                }
+                view.dispatch(tr)
+                return true // Return true to prevent other handlers (like BulletList) from running
+              }
+            }
+          }
+          
+          return false
+        }
+      }
+    })
+    
+    // Add strike plugin
+    const strikePlugin = new Plugin({
+      key: new PluginKey('taskItemStrike'),
+      appendTransaction(transactions, oldState, newState) {
+          // Only process if the document actually changed
+          if (!transactions.some(tr => tr.docChanged)) {
+            return null
+          }
+
+          const tr = newState.tr
+          let modified = false
+
+          // Iterate through all task items to check for checked state changes
+          newState.doc.descendants((node, pos) => {
+            if (node.type.name === 'taskItem') {
+              const isChecked = node.attrs.checked
+              const oldNode = oldState.doc.nodeAt(pos)
+              const wasChecked = oldNode?.attrs?.checked || false
+
+              // If checked state changed, apply or remove strike formatting
+              if (isChecked !== wasChecked) {
+                // Find all text nodes within the task item and apply/remove strike
+                const contentStart = pos + 1
+                const contentEnd = pos + node.nodeSize - 1
+
+                newState.doc.nodesBetween(contentStart, contentEnd, (textNode, textPos) => {
+                  if (textNode.isText && textPos >= 0 && textPos + textNode.nodeSize <= newState.doc.content.size) {
+                    const hasStrike = textNode.marks.some(mark => mark.type.name === 'strike')
+                    const strikeMarkType = newState.schema.marks.strike
+                    
+                    if (!strikeMarkType) {
+                      return
+                    }
+                    
+                    if (isChecked && !hasStrike) {
+                      const strikeMark = strikeMarkType.create()
+                      tr.addMark(textPos, textPos + textNode.nodeSize, strikeMark)
+                      modified = true
+                    } else if (!isChecked && hasStrike) {
+                      const strikeMark = textNode.marks.find(mark => mark.type.name === 'strike')
+                      if (strikeMark) {
+                        tr.removeMark(textPos, textPos + textNode.nodeSize, strikeMark)
+                        modified = true
+                      }
+                    }
+                  }
+                })
+              }
+            }
+          })
+
+          return modified ? tr : null
+        }
+      })
+    
+    return [...parentPlugins, taskItemInputPlugin, strikePlugin]
+  }
+})
+
+// Global callback for slash command (accessible from plugin)
+let slashCommandCallback: (() => void) | null = null
+
+// Store editor reference for markdown paste
+let editorInstanceForPaste: any = null
+
+// Helper function to process inline markdown formatting
+function processInlineMarkdown(text: string): string {
+  let processed = text
+  
+  // Bold **text** or __text__
+  processed = processed.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+  processed = processed.replace(/__([^_]+)__/g, '<strong>$1</strong>')
+  
+  // Italic *text* or _text_ (but not if it's part of bold)
+  processed = processed.replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, '<em>$1</em>')
+  processed = processed.replace(/(?<!_)_([^_]+)_(?!_)/g, '<em>$1</em>')
+  
+  // Strikethrough ~~text~~
+  processed = processed.replace(/~~([^~]+)~~/g, '<s>$1</s>')
+  
+  // Inline code `code`
+  processed = processed.replace(/`([^`]+)`/g, '<code>$1</code>')
+  
+  // Links [text](url)
+  processed = processed.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>')
+  
+  return processed
+}
+
+// Helper function to convert markdown to HTML (same as TiptapEditor)
+function markdownToHTML(text: string): string {
+  const markdownPatterns = [
+    /^#{1,6}\s+.+$/m,           // Headings (# ## ###)
+    /^[-*+]\s+.+$/m,            // Bullet lists
+    /^\d+\.\s+.+$/m,            // Numbered lists
+    /^>\s+.+$/m,                // Blockquotes
+    /^---$/m,                   // Horizontal rules
+    /^```[\s\S]*?```$/m,        // Code blocks
+    /`[^`]+`/g,                 // Inline code
+    /\*\*[^*]+\*\*/g,           // Bold
+    /\*[^*]+\*/g,               // Italic
+    /__[^_]+__/g,               // Bold (underscore)
+    /_[^_]+_/g,                 // Italic (underscore)
+    /~~[^~]+~~/g,               // Strikethrough
+    /\[([^\]]+)\]\(([^)]+)\)/g  // Links
+  ]
+  
+  const isMarkdown = markdownPatterns.some(pattern => pattern.test(text))
+  
+  if (!isMarkdown || !text.trim()) {
+    return text // Return as-is if not markdown
+  }
+  
+  // Convert markdown to HTML
+  const lines = text.split('\n')
+  const processedLines: string[] = []
+  let inCodeBlock = false
+  let codeBlockContent: string[] = []
+  
+  lines.forEach((line) => {
+    const trimmedLine = line.trim()
+    
+    // Code blocks
+    if (trimmedLine.startsWith('```')) {
+      if (inCodeBlock) {
+        // End code block
+        const codeContent = codeBlockContent.join('\n')
+        processedLines.push(`<pre><code>${codeContent}</code></pre>`)
+        codeBlockContent = []
+        inCodeBlock = false
+      } else {
+        // Start code block
+        inCodeBlock = true
+      }
+      return
+    }
+    
+    if (inCodeBlock) {
+      codeBlockContent.push(line)
+      return
+    }
+    
+    // Horizontal rules (--- or ***) - check before lists to avoid conflicts
+    if (trimmedLine.match(/^[-*]{3,}$/)) {
+      processedLines.push('<hr>')
+      return
+    }
+    
+    // Headings
+    const headingMatch = trimmedLine.match(/^(#{1,6})\s+(.+)$/)
+    if (headingMatch && headingMatch[1] && headingMatch[2]) {
+      const level = headingMatch[1].length
+      const content = headingMatch[2]
+      if (level <= 3) {
+        processedLines.push(`<h${level}>${content}</h${level}>`)
+      } else {
+        processedLines.push(`<p>${trimmedLine}</p>`)
+      }
+      return
+    }
+    
+    // Bullet lists
+    const bulletMatch = trimmedLine.match(/^[-*+]\s+(.+)$/)
+    if (bulletMatch && bulletMatch[1]) {
+      let content = bulletMatch[1]
+      // Process inline markdown formatting within list items
+      content = processInlineMarkdown(content)
+      processedLines.push(`<ul><li>${content}</li></ul>`)
+      return
+    }
+    
+    // Numbered lists
+    const orderedMatch = trimmedLine.match(/^\d+\.\s+(.+)$/)
+    if (orderedMatch && orderedMatch[1]) {
+      let content = orderedMatch[1]
+      // Process inline markdown formatting within list items
+      content = processInlineMarkdown(content)
+      processedLines.push(`<ol><li>${content}</li></ol>`)
+      return
+    }
+    
+    // Blockquotes
+    // Match `> content` (ignore empty `>` lines)
+    if (trimmedLine.startsWith('>')) {
+      // Remove the `>` prefix
+      const content = trimmedLine.slice(1).trim()
+      if (content) {
+        // Process inline markdown formatting within blockquotes
+        const processedContent = processInlineMarkdown(content)
+        processedLines.push(`<blockquote><p>${processedContent}</p></blockquote>`)
+      }
+      // If empty (just `>`), skip it - don't create empty blockquote
+      return
+    }
+    
+    // Regular paragraph with inline markdown
+    if (trimmedLine) {
+      let processedLine = processInlineMarkdown(trimmedLine)
+      processedLines.push(`<p>${processedLine}</p>`)
+    } else {
+      processedLines.push('<p></p>')
+    }
+  })
+  
+  // Handle any remaining code block
+  if (inCodeBlock && codeBlockContent.length > 0) {
+    const codeContent = codeBlockContent.join('\n')
+    processedLines.push(`<pre><code>${codeContent}</code></pre>`)
+  }
+  
+  return processedLines.join('\n')
+}
+
+// Custom extension for markdown paste support
+const MarkdownPaste = Extension.create({
+  name: 'markdownPaste',
+  
+  addProseMirrorPlugins() {
+    return [
+      new Plugin({
+        key: new PluginKey('markdownPaste'),
+        props: {
+          handlePaste: (view, event, slice) => {
+            const text = event.clipboardData?.getData('text/plain') || ''
+            const html = event.clipboardData?.getData('text/html') || ''
+            
+            // If HTML is already present and looks like valid HTML, use TipTap's insertContent
+            if (html && html.includes('<') && html.match(/<[a-z][\s\S]*>/i)) {
+              // Use TipTap's insertContent which properly parses HTML
+              if (editorInstanceForPaste && editorInstanceForPaste.commands) {
+                // Clean up the HTML - remove any wrapper elements browsers add
+                let cleanHTML = html
+                // Remove common browser wrapper elements
+                cleanHTML = cleanHTML.replace(/^<html[^>]*>[\s\S]*<body[^>]*>/i, '')
+                cleanHTML = cleanHTML.replace(/<\/body>[\s\S]*<\/html>$/i, '')
+                cleanHTML = cleanHTML.replace(/^<!--StartFragment-->/, '')
+                cleanHTML = cleanHTML.replace(/<!--EndFragment-->$/, '')
+                
+                editorInstanceForPaste.chain().focus().deleteSelection().insertContent(cleanHTML).run()
+                return true
+              }
+              return false
+            }
+            
+            if (!text.trim()) {
+              return false
+            }
+            
+            // Convert markdown to HTML
+            const convertedHTML = markdownToHTML(text)
+            
+            // If HTML is different from text, it means markdown was converted
+            if (convertedHTML !== text) {
+              // Use TipTap's insertContent which properly parses HTML
+              if (editorInstanceForPaste && editorInstanceForPaste.commands) {
+                editorInstanceForPaste.chain().focus().deleteSelection().insertContent(convertedHTML).run()
+                return true
+              }
+            }
+            
+            return false
+          }
+        }
+      })
+    ]
+  }
+})
+
+// Custom extension for slash commands (formatting menu) - Notion style
+const SlashCommand = Extension.create({
+  name: 'slashCommand',
+  
+  addProseMirrorPlugins() {
+    return [
+      new Plugin({
+        key: new PluginKey('slashCommand'),
+        props: {
+          handleKeyDown: (view, event) => {
+            // Only handle "/" key
+            if (event.key !== '/') {
+              return false
+            }
+            
+            // Don't trigger in code blocks
+            const { state } = view
+            const { $from } = state.selection
+            for (let d = $from.depth; d > 0; d--) {
+              if ($from.node(d).type.name === 'codeBlock') {
+                return false
+              }
+            }
+            
+            // Call the callback if it exists
+            if (slashCommandCallback) {
+              event.preventDefault()
+              slashCommandCallback()
+              return true
+            }
+            
+            return false
+          }
+        }
+      })
+    ]
+  },
+
+  addKeyboardShortcuts() {
+    return {
+      '/': ({ editor }) => {
+        // Don't trigger in code blocks
+        if (editor.isActive('codeBlock')) {
+          return false
+        }
+        
+        if (slashCommandCallback) {
+          slashCommandCallback()
+          return true // Prevent "/" from being inserted
+        }
+        return false
+      }
+    }
+  }
 })
 
 // Custom extension to handle table exit
@@ -275,7 +794,6 @@ let awarenessChangeHandler: (() => void) | null = null
 let resizeObserverInstance: ResizeObserver | null = null
 let resizeTimeout: NodeJS.Timeout | null = null
 
-console.log(`[UnifiedEditor ${props.noteId || 'no-id'}] 🔧 Component created, collaborative: ${props.isCollaborative}`)
 
 // CONDITIONAL: Only create Y.Doc if collaborative
 const ydoc = props.isCollaborative && props.noteId
@@ -283,7 +801,6 @@ const ydoc = props.isCollaborative && props.noteId
   : null
 
 if (props.isCollaborative && ydoc) {
-  console.log(`[UnifiedEditor ${props.noteId}] 📝 Y.Doc obtained from manager`)
 }
 
 // Build extensions array conditionally
@@ -306,17 +823,39 @@ const baseExtensions = [
   Blockquote,
   HorizontalRule,
   HardBreak,
-  // Lists
-  BulletList,
-  OrderedList,
-  ListItem,
+  // Lists - TaskList and TaskItem MUST come before BulletList to ensure input rules take precedence
   TaskList,
-  TaskItem.configure({
+  TaskItemWithStrike.configure({
     nested: true,
     HTMLAttributes: {
       class: 'flex items-start gap-2'
     }
   }),
+  BulletList.extend({
+    addInputRules() {
+      // Override to only match * - + and explicitly exclude [] patterns
+      // This prevents conflict with TaskItem input rules
+      return [
+        {
+          find: /^\s*([*\-+])\s$/,
+          handler: ({ state, range, match, chain }: any) => {
+            // Don't match if there's [] nearby
+            const textBefore = state.doc.textBetween(Math.max(0, range.from - 5), range.from)
+            if (textBefore.includes('[]') || textBefore.includes('[ ]') || textBefore.includes('[x]')) {
+              return false
+            }
+            
+            return chain()
+              .deleteRange({ from: range.from, to: range.to })
+              .toggleBulletList()
+              .run()
+          }
+        }
+      ]
+    }
+  }),
+  OrderedList,
+  ListItem,
   // Links and images
   Link.configure({
     openOnClick: false,
@@ -368,6 +907,8 @@ const baseExtensions = [
   // Utilities
   Gapcursor,
   TableExit,
+  MarkdownPaste, // Custom extension for markdown paste support
+  SlashCommand, // Custom extension for slash commands
   Placeholder.configure({
     placeholder: props.placeholder || 'Start writing...'
   }),
@@ -390,19 +931,30 @@ const editor = useEditor({
   // For regular notes, use modelValue or initialContent
   // For collaborative notes, don't set initial content (Y.Doc handles it)
   content: props.isCollaborative ? undefined : (props.modelValue || props.initialContent || ''),
+  onBeforeCreate() {
+  },
+  onCreate: ({ editor }) => {
+  },
+  editorProps: {
+    attributes: {
+      spellcheck: 'true'
+    },
+    // Removed handleTextInput - let the TaskItem plugin handle [] pattern detection
+    // The plugin's handleTextInput will run and can return true to prevent other handlers
+  },
   extensions: baseExtensions,
   onUpdate: ({ editor }) => {
+    const html = editor.getHTML()
     if (props.isCollaborative) {
       // For collaborative notes, emit update:content
-      emit('update:content', editor.getHTML())
+      emit('update:content', html)
     } else {
       // For regular notes, emit update:modelValue (v-model)
-      emit('update:modelValue', editor.getHTML())
+      emit('update:modelValue', html)
     }
   }
 })
 
-console.log(`[UnifiedEditor ${props.noteId || 'no-id'}] ✅ Editor initialized, collaborative: ${props.isCollaborative}`)
 
 // Expose methods for parent components to access editor content
 function getHTML(): string {
@@ -442,6 +994,58 @@ watch(() => props.editable, (newValue) => {
   if (editor.value) {
     editor.value.setEditable(newValue)
   }
+})
+
+// Handle slash command (/) to show formatting menu - Notion style
+watch(editor, (editorInstance) => {
+  if (!editorInstance) return
+  
+  // Store editor instance for markdown paste
+  editorInstanceForPaste = editorInstance
+  
+  // Register global callback for slash command
+  slashCommandCallback = () => {
+    if (!editorInstance) {
+      return
+    }
+    
+    // Only trigger if not in code block
+    if (editorInstance.isActive('codeBlock')) {
+      return
+    }
+    
+    // Get cursor position for menu placement
+    const { from } = editorInstance.state.selection
+    const coords = editorInstance.view.coordsAtPos(from)
+    
+    // Show formatting menu - works anywhere like Notion
+    if (showContextMenu.value) {
+      closeContextMenu()
+    } else {
+      const viewportHeight = window.innerHeight
+      const viewportWidth = window.innerWidth
+      const menuWidth = 224
+      const estimatedMenuHeight = 350
+      
+      let x = coords.left
+      let y = coords.top + 20
+      
+      if (y + estimatedMenuHeight > viewportHeight) {
+        y = Math.max(8, viewportHeight - estimatedMenuHeight - 8)
+      }
+      if (x + menuWidth > viewportWidth) {
+        x = Math.max(8, viewportWidth - menuWidth - 8)
+      }
+      
+      contextMenuPos.value = { x, y }
+      showContextMenu.value = true
+    }
+  }
+}, { immediate: true })
+
+// Cleanup callback on unmount
+onBeforeUnmount(() => {
+  slashCommandCallback = null
 })
 
 // Function to recalculate and update cursor position (only for collaborative)
@@ -503,6 +1107,9 @@ if (props.isCollaborative) {
   // Track cursor position for awareness and emit content updates
   watch(editor, (editorInstance) => {
     if (!editorInstance) return
+    
+    // Store editor instance for markdown paste
+    editorInstanceForPaste = editorInstance
     
     // Track cursor position for awareness - store document position
     editorInstance.on('selectionUpdate', ({ editor: ed }) => {
@@ -632,40 +1239,25 @@ if (props.isCollaborative) {
 function handleContextMenu(event: MouseEvent) {
   if (!props.editable) return
   
-  event.preventDefault() // PREVENT system menu!
-  
-  // Calculate smart position for menu
-  const viewportHeight = window.innerHeight
-  const viewportWidth = window.innerWidth
-  
-  // Estimated main menu height - COMPACT menu with only 4-5 items!
-  // Each item ~42px + padding = ~220px total (with table options)
-  const isInTable = editor.value?.isActive('table')
-  const estimatedMenuHeight = isInTable ? 240 : 200 // Much smaller now!
-  const menuWidth = 224 // w-56 = 224px
-  
-  let x = event.clientX
-  let y = event.clientY
-  
-  // Check if menu would overflow bottom - position ABOVE cursor if needed
-  const spaceBelow = viewportHeight - y
-  const spaceAbove = y
-  
-  if (spaceBelow < estimatedMenuHeight && spaceAbove > spaceBelow) {
-    // Not enough space below, but more space above - position menu above cursor
-    y = Math.max(8, y - estimatedMenuHeight)
-  } else if (spaceBelow < estimatedMenuHeight) {
-    // Not enough space either way, position at bottom with scroll
-    y = Math.max(8, viewportHeight - estimatedMenuHeight - 8)
+  // Allow native menu temporarily for spell check
+  if (allowNativeSpellCheck.value) {
+    // Don't prevent default - let browser show native menu
+    // But reset the flag after a short delay
+    setTimeout(() => {
+      allowNativeSpellCheck.value = false
+      spellCheckActive.value = false
+      if (spellCheckTimeout) {
+        clearTimeout(spellCheckTimeout)
+        spellCheckTimeout = null
+      }
+    }, 100)
+    return // Let browser show native menu
   }
   
-  // Check if menu would overflow right side
-  if (x + menuWidth > viewportWidth - 16) {
-    x = Math.max(8, viewportWidth - menuWidth - 16)
-  }
-  
-  contextMenuPos.value = { x, y }
-  showContextMenu.value = true
+  // Always allow native browser menu for right-click (spell check, etc.)
+  // Use "/" key for formatting menu instead
+  // Don't prevent default - let browser show native menu with spell check
+  return
 }
 
 function closeContextMenu() {
@@ -784,6 +1376,98 @@ function confirmYouTube() {
 function cancelYouTube() {
   showYouTubeModal.value = false
   youtubeUrl.value = ''
+}
+
+// Spell check handler - selects word and allows browser spell check to work
+const allowNativeSpellCheck = ref(false)
+const spellCheckActive = ref(false)
+let spellCheckTimeout: ReturnType<typeof setTimeout> | null = null
+
+function showSpellCheck() {
+  if (!editor.value) {
+    console.log('[SpellCheck] No editor available')
+    return
+  }
+  
+  // Clear any existing timeout
+  if (spellCheckTimeout) {
+    clearTimeout(spellCheckTimeout)
+    spellCheckTimeout = null
+  }
+  
+  closeContextMenu()
+  
+  // Get the current selection
+  const { from, to } = editor.value.state.selection
+  
+  let wordStart = from
+  let wordEnd = to
+  
+  // If there's a selection, use it; otherwise select the word at cursor
+  if (from === to) {
+    // Find word boundaries - look for alphanumeric characters
+    const textBefore = editor.value.state.doc.textBetween(
+      Math.max(0, from - 100),
+      from
+    )
+    const textAfter = editor.value.state.doc.textBetween(
+      to,
+      Math.min(editor.value.state.doc.content.size, to + 100)
+    )
+    
+    // Match word boundaries (alphanumeric characters)
+    const beforeMatch = textBefore.match(/([a-zA-Z0-9]+)$/)
+    const afterMatch = textAfter.match(/^([a-zA-Z0-9]+)/)
+    
+    if (beforeMatch || afterMatch) {
+      wordStart = beforeMatch ? from - beforeMatch[1].length : from
+      wordEnd = afterMatch ? to + afterMatch[1].length : to
+      
+      const selectedWord = editor.value.state.doc.textBetween(wordStart, wordEnd)
+      
+      // Select the word
+      editor.value.chain().setTextSelection({ from: wordStart, to: wordEnd }).focus().run()
+      
+      // Mark spell check as active
+      spellCheckActive.value = true
+      allowNativeSpellCheck.value = true
+      
+      // Show visual feedback - scroll to selection
+      setTimeout(() => {
+        const coords = editor.value?.view.coordsAtPos(wordStart)
+        if (coords) {
+          // Scroll the word into view
+          editor.value?.view.dom.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        }
+      }, 50)
+      
+      // Reset after longer delay to give user time to right-click
+      spellCheckTimeout = setTimeout(() => {
+        allowNativeSpellCheck.value = false
+        spellCheckActive.value = false
+        spellCheckTimeout = null
+      }, 10000) // Extended to 10 seconds
+    } else {
+      // No word found, just focus the editor
+      editor.value.chain().focus().run()
+    }
+  } else {
+    // There's already a selection
+    const selectedText = editor.value.state.doc.textBetween(from, to)
+    
+    // Focus and keep selection
+    editor.value.chain().focus().run()
+    
+    // Allow native menu for selected text
+    spellCheckActive.value = true
+    allowNativeSpellCheck.value = true
+    
+    spellCheckTimeout = setTimeout(() => {
+      allowNativeSpellCheck.value = false
+      spellCheckActive.value = false
+      spellCheckTimeout = null
+    }, 10000)
+  }
 }
 
 // File upload functions
@@ -1816,15 +2500,15 @@ onBeforeUnmount(() => {
           :style="{ bottom: `${getSubmenuPosition('lists').bottom}px`, left: `${getSubmenuPosition('lists').left}px` }"
           @click.stop
         >
-          <button @click="editor?.chain().focus().toggleBulletList().run(); closeContextMenu()" class="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors" :class="editor?.isActive('bulletList') ? 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20 font-semibold' : 'text-gray-700 dark:text-gray-300'">
+          <button @click="() => { closeContextMenu(); nextTick(() => { if (editor) { editor.chain().focus().toggleBulletList().run(); } }); }" class="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors" :class="editor?.isActive('bulletList') ? 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20 font-semibold' : 'text-gray-700 dark:text-gray-300'">
             <span class="w-5">•</span>
             <span class="flex-1 text-left">Bullet List</span>
           </button>
-          <button @click="editor?.chain().focus().toggleOrderedList().run(); closeContextMenu()" class="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors" :class="editor?.isActive('orderedList') ? 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20 font-semibold' : 'text-gray-700 dark:text-gray-300'">
+          <button @click="() => { closeContextMenu(); nextTick(() => { if (editor) { editor.chain().focus().toggleOrderedList().run(); } }); }" class="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors" :class="editor?.isActive('orderedList') ? 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20 font-semibold' : 'text-gray-700 dark:text-gray-300'">
             <span class="text-xs w-5">1.</span>
             <span class="flex-1 text-left">Numbered List</span>
           </button>
-          <button @click="editor?.chain().focus().toggleTaskList().run(); closeContextMenu()" class="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors" :class="editor?.isActive('taskList') ? 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20 font-semibold' : 'text-gray-700 dark:text-gray-300'">
+          <button @click="() => { if (editor) { editor.chain().focus().toggleTaskList().run(); } closeContextMenu(); }" class="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors" :class="editor?.isActive('taskList') ? 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20 font-semibold' : 'text-gray-700 dark:text-gray-300'">
             <span class="w-5">☐</span>
             <span class="flex-1 text-left">Task List</span>
           </button>
@@ -2139,23 +2823,143 @@ onBeforeUnmount(() => {
   display: block;
 }
 
-/* List Styles */
+/* List Styles - Apply to both unified-editor and collaborative-editor */
+.unified-editor :deep(.ProseMirror ul),
+.unified-editor :deep(.ProseMirror ol),
 .collaborative-editor :deep(.ProseMirror ul),
-.collaborative-editor :deep(.ProseMirror ol) {
-  padding-left: 1.5rem;
-  margin: 1rem 0;
+.collaborative-editor :deep(.ProseMirror ol),
+.unified-editor :deep(.ProseMirror ul[data-type="bulletList"]),
+.unified-editor :deep(.ProseMirror ol[data-type="orderedList"]),
+.collaborative-editor :deep(.ProseMirror ul[data-type="bulletList"]),
+.collaborative-editor :deep(.ProseMirror ol[data-type="orderedList"]) {
+  padding-left: 1.625rem !important;
+  margin-top: 0.75rem !important;
+  margin-bottom: 0.75rem !important;
+  list-style-position: outside !important;
+  display: block !important;
 }
 
-.collaborative-editor :deep(.ProseMirror ul) {
-  list-style-type: disc;
+/* Task lists should NOT have bullet points */
+.unified-editor :deep(.ProseMirror ul[data-type="taskList"]),
+.collaborative-editor :deep(.ProseMirror ul[data-type="taskList"]) {
+  list-style-type: none !important;
+  list-style: none !important;
+  padding-left: 0 !important;
+  margin-left: 0 !important;
 }
 
-.collaborative-editor :deep(.ProseMirror ol) {
-  list-style-type: decimal;
+/* Task items should display inline with checkbox, not as separate lines */
+.unified-editor :deep(.ProseMirror li[data-type="taskItem"]),
+.collaborative-editor :deep(.ProseMirror li[data-type="taskItem"]),
+.unified-editor :deep(.ProseMirror ul[data-type="taskList"] li),
+.collaborative-editor :deep(.ProseMirror ul[data-type="taskList"] li) {
+  display: flex !important;
+  align-items: center !important;
+  list-style: none !important;
+  margin: 0.25rem 0 !important;
+  padding-left: 0 !important;
+  gap: 0.5rem !important;
+  flex-wrap: nowrap !important;
+  width: 100% !important;
 }
 
-.collaborative-editor :deep(.ProseMirror li) {
-  margin: 0.25rem 0;
+/* Override any block display on task items */
+.unified-editor :deep(.ProseMirror li[data-type="taskItem"]),
+.collaborative-editor :deep(.ProseMirror li[data-type="taskItem"]) {
+  display: flex !important;
+}
+
+/* Task item label (contains checkbox) */
+.unified-editor :deep(.ProseMirror li[data-type="taskItem"] label),
+.collaborative-editor :deep(.ProseMirror li[data-type="taskItem"] label),
+.unified-editor :deep(.ProseMirror ul[data-type="taskList"] li label),
+.collaborative-editor :deep(.ProseMirror ul[data-type="taskList"] li label) {
+  display: inline-flex !important;
+  align-items: center !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  flex-shrink: 0 !important;
+  min-width: auto !important;
+  width: auto !important;
+}
+
+/* Task item checkbox input */
+.unified-editor :deep(.ProseMirror li[data-type="taskItem"] input[type="checkbox"]),
+.collaborative-editor :deep(.ProseMirror li[data-type="taskItem"] input[type="checkbox"]),
+.unified-editor :deep(.ProseMirror ul[data-type="taskList"] li input[type="checkbox"]),
+.collaborative-editor :deep(.ProseMirror ul[data-type="taskList"] li input[type="checkbox"]) {
+  margin: 0 !important;
+  margin-right: 0 !important;
+  flex-shrink: 0 !important;
+  width: auto !important;
+  height: auto !important;
+}
+
+/* Task item content wrapper (div) - Tiptap wraps content in a div */
+.unified-editor :deep(.ProseMirror li[data-type="taskItem"] > div),
+.collaborative-editor :deep(.ProseMirror li[data-type="taskItem"] > div),
+.unified-editor :deep(.ProseMirror ul[data-type="taskList"] li > div),
+.collaborative-editor :deep(.ProseMirror ul[data-type="taskList"] li > div) {
+  display: flex !important;
+  align-items: center !important;
+  flex: 1 1 auto !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  min-width: 0 !important;
+  width: auto !important;
+}
+
+/* Ensure task item content (paragraph) is inline */
+.unified-editor :deep(.ProseMirror li[data-type="taskItem"] p),
+.collaborative-editor :deep(.ProseMirror li[data-type="taskItem"] p),
+.unified-editor :deep(.ProseMirror li[data-type="taskItem"] > div > p),
+.collaborative-editor :deep(.ProseMirror li[data-type="taskItem"] > div > p),
+.unified-editor :deep(.ProseMirror li[data-type="taskItem"] > p),
+.collaborative-editor :deep(.ProseMirror li[data-type="taskItem"] > p),
+.unified-editor :deep(.ProseMirror ul[data-type="taskList"] li p),
+.collaborative-editor :deep(.ProseMirror ul[data-type="taskList"] li p),
+.unified-editor :deep(.ProseMirror ul[data-type="taskList"] li > div > p),
+.collaborative-editor :deep(.ProseMirror ul[data-type="taskList"] li > div > p) {
+  display: inline !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  line-height: 1.5 !important;
+  width: auto !important;
+  vertical-align: baseline !important;
+}
+
+.unified-editor :deep(.ProseMirror ul),
+.unified-editor :deep(.ProseMirror ul[data-type="bulletList"]),
+.collaborative-editor :deep(.ProseMirror ul),
+.collaborative-editor :deep(.ProseMirror ul[data-type="bulletList"]) {
+  list-style-type: disc !important;
+}
+
+.unified-editor :deep(.ProseMirror ol),
+.unified-editor :deep(.ProseMirror ol[data-type="orderedList"]),
+.collaborative-editor :deep(.ProseMirror ol),
+.collaborative-editor :deep(.ProseMirror ol[data-type="orderedList"]) {
+  list-style-type: decimal !important;
+}
+
+.unified-editor :deep(.ProseMirror li:not([data-type="taskItem"])),
+.unified-editor :deep(.ProseMirror li[data-type="listItem"]),
+.collaborative-editor :deep(.ProseMirror li:not([data-type="taskItem"])),
+.collaborative-editor :deep(.ProseMirror li[data-type="listItem"]) {
+  margin-top: 0.25rem !important;
+  margin-bottom: 0.25rem !important;
+  display: list-item !important;
+  list-style-position: outside !important;
+  padding-left: 0 !important;
+}
+
+/* Ensure list items have proper spacing */
+.unified-editor :deep(.ProseMirror li:not([data-type="taskItem"]) > p),
+.unified-editor :deep(.ProseMirror li[data-type="listItem"] > p),
+.collaborative-editor :deep(.ProseMirror li:not([data-type="taskItem"]) > p),
+.collaborative-editor :deep(.ProseMirror li[data-type="listItem"] > p) {
+  margin-top: 0;
+  margin-bottom: 0;
 }
 
 /* Code Block Styles - Notion-inspired - Apply to both unified-editor and collaborative-editor */
