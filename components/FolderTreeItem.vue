@@ -874,15 +874,27 @@ onMounted(() => {
   // Attach to document for drag events (use capture to catch events early)
   document.addEventListener('dragover', handleFolderDragOver, true);
   
-  // Close context menu when clicking outside
+  // Close context menu when clicking outside (mobile only)
   const handleClickOutside = (event: MouseEvent) => {
     if (!showContextMenu.value) return;
     
+    // Only handle clicks on mobile
+    if (!isMobile()) return;
+    
     const target = event.target as HTMLElement;
-    const button = contextMenuButtonRef.value;
     
     // Don't close if clicking the button itself (let toggleContextMenu handle it)
-    if (button && button.contains(target)) {
+    // Check both by ref and by data attribute for reliability
+    const button = contextMenuButtonRef.value;
+    const buttonByAttr = target.closest('[data-context-menu-button]');
+    if ((button && button.contains(target)) || buttonByAttr) {
+      // Let the button's click handler handle the toggle
+      return;
+    }
+    
+    // Don't close if clicking inside the menu (menu has @click.stop but check anyway)
+    const menu = target.closest('[data-context-menu]');
+    if (menu) {
       return;
     }
     
@@ -890,10 +902,20 @@ onMounted(() => {
     showContextMenu.value = false;
   };
   
-  document.addEventListener('click', handleClickOutside, true); // Use capture phase
+  // Use a watcher to add/remove listener only when menu is open on mobile
+  watch(() => showContextMenu.value && isMobile(), (shouldListen) => {
+    if (shouldListen) {
+      // Add listener on next tick to avoid interfering with the toggle
+      setTimeout(() => {
+        document.addEventListener('click', handleClickOutside);
+      }, 0);
+    } else {
+      document.removeEventListener('click', handleClickOutside);
+    }
+  });
   
   onUnmounted(() => {
-    document.removeEventListener('click', handleClickOutside, true);
+    document.removeEventListener('click', handleClickOutside);
     document.removeEventListener('dragover', handleFolderDragOver, true);
     if (notesSortableInstance) {
       notesSortableInstance.destroy();
@@ -910,7 +932,7 @@ onMounted(() => {
 <template>
   <!-- Folder Item (root element must be draggable for SortableJS) -->
     <div
-    class="folder-item group/folder relative flex items-center gap-2 rounded-lg transition-colors hover:bg-gray-100 dark:hover:bg-gray-700/50 cursor-grab active:cursor-grabbing"
+    class="folder-item group/folder relative flex items-center gap-2 rounded-lg transition-colors md:hover:bg-gray-100 md:dark:hover:bg-gray-700/50 active:bg-gray-100 dark:active:bg-gray-700/50 cursor-grab active:cursor-grabbing"
       :style="{ paddingLeft: `${depth * 12 + 8}px` }"
     :data-folder-id="folder.id"
     >
@@ -919,7 +941,7 @@ onMounted(() => {
         v-if="hasContent"
         @click.stop="handleToggle"
         @mousedown.stop
-        class="no-drag flex-shrink-0 p-2 md:p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+        class="no-drag flex-shrink-0 p-2 md:p-1 rounded md:hover:bg-gray-200 md:dark:hover:bg-gray-600 active:bg-gray-200 dark:active:bg-gray-600 transition-colors"
         :class="{ 'rotate-90': isExpanded }"
       >
         <UIcon name="i-heroicons-chevron-right" class="w-6 h-6 md:w-4 md:h-4 text-gray-500 transition-transform" />
@@ -930,7 +952,7 @@ onMounted(() => {
       <button
         @click.stop="handleSelect"
         @mousedown.stop
-        class="no-drag flex-1 flex items-center gap-3 md:gap-2 py-3 md:py-2.5 pr-2 text-lg md:text-sm font-medium transition-colors rounded-lg min-w-0 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700/30"
+        class="no-drag flex-1 flex items-center gap-3 md:gap-2 py-3 md:py-2.5 pr-2 text-lg md:text-sm font-medium transition-colors rounded-lg min-w-0 text-gray-700 dark:text-gray-300 md:hover:bg-gray-100 md:dark:hover:bg-gray-700/30 active:bg-gray-100 dark:active:bg-gray-700/30"
       >
         <UIcon 
           name="i-heroicons-folder" 
@@ -949,10 +971,11 @@ onMounted(() => {
       <!-- Context Menu Button -->
       <button
         ref="contextMenuButtonRef"
+        data-context-menu-button
         type="button"
         @click.stop="toggleContextMenu"
         @mousedown.stop
-        class="no-drag flex-shrink-0 p-2 md:p-1.5 rounded-md opacity-100 md:opacity-0 md:group-hover/folder:opacity-100 hover:bg-gray-200 dark:hover:bg-gray-600 transition-all"
+        class="no-drag flex-shrink-0 p-2 md:p-1.5 rounded-md opacity-100 md:opacity-0 md:group-hover/folder:opacity-100 md:hover:bg-gray-200 md:dark:hover:bg-gray-600 active:bg-gray-200 dark:active:bg-gray-600 transition-all"
         :class="showContextMenu ? 'bg-gray-200 dark:bg-gray-600' : ''"
       >
         <svg class="w-4 h-4 md:w-3.5 md:h-3.5 text-gray-600 dark:text-gray-400" fill="currentColor" viewBox="0 0 16 16">
@@ -968,6 +991,7 @@ onMounted(() => {
       <Transition name="fade">
         <div
           v-if="showContextMenu"
+          data-context-menu
           @click.stop
           class="fixed w-48 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-xl py-2 z-[9999]"
           :style="{ 
@@ -980,7 +1004,7 @@ onMounted(() => {
             v-if="canMoveUp"
             type="button"
             @click="emit('move-up', folder.id); showContextMenu = false"
-            class="w-full text-left px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-3"
+            class="w-full text-left px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 md:hover:bg-gray-100 md:dark:hover:bg-gray-700 active:bg-gray-100 dark:active:bg-gray-700 flex items-center gap-3"
           >
             <UIcon name="i-heroicons-arrow-up" class="w-5 h-5 text-gray-500" />
             <span>Move Up</span>
@@ -989,7 +1013,7 @@ onMounted(() => {
             v-if="canMoveDown"
             type="button"
             @click="emit('move-down', folder.id); showContextMenu = false"
-            class="w-full text-left px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-3"
+            class="w-full text-left px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 md:hover:bg-gray-100 md:dark:hover:bg-gray-700 active:bg-gray-100 dark:active:bg-gray-700 flex items-center gap-3"
           >
             <UIcon name="i-heroicons-arrow-down" class="w-5 h-5 text-gray-500" />
             <span>Move Down</span>
@@ -998,7 +1022,7 @@ onMounted(() => {
           <button
             type="button"
             @click="emit('create-subfolder', folder.id); showContextMenu = false"
-            class="w-full text-left px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-3"
+            class="w-full text-left px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 md:hover:bg-gray-100 md:dark:hover:bg-gray-700 active:bg-gray-100 dark:active:bg-gray-700 flex items-center gap-3"
           >
             <UIcon name="i-heroicons-folder-plus" class="w-5 h-5 text-blue-500" />
             <span>New Subfolder</span>
@@ -1011,7 +1035,7 @@ onMounted(() => {
               @click="handleNewNoteClick"
               @mouseenter="(e) => !isMobile() && showNewNoteSubmenuHandler(e as MouseEvent)"
               @mouseleave="!isMobile() && hideNewNoteSubmenuHandler()"
-              class="w-full text-left px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center justify-between gap-3"
+              class="w-full text-left px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 md:hover:bg-gray-100 md:dark:hover:bg-gray-700 active:bg-gray-100 dark:active:bg-gray-700 flex items-center justify-between gap-3"
             >
               <div class="flex items-center gap-3">
                 <UIcon name="i-heroicons-document-plus" class="w-5 h-5 text-green-500" />
@@ -1038,7 +1062,7 @@ onMounted(() => {
                 <button
                   type="button"
                   @click="emit('create-note', folder.id); showContextMenu = false; showNewNoteSubmenu = false"
-                  class="w-full text-left px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-primary-50 dark:hover:bg-primary-900/20 flex items-center gap-3"
+                  class="w-full text-left px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 md:hover:bg-primary-50 md:dark:hover:bg-primary-900/20 active:bg-primary-50 dark:active:bg-primary-900/20 flex items-center gap-3"
                 >
                   <UIcon name="i-heroicons-document-plus" class="w-5 h-5 text-primary-500" />
                   <div class="flex-1">
@@ -1051,7 +1075,7 @@ onMounted(() => {
                 <button
                   type="button"
                   @click="emit('create-template-note', folder.id); showContextMenu = false; showNewNoteSubmenu = false"
-                  class="w-full text-left px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 flex items-center gap-3"
+                  class="w-full text-left px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 md:hover:bg-indigo-50 md:dark:hover:bg-indigo-900/20 active:bg-indigo-50 dark:active:bg-indigo-900/20 flex items-center gap-3"
                 >
                   <UIcon name="i-heroicons-document-duplicate" class="w-5 h-5 text-indigo-500" />
                   <div class="flex-1">
@@ -1064,7 +1088,7 @@ onMounted(() => {
                 <button
                   type="button"
                   @click="emit('create-ai-note', folder.id); showContextMenu = false; showNewNoteSubmenu = false"
-                  class="w-full text-left px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 flex items-center gap-3"
+                  class="w-full text-left px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 md:hover:bg-emerald-50 md:dark:hover:bg-emerald-900/20 active:bg-emerald-50 dark:active:bg-emerald-900/20 flex items-center gap-3"
                 >
                   <UIcon name="i-heroicons-sparkles" class="w-5 h-5 text-emerald-500" />
                   <div class="flex-1">
@@ -1077,7 +1101,7 @@ onMounted(() => {
                 <button
                   type="button"
                   @click="emit('import-recipe', folder.id); showContextMenu = false; showNewNoteSubmenu = false"
-                  class="w-full text-left px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-rose-50 dark:hover:bg-rose-900/20 flex items-center gap-3"
+                  class="w-full text-left px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 md:hover:bg-rose-50 md:dark:hover:bg-rose-900/20 active:bg-rose-50 dark:active:bg-rose-900/20 flex items-center gap-3"
                 >
                   <UIcon name="i-heroicons-cake" class="w-5 h-5 text-rose-500" />
                   <div class="flex-1">
@@ -1092,7 +1116,7 @@ onMounted(() => {
           <button
             type="button"
             @click="emit('rename', folder.id); showContextMenu = false"
-            class="w-full text-left px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-3"
+            class="w-full text-left px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 md:hover:bg-gray-100 md:dark:hover:bg-gray-700 active:bg-gray-100 dark:active:bg-gray-700 flex items-center gap-3"
           >
             <UIcon name="i-heroicons-pencil-square" class="w-5 h-5 text-gray-500" />
             <span>Rename</span>
@@ -1101,7 +1125,7 @@ onMounted(() => {
             v-if="!publishStatus?.is_published"
             type="button"
             @click="emit('publish', folder.id); showContextMenu = false"
-            class="w-full text-left px-4 py-2.5 text-sm text-primary-600 dark:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/20 flex items-center gap-3"
+            class="w-full text-left px-4 py-2.5 text-sm text-primary-600 dark:text-primary-400 md:hover:bg-primary-50 md:dark:hover:bg-primary-900/20 active:bg-primary-50 dark:active:bg-primary-900/20 flex items-center gap-3"
           >
             <UIcon name="i-heroicons-link" class="w-5 h-5" />
             <span>Publish Folder</span>
@@ -1110,7 +1134,7 @@ onMounted(() => {
             v-if="publishStatus?.is_published"
             type="button"
             @click="emit('copy-link', folder.id); showContextMenu = false"
-            class="w-full text-left px-4 py-2.5 text-sm text-primary-600 dark:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/20 flex items-center gap-3"
+            class="w-full text-left px-4 py-2.5 text-sm text-primary-600 dark:text-primary-400 md:hover:bg-primary-50 md:dark:hover:bg-primary-900/20 active:bg-primary-50 dark:active:bg-primary-900/20 flex items-center gap-3"
           >
             <UIcon name="i-heroicons-clipboard-document" class="w-5 h-5" />
             <span>Copy Link</span>
@@ -1119,7 +1143,7 @@ onMounted(() => {
             v-if="publishStatus?.is_published"
             type="button"
             @click="emit('unpublish', folder.id); showContextMenu = false"
-            class="w-full text-left px-4 py-2.5 text-sm text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20 flex items-center gap-3"
+            class="w-full text-left px-4 py-2.5 text-sm text-orange-600 dark:text-orange-400 md:hover:bg-orange-50 md:dark:hover:bg-orange-900/20 active:bg-orange-50 dark:active:bg-orange-900/20 flex items-center gap-3"
           >
             <UIcon name="i-heroicons-x-circle" class="w-5 h-5" />
             <span>Unpublish Folder</span>
@@ -1127,13 +1151,19 @@ onMounted(() => {
           <button
             type="button"
             @click="emit('delete', folder.id); showContextMenu = false"
-            class="w-full text-left px-4 py-2.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-3"
+            class="w-full text-left px-4 py-2.5 text-sm text-red-600 dark:text-red-400 md:hover:bg-red-50 md:dark:hover:bg-red-900/20 active:bg-red-50 dark:active:bg-red-900/20 flex items-center gap-3"
           >
             <UIcon name="i-heroicons-trash" class="w-5 h-5" />
             <span>Delete</span>
           </button>
         </div>
       </Transition>
+      <!-- Backdrop for mobile - closes menu when clicking outside -->
+      <div
+        v-if="showContextMenu && isMobile()"
+        class="fixed inset-0 z-[9998] md:hidden"
+        @click="showContextMenu = false"
+      />
     </Teleport>
 
     <!-- Children (Notes and Subfolders) -->
@@ -1152,7 +1182,7 @@ onMounted(() => {
           v-for="note in folderNotes"
           :key="`note-${note.id}`"
             :data-note-id="note.id"
-            class="note-item group/note flex items-center gap-2 rounded-lg transition-colors hover:bg-gray-100 dark:hover:bg-gray-700/50 cursor-grab active:cursor-grabbing"
+            class="note-item group/note flex items-center gap-2 rounded-lg transition-colors md:hover:bg-gray-100 md:dark:hover:bg-gray-700/50 active:bg-gray-100 dark:active:bg-gray-700/50 cursor-grab active:cursor-grabbing"
             :style="{ 
               paddingLeft: `${(depth + 1) * 12 + 8}px`,
               transition: 'padding-left 0.15s ease'
@@ -1182,7 +1212,7 @@ onMounted(() => {
           <!-- Note Delete Button -->
           <button
             @click.stop="$emit('delete-note', note.id)"
-              class="no-drag flex-shrink-0 p-2.5 md:p-1.5 mr-2 rounded-md opacity-100 md:opacity-0 md:group-hover/note:opacity-100 hover:bg-red-100 dark:hover:bg-red-900/20 transition-all"
+              class="no-drag flex-shrink-0 p-2.5 md:p-1.5 mr-2 rounded-md opacity-100 md:opacity-0 md:group-hover/note:opacity-100 md:hover:bg-red-100 md:dark:hover:bg-red-900/20 active:bg-red-100 dark:active:bg-red-900/20 transition-all"
             title="Delete note"
           >
             <UIcon name="i-heroicons-trash" class="w-5 h-5 md:w-3.5 md:h-3.5 text-red-600 dark:text-red-400" />
@@ -1251,6 +1281,22 @@ onMounted(() => {
 .submenu-leave-from {
   opacity: 1;
   transform: translateX(0);
+}
+
+/* Disable submenu animation on mobile */
+@media (max-width: 767px) {
+  .submenu-enter-active,
+  .submenu-leave-active {
+    transition: none;
+  }
+  
+  .submenu-enter-from,
+  .submenu-leave-to,
+  .submenu-enter-to,
+  .submenu-leave-from {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
 /* Expand transition for children - Notion-style smooth animation */

@@ -9,7 +9,8 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'update:isOpen', value: boolean): void;
-  (e: 'selected', note: Note): void;
+  (e: 'selected', note: Note, isLoading?: boolean): void;
+  (e: 'loading-start'): void; // Emit before selection to set loading state immediately
 }>();
 
 const notesStore = useNotesStore();
@@ -81,8 +82,27 @@ function closeModal() {
 }
 
 function selectNote(note: Note) {
-  emit('selected', note);
-  closeModal();
+  console.log('[SearchModal] selectNote called:', {
+    noteId: note.id,
+    timestamp: Date.now()
+  });
+  
+  // CRITICAL: Set loading state BEFORE closing modal to prevent flash
+  // Use a small delay to ensure state is set before modal closes and triggers re-render
+  console.log('[SearchModal] Emitting loading-start...');
+  emit('loading-start');
+  
+  // Use requestAnimationFrame to ensure state is set before next render
+  requestAnimationFrame(() => {
+    console.log('[SearchModal] requestAnimationFrame callback, emitting selected...');
+    // Then emit the selected event
+    emit('selected', note, true);
+    // Close modal after state is set
+    setTimeout(() => {
+      console.log('[SearchModal] Closing modal...');
+      closeModal();
+    }, 0);
+  });
 }
 
 function handleKeydown(event: KeyboardEvent) {

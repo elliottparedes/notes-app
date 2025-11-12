@@ -1,6 +1,62 @@
 @import "tailwindcss";
 @import "@nuxt/ui";
 
+/* Mobile-specific styles - Remove hover states on touch devices */
+@media (max-width: 767px) {
+  /* Disable hover effects on mobile - use active states instead */
+  *:hover {
+    /* Reset hover styles on mobile devices */
+  }
+  
+  /* Ensure tap highlights are visible but subtle */
+  button,
+  a,
+  [role="button"] {
+    -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
+    touch-action: manipulation;
+  }
+  
+  /* Remove hover-based opacity changes */
+  .opacity-0.group-hover\:opacity-100,
+  .opacity-0.md\:group-hover\:opacity-100 {
+    opacity: 1 !important; /* Show on mobile since hover doesn't work */
+  }
+  
+  /* Enable horizontal scrolling for tables on mobile */
+  .ProseMirror table,
+  table {
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    -webkit-overflow-scrolling: touch !important;
+    touch-action: pan-x !important;
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+  
+  /* Ensure table cells don't break layout */
+  .ProseMirror table tbody,
+  .ProseMirror table thead,
+  .ProseMirror table tfoot,
+  table tbody,
+  table thead,
+  table tfoot {
+    display: table-row-group !important;
+  }
+  
+  .ProseMirror table tr,
+  table tr {
+    display: table-row !important;
+  }
+  
+  .ProseMirror table td,
+  .ProseMirror table th,
+  table td,
+  table th {
+    display: table-cell !important;
+  }
+}
+
 /* Move toast notifications further down to avoid blocking UI elements */
 /* Set CSS variables for Notivue positioning - these should be used by Notivue internally */
 :root {

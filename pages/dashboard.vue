@@ -21,11 +21,50 @@ const loading = ref(false);
 const isCreating = ref(false);
 const hasInitialized = ref(false);
 const isMounted = ref(false); // Track if we're on client to prevent hydration mismatch
+const isLoadingNoteFromSearch = ref(false); // Track when loading note from search (mobile)
+// Computed to ensure empty state doesn't show when loading
+const shouldShowEmptyState = computed(() => {
+  const isLoading = isLoadingNoteFromSearch.value;
+  const justSelected = noteJustSelectedFromSearch.value;
+  const hasActiveNote = !!activeNote.value;
+  const shouldShow = !isLoading && !justSelected && !hasActiveNote;
+  
+  // Log when computed is evaluated
+  if (isLoading || justSelected || !hasActiveNote) {
+    console.log('[Dashboard] shouldShowEmptyState computed:', {
+      isLoading,
+      justSelected,
+      hasActiveNote,
+      shouldShow,
+      activeNoteId: activeNote.value?.id,
+      timestamp: Date.now()
+    });
+  }
+  
+  // Never show empty state if we're loading from search OR just selected (prevent flash)
+  if (isLoading || justSelected) return false;
+  // Only show if no active note
+  return !hasActiveNote;
+});
 
 // Mobile menu state
-const isMobileSidebarOpen = ref(false);
+const isMobileSidebarOpen = ref(false); // Keep for now but will remove drawer
 const isSearchExpanded = ref(false);
 const searchInputRef = ref<HTMLInputElement | null>(null);
+const showMobileSpacesSheet = ref(false);
+const showMobileFoldersSheet = ref(false);
+const showMobileCreateMenu = ref(false);
+const currentFolderPath = ref<number[]>([]); // Track navigation path for folders
+const spaceButtonRef = ref<HTMLButtonElement | null>(null);
+const folderButtonRef = ref<HTMLButtonElement | null>(null);
+const createButtonRef = ref<HTMLButtonElement | null>(null);
+const spacesDropdownPos = ref({ top: 0, left: 0, width: 0 });
+const foldersDropdownPos = ref({ top: 0, left: 0, width: 0 });
+const createDropdownPos = ref({ top: 0, left: 0, width: 0 });
+
+// Folder menu state
+const folderMenuOpen = ref<number | null>(null);
+const folderMenuPos = ref({ top: 0, left: 0, width: 0 });
 
 // Active note editing state
 const editForm = reactive<UpdateNoteDto & { content: string }>({
@@ -45,7 +84,6 @@ const showFolderDropdown = ref(false);
 // Flag to prevent auto-save when programmatically updating editForm (e.g., switching tabs/spaces)
 const isProgrammaticUpdate = ref(false);
 const folderDropdownPos = ref({ top: 0, left: 0 });
-const folderButtonRef = ref<HTMLButtonElement | null>(null);
 const isPolishing = ref(false);
 const isPublishing = ref(false);
 const publishStatus = ref<{ is_published: boolean; share_url?: string } | null>(null);
@@ -122,12 +160,15 @@ const showDeleteModal = ref(false);
 const noteToDelete = ref<Note | null>(null);
 const isDeleting = ref(false);
 const noteShareCount = ref(0); // Track how many users this note is shared with
+const showMobileDeleteModal = ref(false);
+const noteToDeleteMobile = ref<Note | null>(null);
 
 // Keyboard shortcuts modal
 const showShortcutsModal = ref(false);
 
 // Search modal
 const showSearchModal = ref(false);
+const noteJustSelectedFromSearch = ref(false); // Track if note was just selected from search
 
 // Keyboard shortcut handler reference
 let keyboardShortcutHandler: ((event: KeyboardEvent) => void) | null = null;
@@ -246,9 +287,23 @@ const isSwitchingSpace = ref(false);
 // Watch for space changes and refetch folders, update tabs
 watch(() => spacesStore.currentSpaceId, async (newSpaceId, oldSpaceId) => {
   if (hasInitialized.value && newSpaceId !== oldSpaceId && newSpaceId !== null) {
+    console.log('[Dashboard] Space watcher triggered:', {
+      oldSpaceId,
+      newSpaceId,
+      isLoadingNoteFromSearch: isLoadingNoteFromSearch.value,
+      noteJustSelectedFromSearch: noteJustSelectedFromSearch.value,
+      timestamp: Date.now()
+    });
+    
     try {
       // Start space switching animation
-      isSwitchingSpace.value = true;
+      // BUT: Don't set isSwitchingSpace if we're loading from search (to prevent hiding activeNote)
+      if (!isLoadingNoteFromSearch.value) {
+        isSwitchingSpace.value = true;
+        console.log('[Dashboard] Setting isSwitchingSpace=true');
+      } else {
+        console.log('[Dashboard] Skipping isSwitchingSpace (loading from search)');
+      }
       
       // First, filter tabs BEFORE animation starts to prevent flashing
       // We'll use the old folders to determine which tabs to close
@@ -386,7 +441,15 @@ watch(() => spacesStore.currentSpaceId, async (newSpaceId, oldSpaceId) => {
       await new Promise(resolve => setTimeout(resolve, 100));
       
       // End space switching animation - this will restore activeNote if it's valid
-      isSwitchingSpace.value = false;
+      // But don't clear it if we're loading from search (keep loading state)
+      if (!isLoadingNoteFromSearch.value) {
+        isSwitchingSpace.value = false;
+        console.log('[Dashboard] Clearing isSwitchingSpace');
+      } else {
+        console.log('[Dashboard] Keeping isSwitchingSpace=false (loading from search)');
+        // Still clear it, but loading state will prevent activeNote from being hidden
+        isSwitchingSpace.value = false;
+      }
     } catch (error) {
       console.error('Failed to fetch folders for new space:', error);
       isSwitchingSpace.value = false;
@@ -495,8 +558,24 @@ watch(() => route.path, async (newPath) => {
 // Active note from store - ensure reactivity for folder_id changes
 // Hide note during space switching to prevent flashing
 const activeNote = computed(() => {
+  const storeNote = notesStore.activeNote;
+  const isLoading = isLoadingNoteFromSearch.value;
+  const isSwitching = isSwitchingSpace.value;
+  
+  // Log when activeNote computed is evaluated and might return null
+  if (!storeNote || (isSwitching && !isLoading)) {
+    console.log('[Dashboard] activeNote computed:', {
+      storeNoteId: storeNote?.id,
+      isSwitchingSpace: isSwitching,
+      isLoadingNoteFromSearch: isLoading,
+      willReturnNull: isSwitching && !isLoading && storeNote && !storeNote.share_permission && storeNote.folder_id !== null,
+      timestamp: Date.now()
+    });
+  }
+  
   // Don't show active note if we're switching spaces and it's being closed
-  if (isSwitchingSpace.value) {
+  // BUT: Don't hide it if we're loading from search (keep loading indicator visible)
+  if (isSwitchingSpace.value && !isLoadingNoteFromSearch.value) {
     // Check if current active note is valid
     const note = notesStore.activeNote;
     if (note) {
@@ -513,21 +592,82 @@ const activeNote = computed(() => {
   return notesStore.activeNote;
 });
 
-// Notes without folders (for "Quick Notes" section)
-// Exclude notes shared WITH the user (they appear in "Shared" section instead)
-// Only show notes that don't belong to folders in other spaces
+// Notes without folders (for "All Notes" section)
+// Only show notes that belong to the current space and have no folder
+// Notes are associated with spaces through folders, so notes without folders
+// are shown in the current space context
+// We need to exclude notes that belong to folders in other spaces
 const notesWithoutFolder = computed(() => {
+  const currentSpaceId = spacesStore.currentSpaceId;
+  if (!currentSpaceId) return [];
+  
+  // Get all folder IDs in the current space
+  const currentSpaceFolderIds = new Set(
+    foldersStore.folders
+      .filter(f => f.space_id === currentSpaceId)
+      .map(f => f.id)
+  );
+  
   return notesStore.notes.filter(note => {
     // Only show notes owned by user (not shared with them)
     if (note.share_permission) return false;
     
-    // Only show notes without folders
-    if (note.folder_id !== null) return false;
+    // Only show notes without folders (root level)
+    if (note.folder_id !== null) {
+      // If note has a folder_id, check if it belongs to current space
+      // If folder is not in current space folders, exclude it
+      if (!currentSpaceFolderIds.has(note.folder_id)) {
+        return false;
+      }
+      // If it has a folder_id, it's not a root note, so exclude it
+      return false;
+    }
     
-    // Note is without folder, so it can be shown in any space
-    // Quick notes are global (not tied to a specific space)
+    // Note is without folder (folder_id === null), show it in current space
     return true;
   });
+});
+
+// Filtered notes for selected folder (for mobile list view)
+const filteredNotesForFolder = computed(() => {
+  if (selectedFolderId.value === null) return [];
+  
+  const currentSpaceId = spacesStore.currentSpaceId;
+  if (!currentSpaceId) return [];
+  
+  // Get the selected folder to verify it belongs to current space
+  const selectedFolder = foldersStore.getFolderById(selectedFolderId.value);
+  if (!selectedFolder || selectedFolder.space_id !== currentSpaceId) return [];
+  
+  return notesStore.notes.filter(note => {
+    // Only show notes owned by user (not shared with them)
+    if (note.share_permission) return false;
+    
+    // Only show notes in the selected folder (direct children only, not subfolders)
+    // This ensures we don't show notes from subfolders
+    if (note.folder_id !== selectedFolderId.value) return false;
+    
+    // Notes are associated with spaces through folders, so if the folder
+    // belongs to the current space, the note does too
+    return true;
+  }).sort((a, b) => {
+    // Sort by updated_at descending (most recent first)
+    return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
+  });
+});
+
+// Display notes for mobile (folder selected or all notes without folders)
+const displayNotes = computed(() => {
+  if (selectedFolderId.value !== null) {
+    // Show notes in selected folder
+    return filteredNotesForFolder.value;
+  } else {
+    // Show all notes without folders (Quick Notes)
+    return notesWithoutFolder.value.sort((a, b) => {
+      // Sort by updated_at descending (most recent first)
+      return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
+    });
+  }
 });
 
 // Watch for active note folder_id changes separately to catch moves
@@ -575,6 +715,10 @@ watch(activeNote, (note, oldNote) => {
   // Close mobile sidebar when a note becomes active
   if (note && (!oldNote || oldNote.id !== note.id)) {
     isMobileSidebarOpen.value = false;
+    
+    // If we were loading from search and the note is now active, DON'T clear loading state here
+    // The handleNoteSelected function will handle clearing it after editor is mounted
+    // This prevents race conditions where the watcher clears loading before editor is ready
   }
   
   // Skip if note hasn't actually changed (prevent duplicate updates)
@@ -837,6 +981,152 @@ function handleCreateSubfolder(parentId: number) {
   newFolderParentId.value = parentId;
   openCreateFolderModal();
 }
+
+// Mobile sheet handlers
+function handleOpenSpacesSheet() {
+  nextTick(() => {
+    if (!spaceButtonRef.value) {
+      // Fallback positioning if ref not available
+      spacesDropdownPos.value = {
+        top: 60,
+        left: 16,
+        width: Math.min(window.innerWidth - 32, 360)
+      };
+    } else {
+      const rect = spaceButtonRef.value.getBoundingClientRect();
+      spacesDropdownPos.value = {
+        top: rect.bottom + 8,
+        left: Math.max(8, rect.left),
+        width: Math.min(window.innerWidth - Math.max(8, rect.left) - 8, 360)
+      };
+    }
+    showMobileSpacesSheet.value = true;
+  });
+}
+
+function handleOpenFoldersSheet() {
+  nextTick(() => {
+    if (!folderButtonRef.value) {
+      // Fallback positioning if ref not available
+      foldersDropdownPos.value = {
+        top: 60,
+        left: 16,
+        width: Math.min(window.innerWidth - 32, 400)
+      };
+    } else {
+      const rect = folderButtonRef.value.getBoundingClientRect();
+      foldersDropdownPos.value = {
+        top: rect.bottom + 8,
+        left: Math.max(8, rect.left),
+        width: Math.min(window.innerWidth - Math.max(8, rect.left) - 8, 400)
+      };
+    }
+    showMobileFoldersSheet.value = true;
+    currentFolderPath.value = []; // Reset to root
+  });
+}
+
+function handleOpenCreateMenu() {
+  nextTick(() => {
+    if (!createButtonRef.value) {
+      // Fallback positioning if ref not available
+      createDropdownPos.value = {
+        top: 60,
+        left: Math.max(8, window.innerWidth - 288),
+        width: 280
+      };
+    } else {
+      const rect = createButtonRef.value.getBoundingClientRect();
+      createDropdownPos.value = {
+        top: rect.bottom + 8,
+        left: Math.max(8, rect.right - 280), // Position dropdown to the left of button
+        width: 280
+      };
+    }
+    showMobileCreateMenu.value = true;
+  });
+}
+
+function handleOpenFolderMenu(folderId: number, event: MouseEvent) {
+  event.stopPropagation();
+  folderMenuOpen.value = folderId;
+  
+  nextTick(() => {
+    const target = event.target as HTMLElement;
+    const rect = target.getBoundingClientRect();
+    folderMenuPos.value = {
+      top: rect.bottom + 4,
+      left: Math.max(8, rect.right - 200),
+      width: 200
+    };
+  });
+}
+
+function handleCloseFolderMenu() {
+  folderMenuOpen.value = null;
+}
+
+async function handleSelectSpace(spaceId: number) {
+  if (spacesStore.currentSpaceId === spaceId) {
+    showMobileSpacesSheet.value = false;
+    return;
+  }
+  
+  spacesStore.setCurrentSpace(spaceId);
+  // Reset folder selection when space changes
+  selectedFolderId.value = null;
+  if (process.client) {
+    sessionStorage.removeItem('selected_folder_id');
+  }
+  showMobileSpacesSheet.value = false;
+}
+
+function handleSelectFolder(folderId: number) {
+  selectFolder(folderId);
+  showMobileFoldersSheet.value = false;
+  currentFolderPath.value = []; // Reset navigation path
+}
+
+// Computed: Get folders to display based on current navigation path
+const displayedFolders = computed(() => {
+  if (currentFolderPath.value.length === 0) {
+    // Show root folders (no parent)
+    return foldersStore.folders.filter(f => f.parent_id === null);
+  } else {
+    // Show subfolders of current folder
+    const currentFolderId = currentFolderPath.value[currentFolderPath.value.length - 1];
+    return foldersStore.folders.filter(f => f.parent_id === currentFolderId);
+  }
+});
+
+// Check if folder has subfolders
+function hasSubfolders(folderId: number): boolean {
+  return foldersStore.folders.some(f => f.parent_id === folderId);
+}
+
+// Get count of subfolders
+function getSubfolderCount(folderId: number): number {
+  return foldersStore.folders.filter(f => f.parent_id === folderId).length;
+}
+
+// Handle folder click - navigate into folder if it has subfolders, otherwise select
+function handleFolderClick(folder: Folder) {
+  if (hasSubfolders(folder.id)) {
+    // Navigate into folder
+    currentFolderPath.value.push(folder.id);
+  } else {
+    // Select folder and close sheet
+    handleSelectFolder(folder.id);
+  }
+}
+
+// Handle back navigation
+function handleFolderBack() {
+  if (currentFolderPath.value.length > 0) {
+    currentFolderPath.value.pop();
+  }
+}
+
 
 async function handleCreateNoteInFolder(folderId: number) {
   if (isCreating.value) return;
@@ -1839,6 +2129,65 @@ async function handleDeleteNote(note: Note) {
   showDeleteModal.value = true;
 }
 
+function handleDeleteNoteMobile(note: Note) {
+  noteToDeleteMobile.value = note;
+  showMobileDeleteModal.value = true;
+}
+
+async function confirmDeleteMobile() {
+  if (!noteToDeleteMobile.value) return;
+  
+  isDeleting.value = true;
+  const deletedNoteId = noteToDeleteMobile.value.id;
+  const wasShared = noteToDeleteMobile.value.is_shared || noteToDeleteMobile.value.share_permission;
+  const wasActiveNote = notesStore.activeTabId === deletedNoteId;
+
+  try {
+    // Close the tab if it's open
+    if (notesStore.openTabs.includes(deletedNoteId)) {
+      notesStore.closeTab(deletedNoteId);
+    }
+    
+    // If this was the active note, close it gracefully
+    if (wasActiveNote) {
+      notesStore.activeTabId = null;
+    }
+    
+    // Delete the note - shared_notes entries will be automatically deleted via CASCADE
+    await notesStore.deleteNote(deletedNoteId);
+    
+    // Refresh shared notes list if this was a shared note
+    if (wasShared) {
+      await sharedNotesStore.fetchSharedNotes();
+    }
+    
+    // Force refresh the notes list to ensure UI updates
+    await notesStore.fetchNotes();
+    
+    toast.add({
+      title: 'Success',
+      description: 'Note deleted successfully',
+      color: 'success'
+    });
+    
+    showMobileDeleteModal.value = false;
+    noteToDeleteMobile.value = null;
+  } catch (error) {
+    toast.add({
+      title: 'Error',
+      description: 'Failed to delete note',
+      color: 'error'
+    });
+  } finally {
+    isDeleting.value = false;
+  }
+}
+
+function cancelDeleteMobile() {
+  showMobileDeleteModal.value = false;
+  noteToDeleteMobile.value = null;
+}
+
 async function confirmDelete() {
   if (!noteToDelete.value) return;
 
@@ -1972,52 +2321,220 @@ async function handleDailyNote() {
 }
 
 // Note opening and tab management
+// Handle loading start from search - set state synchronously
+function handleLoadingStart() {
+  console.log('[Dashboard] handleLoadingStart called - setting loading state');
+  // Set loading state IMMEDIATELY and SYNCHRONOUSLY
+  // This must happen before any re-render when modal closes
+  isLoadingNoteFromSearch.value = true;
+  noteJustSelectedFromSearch.value = true;
+  console.log('[Dashboard] Loading state set:', {
+    isLoadingNoteFromSearch: isLoadingNoteFromSearch.value,
+    noteJustSelectedFromSearch: noteJustSelectedFromSearch.value,
+    activeNote: activeNote.value?.id,
+    showSearchModal: showSearchModal.value
+  });
+}
+
 // Handle note selection from search modal
-async function handleNoteSelected(note: Note) {
-  // Check if note belongs to a different space
-  if (note.folder_id !== null) {
-    let folder = foldersStore.getFolderById(note.folder_id);
-    let noteSpaceId: number | null = null;
+async function handleNoteSelected(note: Note, shouldShowLoading: boolean = true) {
+  console.log('[Dashboard] handleNoteSelected called:', {
+    noteId: note.id,
+    shouldShowLoading,
+    currentLoadingState: isLoadingNoteFromSearch.value,
+    currentActiveNote: activeNote.value?.id,
+    timestamp: Date.now()
+  });
+  
+  // CRITICAL: Loading state should already be set by @loading-start handler
+  // But ensure it's set here too as a backup - MUST be set BEFORE any space switching
+  if (shouldShowLoading && process.client) {
+    // Force synchronous update - set IMMEDIATELY before any async operations
+    noteJustSelectedFromSearch.value = true;
+    isLoadingNoteFromSearch.value = true;
+    console.log('[Dashboard] Loading state set in handleNoteSelected:', {
+      isLoadingNoteFromSearch: isLoadingNoteFromSearch.value,
+      activeNote: activeNote.value?.id
+    });
     
-    // If folder not found in current store, it might be in a different space
-    // Fetch it from the API to get its space_id
-    if (!folder) {
-      try {
-        if (authStore.token) {
-          const fetchedFolder = await $fetch<Folder>(`/api/folders/${note.folder_id}`, {
-            headers: {
-              Authorization: `Bearer ${authStore.token}`
-            }
-          });
-          if (fetchedFolder) {
-            folder = fetchedFolder;
-            noteSpaceId = folder.space_id;
-          }
-        }
-      } catch (error) {
-        console.error('[Dashboard] Failed to fetch folder:', error);
-        // If folder fetch fails, try to proceed anyway
-      }
-    } else {
-      noteSpaceId = folder.space_id;
-    }
-    
-      // Switch to the note's space if it's different from current space
-      if (noteSpaceId && noteSpaceId !== spacesStore.currentSpaceId) {
-        // Switch to the note's space
-        console.log('[Dashboard] Switching to space', noteSpaceId, 'for note', note.id);
-        spacesStore.setCurrentSpace(noteSpaceId);
-        
-        // The space watcher will automatically fetch folders (silently) when currentSpaceId changes
-        // Wait for folders to be loaded (the watcher handles this)
-        await foldersStore.fetchFolders(noteSpaceId, true);
-        await sharedNotesStore.fetchSharedNotes();
-      }
+    // Force Vue to process this update synchronously before continuing
+    await nextTick();
   }
   
-  // Now open the note (it will be in the correct space)
-  await notesStore.openTab(note.id);
+  try {
+    // Check if note belongs to a different space
+    if (note.folder_id !== null) {
+      let folder = foldersStore.getFolderById(note.folder_id);
+      let noteSpaceId: number | null = null;
+      
+      // If folder not found in current store, it might be in a different space
+      // Fetch it from the API to get its space_id
+      if (!folder) {
+        try {
+          if (authStore.token) {
+            const fetchedFolder = await $fetch<Folder>(`/api/folders/${note.folder_id}`, {
+              headers: {
+                Authorization: `Bearer ${authStore.token}`
+              }
+            });
+            if (fetchedFolder) {
+              folder = fetchedFolder;
+              noteSpaceId = folder.space_id;
+            }
+          }
+        } catch (error) {
+          console.error('[Dashboard] Failed to fetch folder:', error);
+          // If folder fetch fails, try to proceed anyway
+        }
+      } else {
+        noteSpaceId = folder.space_id;
+      }
+      
+        // Switch to the note's space if it's different from current space
+        if (noteSpaceId && noteSpaceId !== spacesStore.currentSpaceId) {
+          // Switch to the note's space
+          console.log('[Dashboard] Switching to space', noteSpaceId, 'for note', note.id);
+          console.log('[Dashboard] Before space switch - isLoadingNoteFromSearch:', isLoadingNoteFromSearch.value);
+          
+          // CRITICAL: Ensure loading state is set BEFORE switching space
+          // The space watcher will set isSwitchingSpace=true, which would hide activeNote
+          // But we need isLoadingNoteFromSearch=true to prevent that
+          if (!isLoadingNoteFromSearch.value) {
+            console.log('[Dashboard] Loading state was false! Setting it before space switch...');
+            isLoadingNoteFromSearch.value = true;
+            noteJustSelectedFromSearch.value = true;
+          }
+          
+          // IMPORTANT: Don't trigger space switching animation when loading from search
+          // Set loading state BEFORE switching space to prevent isSwitchingSpace from hiding the note
+          // The space watcher will set isSwitchingSpace, but we'll prevent it from hiding activeNote
+          
+          spacesStore.setCurrentSpace(noteSpaceId);
+          console.log('[Dashboard] After space switch - isLoadingNoteFromSearch:', isLoadingNoteFromSearch.value, 'isSwitchingSpace:', isSwitchingSpace.value);
+          
+          // The space watcher will automatically fetch folders (silently) when currentSpaceId changes
+          // Wait for folders to be loaded (the watcher handles this)
+          await foldersStore.fetchFolders(noteSpaceId, true);
+          await sharedNotesStore.fetchSharedNotes();
+        }
+    }
+    
+    // Now open the note (it will be in the correct space)
+    // IMPORTANT: openTab sets activeTabId immediately, but we need to wait for the note to be fully loaded
+    console.log('[Dashboard] Opening tab for note:', note.id);
+    await notesStore.openTab(note.id);
+    console.log('[Dashboard] Tab opened, activeTabId:', notesStore.activeTabId, 'activeNote:', activeNote.value?.id, 'isLoadingNoteFromSearch:', isLoadingNoteFromSearch.value);
+    
+    // Wait for the note to actually be in the notes array AND be set as activeNote
+    // This ensures the note is fetched from the server before we clear loading state
+    let attempts = 0;
+    const maxAttempts = 40; // Wait up to 2 seconds (40 * 50ms) for server response
+    const targetNoteId = String(note.id);
+    
+    console.log('[Dashboard] Waiting for note to be loaded, targetNoteId:', targetNoteId);
+    while (attempts < maxAttempts) {
+      // Check if note is in the store and is the active note
+      const noteInStore = notesStore.notes.find(n => String(n.id) === targetNoteId);
+      const isActiveNote = activeNote.value && String(activeNote.value.id) === targetNoteId;
+      
+      if (attempts % 5 === 0 || noteInStore || isActiveNote) { // Log every 5 attempts or when found
+        console.log('[Dashboard] Waiting for note:', {
+          attempt: attempts,
+          noteInStore: !!noteInStore,
+          isActiveNote,
+          activeNoteId: activeNote.value?.id,
+          activeTabId: notesStore.activeTabId,
+          isLoadingNoteFromSearch: isLoadingNoteFromSearch.value,
+          shouldShowEmptyState: shouldShowEmptyState.value
+        });
+      }
+      
+      // If note is in store AND is active, we're good
+      if (noteInStore && isActiveNote) {
+        console.log('[Dashboard] Note is loaded and active!');
+        // Give it one more render cycle to ensure UI updates
+        await nextTick();
+        await new Promise(resolve => setTimeout(resolve, 150));
+        break;
+      }
+      
+      await new Promise(resolve => setTimeout(resolve, 50));
+      attempts++;
+    }
+    
+    // After waiting, check if editor is mounted before clearing loading state
+    // Keep loading state true until editor is confirmed visible
+    console.log('[Dashboard] Checking for editor, isLoadingNoteFromSearch:', isLoadingNoteFromSearch.value);
+    if (isLoadingNoteFromSearch.value) {
+      // Wait a bit more and check for editor
+      await nextTick();
+      await new Promise(resolve => setTimeout(resolve, 200));
+      
+      // Check if editor is in DOM - keep checking until found
+      let checkAttempts = 0;
+      const maxCheckAttempts = 30; // Wait up to 3 seconds for editor
+      console.log('[Dashboard] Looking for editor in DOM...');
+      while (checkAttempts < maxCheckAttempts && isLoadingNoteFromSearch.value) {
+        const editor = document.querySelector('[data-note-editor]');
+        if (checkAttempts % 5 === 0) { // Log every 5 attempts
+          console.log('[Dashboard] Checking for editor:', {
+            attempt: checkAttempts,
+            editorFound: !!editor,
+            isLoadingNoteFromSearch: isLoadingNoteFromSearch.value,
+            activeNote: activeNote.value?.id
+          });
+        }
+        if (editor) {
+          // Editor found, clear loading after a moment to ensure it's rendered
+          console.log('[Dashboard] Editor found! Clearing loading state...');
+          await new Promise(resolve => setTimeout(resolve, 300));
+          isLoadingNoteFromSearch.value = false;
+          noteJustSelectedFromSearch.value = false;
+          console.log('[Dashboard] Loading state cleared');
+          break;
+        }
+        await new Promise(resolve => setTimeout(resolve, 100));
+        checkAttempts++;
+      }
+      
+      // If we've waited long enough and editor still not found, clear anyway
+      if (isLoadingNoteFromSearch.value && checkAttempts >= maxCheckAttempts) {
+        console.log('[Dashboard] Editor not found after max attempts, clearing loading state anyway');
+        isLoadingNoteFromSearch.value = false;
+        noteJustSelectedFromSearch.value = false;
+      }
+    }
+  } catch (error) {
+    // On error, clear loading state
+    isLoadingNoteFromSearch.value = false;
+    noteJustSelectedFromSearch.value = false;
+    throw error;
+  }
 }
+
+// Watch for search modal closing and ensure loading state is set if note was just selected
+watch(showSearchModal, (isOpen, wasOpen) => {
+  console.log('[Dashboard] showSearchModal watcher:', {
+    wasOpen,
+    isOpen,
+    noteJustSelectedFromSearch: noteJustSelectedFromSearch.value,
+    isLoadingNoteFromSearch: isLoadingNoteFromSearch.value,
+    activeNote: activeNote.value?.id,
+    timestamp: Date.now()
+  });
+  
+  // When modal closes and a note was just selected, ensure loading state is set
+  if (wasOpen && !isOpen && noteJustSelectedFromSearch.value && process.client) {
+    console.log('[Dashboard] Modal closed, checking loading state...');
+    // Double-check loading state is set (in case it wasn't set yet)
+    if (!isLoadingNoteFromSearch.value) {
+      console.log('[Dashboard] Loading state was false! Setting it now...');
+      isLoadingNoteFromSearch.value = true;
+    } else {
+      console.log('[Dashboard] Loading state already set');
+    }
+  }
+});
 
 async function handleOpenNote(noteId: string) {
   await notesStore.openTab(noteId);
@@ -2646,7 +3163,150 @@ onMounted(() => {
     </div>
 
     <!-- Main dashboard with Notion-like layout -->
-    <div v-else :key="`dashboard-${authStore.currentUser?.id}-${sessionKey}`" class="flex h-screen bg-gray-50 dark:bg-gray-900 overflow-hidden">
+    <div v-else :key="`dashboard-${authStore.currentUser?.id}-${sessionKey}`" class="flex flex-col h-screen bg-gray-50 dark:bg-gray-900 overflow-hidden relative">
+      <!-- Mobile Action Bar (only on mobile) - Quick actions - AT TOP LEVEL -->
+      <div class="md:hidden flex items-center justify-between gap-2 px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex-shrink-0">
+        <!-- Left: Space/Folder Navigation (when no note active) OR Back Button + Note Title (when note active) -->
+        <div v-if="!activeNote" class="flex-1 min-w-0 flex items-center gap-2">
+          <!-- Space Selector -->
+          <button
+            ref="spaceButtonRef"
+            @click="handleOpenSpacesSheet"
+            class="flex items-center gap-2 px-3 py-1.5 rounded-lg active:bg-gray-100 dark:active:bg-gray-700 transition-colors flex-shrink-0"
+          >
+            <UIcon name="i-heroicons-building-office-2" class="w-4 h-4 text-gray-600 dark:text-gray-400" />
+            <span class="text-sm font-medium text-gray-900 dark:text-white truncate max-w-[100px]">
+              {{ spacesStore.currentSpace?.name || 'Select Space' }}
+            </span>
+            <UIcon name="i-heroicons-chevron-down" class="w-3 h-3 text-gray-400 dark:text-gray-500" />
+          </button>
+          
+          <!-- Folder Selector (always visible) -->
+          <span class="text-gray-400 dark:text-gray-500">/</span>
+          <button
+            ref="folderButtonRef"
+            @click="handleOpenFoldersSheet"
+            class="flex items-center gap-2 px-3 py-1.5 rounded-lg active:bg-gray-100 dark:active:bg-gray-700 transition-colors flex-shrink-0"
+          >
+            <UIcon name="i-heroicons-folder" class="w-4 h-4 text-gray-600 dark:text-gray-400" />
+            <span class="text-sm font-medium text-gray-900 dark:text-white truncate max-w-[100px]">
+              {{ selectedFolderId !== null 
+                ? (foldersStore.getFolderById(selectedFolderId)?.name || 'Folder')
+                : 'Select Folder' }}
+            </span>
+            <UIcon name="i-heroicons-chevron-down" class="w-3 h-3 text-gray-400 dark:text-gray-500" />
+          </button>
+        </div>
+        
+        <div v-else class="flex-1 min-w-0 flex items-center gap-2">
+          <!-- Back Button -->
+          <button
+            @click="notesStore.activeTabId = null"
+            class="p-1.5 rounded-lg active:bg-gray-100 dark:active:bg-gray-700 text-gray-600 dark:text-gray-400 flex-shrink-0"
+          >
+            <UIcon name="i-heroicons-arrow-left" class="w-5 h-5" />
+          </button>
+          <!-- Note Title -->
+          <h2 class="text-base font-semibold text-gray-900 dark:text-white truncate flex-1">{{ activeNote.title || 'Untitled Note' }}</h2>
+        </div>
+        
+        <!-- Right: Action Buttons Group -->
+        <div class="flex items-center gap-1 flex-shrink-0">
+          <!-- Settings Button (when no note active) -->
+          <button
+            v-if="!activeNote"
+            class="p-2 rounded-lg transition-colors active:bg-gray-100 dark:active:bg-gray-700 text-gray-600 dark:text-gray-400"
+            aria-label="Settings"
+          >
+            <UIcon name="i-heroicons-cog-6-tooth" class="w-5 h-5" />
+          </button>
+          
+          <!-- Search Button - Always visible -->
+          <button
+            @click="showSearchModal = true"
+            class="p-2 rounded-lg transition-colors active:bg-gray-100 dark:active:bg-gray-700 text-gray-600 dark:text-gray-400"
+            aria-label="Search"
+          >
+            <UIcon name="i-heroicons-magnifying-glass" class="w-5 h-5" />
+          </button>
+          
+          <!-- Action Buttons - Only show when note is active -->
+          <div v-if="activeNote" class="flex items-center gap-1">
+            <!-- Lock/Unlock Button -->
+            <button
+              v-if="!activeNote.is_shared && !activeNote.share_permission"
+              @click="toggleLock"
+              :title="isLocked ? 'Unlock Note' : 'Lock Note'"
+              class="p-2 rounded-lg transition-colors active:bg-gray-100 dark:active:bg-gray-700"
+              :class="isLocked ? 'text-amber-600 dark:text-amber-400' : 'text-gray-500 dark:text-gray-400'"
+            >
+              <UIcon :name="isLocked ? 'i-heroicons-lock-closed' : 'i-heroicons-lock-open'" class="w-5 h-5" />
+            </button>
+            
+            <!-- Polish with AI -->
+            <button
+              v-if="!isLocked && !activeNote.is_shared && !activeNote.share_permission"
+              @click="polishNote"
+              :disabled="isPolishing"
+              class="p-2 rounded-lg transition-colors active:bg-purple-50 dark:active:bg-purple-900/20 disabled:opacity-50"
+              :class="isPolishing ? 'text-purple-600 dark:text-purple-400' : 'text-purple-500 dark:text-purple-400'"
+              title="Polish with AI"
+            >
+              <UIcon 
+                name="i-heroicons-sparkles" 
+                :class="isPolishing ? 'animate-pulse opacity-70' : ''" 
+                class="w-5 h-5 transition-opacity" 
+              />
+            </button>
+            
+            <!-- Publish/Unpublish Note Button -->
+            <button
+              v-if="activeNote.user_id === authStore.currentUser?.id && !activeNote.is_shared && !activeNote.share_permission"
+              @click="handlePublishButtonClick"
+              :disabled="isPublishing"
+              class="p-2 rounded-lg transition-colors"
+              :class="publishStatus?.is_published 
+                ? 'active:bg-primary-50 dark:active:bg-primary-900/20 text-primary-600 dark:text-primary-400' 
+                : 'active:bg-gray-100 dark:active:bg-gray-700 text-gray-500 dark:text-gray-400'"
+              :title="publishStatus?.is_published ? 'View/Copy Share Link' : 'Publish Note'"
+            >
+              <UIcon 
+                :name="publishStatus?.is_published ? 'i-heroicons-globe-alt' : 'i-heroicons-link'"
+                :class="isPublishing ? 'animate-spin' : ''"
+                class="w-5 h-5" 
+              />
+            </button>
+            
+            <!-- File Upload Button -->
+            <button
+              v-if="!isLocked && (activeNote.user_id === authStore.currentUser?.id || activeNote.share_permission === 'editor')"
+              @click="triggerFileUpload"
+              class="p-2 rounded-lg transition-colors active:bg-gray-100 dark:active:bg-gray-700 text-gray-500 dark:text-gray-400 active:text-primary-600 dark:active:text-primary-400"
+              title="Upload File"
+            >
+              <UIcon name="i-heroicons-paper-clip" class="w-5 h-5" />
+            </button>
+            
+            <!-- Delete Button (Mobile) -->
+            <button
+              v-if="activeNote.user_id === authStore.currentUser?.id && !activeNote.is_shared && !activeNote.share_permission"
+              @click="handleDeleteNoteMobile(activeNote)"
+              :disabled="isDeleting"
+              class="p-2 rounded-lg transition-colors active:bg-red-50 dark:active:bg-red-900/20 text-red-600 dark:text-red-400 disabled:opacity-50 md:hidden"
+              title="Delete Note"
+            >
+              <UIcon 
+                name="i-heroicons-trash" 
+                :class="isDeleting ? 'animate-pulse' : ''"
+                class="w-5 h-5" 
+              />
+            </button>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Desktop/Mobile Content Container -->
+      <div class="flex flex-1 overflow-hidden">
       <!-- Left Sidebar (Desktop Only) -->
       <aside 
         class="hidden md:flex md:flex-col bg-white dark:bg-gray-800 flex-shrink-0 transition-all duration-300 ease-in-out overflow-hidden"
@@ -3009,312 +3669,265 @@ onMounted(() => {
         </button>
       </Transition>
 
-      <!-- Mobile Sidebar Drawer -->
+      <!-- Mobile Bottom Sheets (replaces hamburger menu) -->
+      <!-- Mobile Dropdowns -->
+      <!-- Spaces Dropdown -->
       <Teleport to="body">
-        <Transition name="drawer">
+        <Transition
+          enter-active-class="transition-all duration-200 ease-out"
+          enter-from-class="opacity-0 scale-95 translate-y-1"
+          enter-to-class="opacity-100 scale-100 translate-y-0"
+          leave-active-class="transition-all duration-150 ease-in"
+          leave-from-class="opacity-100 scale-100 translate-y-0"
+          leave-to-class="opacity-0 scale-95 translate-y-1"
+        >
           <div
-            v-if="isMobileSidebarOpen"
-            class="fixed inset-0 z-50 md:hidden"
+            v-if="showMobileSpacesSheet"
+            class="fixed z-50 md:hidden bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl max-h-[70vh] overflow-y-auto"
+            :style="{
+              top: `${spacesDropdownPos.top}px`,
+              left: `${spacesDropdownPos.left}px`,
+              width: `${spacesDropdownPos.width}px`
+            }"
+            @click.stop
           >
-            <!-- Backdrop -->
-            <div
-              class="absolute inset-0 bg-black/50 backdrop-blur-sm"
-              @click="isMobileSidebarOpen = false"
-            />
-            
-            <!-- Drawer -->
-            <div class="absolute left-0 top-0 bottom-0 w-full bg-white dark:bg-gray-800 shadow-xl flex flex-col">
-              <!-- Drawer Header -->
-              <div class="flex items-center justify-between px-6 py-5 border-b border-gray-200 dark:border-gray-700">
-                <div class="flex items-center gap-2">
-                  <img src="/swan-unfold.png" alt="Unfold" class="w-20 h-20" />
-                  <h1 class="text-2xl font-extrabold text-gray-900 dark:text-white tracking-wide">Unfold</h1>
-                </div>
+            <div class="p-2">
+              <div class="space-y-1">
                 <button
-                  @click="isMobileSidebarOpen = false"
-                  class="p-2.5 -mr-2 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                  v-for="space in spacesStore.spaces"
+                  :key="space.id"
+                  @click="handleSelectSpace(space.id)"
+                  :class="[
+                    'w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 active:scale-[0.98]',
+                    spacesStore.currentSpaceId === space.id
+                      ? 'bg-primary-50 dark:bg-primary-900/30 border border-primary-500 dark:border-primary-400'
+                      : 'bg-transparent border border-transparent active:bg-gray-100 dark:active:bg-gray-700'
+                  ]"
                 >
-                  <UIcon name="i-heroicons-x-mark" class="w-7 h-7" />
+                  <!-- Space Icon -->
+                  <div 
+                    :class="[
+                      'w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0',
+                      spacesStore.currentSpaceId === space.id
+                        ? 'bg-primary-500 dark:bg-primary-600 text-white'
+                        : 'bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-300'
+                    ]"
+                  >
+                    <UIcon 
+                      :name="(space.icon && space.icon.trim() !== '') ? `i-lucide-${space.icon}` : 'i-heroicons-building-office-2'" 
+                      class="w-4 h-4" 
+                    />
+                  </div>
+                  
+                  <!-- Space Name -->
+                  <div class="flex-1 text-left min-w-0">
+                    <div 
+                      :class="[
+                        'text-base font-semibold truncate',
+                        spacesStore.currentSpaceId === space.id
+                          ? 'text-primary-700 dark:text-primary-300'
+                          : 'text-gray-900 dark:text-white'
+                      ]"
+                    >
+                      {{ space.name }}
+                    </div>
+                  </div>
+                  
+                  <!-- Active Indicator -->
+                  <div v-if="spacesStore.currentSpaceId === space.id" class="flex-shrink-0">
+                    <UIcon name="i-heroicons-check-circle" class="w-5 h-5 text-primary-600 dark:text-primary-400" />
+                  </div>
                 </button>
               </div>
+            </div>
+          </div>
+        </Transition>
+        <!-- Backdrop -->
+        <div
+          v-if="showMobileSpacesSheet"
+          class="fixed inset-0 z-40 md:hidden bg-black/20"
+          @click="showMobileSpacesSheet = false"
+        />
+      </Teleport>
 
-              <!-- Drawer Content (Same as Desktop Sidebar) -->
-              <div class="flex-1 overflow-y-auto p-4 md:p-3">
-                <!-- Space Selector -->
-                <SpaceSelector />
-                
-                <!-- New Note Button with Submenu - Commented Out -->
-                <template v-if="false">
-                <div class="mb-4 mt-4">
-                  <button
-                    data-note-creation-button
-                    @click="toggleNoteCreationMenu"
-                    class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors hover:bg-gray-100 dark:hover:bg-gray-700/50 text-left"
-                    :class="{ 'bg-primary-50 dark:bg-primary-900/20': showNoteCreationMenu }"
-                  >
-                    <div class="w-8 h-8 bg-gradient-to-br from-primary-500 to-primary-600 rounded-lg flex items-center justify-center shadow-sm flex-shrink-0">
-                      <UIcon name="i-heroicons-plus" class="w-4 h-4 text-white" />
-                    </div>
-                    <span class="flex-1 text-sm font-medium text-gray-700 dark:text-gray-300">New Note</span>
-                    <UIcon 
-                      name="i-heroicons-chevron-down" 
-                      class="w-4 h-4 text-gray-400 transition-transform flex-shrink-0"
-                      :class="{ 'rotate-180': showNoteCreationMenu }"
-                    />
-                  </button>
-
-                  <!-- Note Creation Submenu -->
-                  <Transition name="slide-down">
-                    <div
-                      v-if="showNoteCreationMenu"
-                      data-note-creation-menu
-                      class="mt-2 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden"
-                    >
-                      <div class="py-1.5">
-                        <!-- New Note -->
-                        <button
-                          @click="handleCreateNote"
-                          :disabled="isCreating"
-                          class="w-full text-left px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-primary-50 dark:hover:bg-primary-900/20 flex items-center gap-3 transition-colors disabled:opacity-50"
-                        >
-                          <div class="w-8 h-8 bg-gradient-to-br from-primary-500 to-primary-600 rounded-lg flex items-center justify-center shadow-sm flex-shrink-0">
-                            <UIcon name="i-heroicons-document-plus" class="w-4 h-4 text-white" />
-                          </div>
-                          <div class="flex-1 min-w-0">
-                            <div class="font-semibold text-gray-900 dark:text-white text-sm">New Note</div>
-                            <div class="text-xs text-gray-500 dark:text-gray-400">Create a blank note</div>
-                          </div>
-                        </button>
-
-                        <!-- New List -->
-                        <button
-                          @click="handleListNote"
-                          :disabled="isCreating"
-                          class="w-full text-left px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-orange-50 dark:hover:bg-orange-900/20 flex items-center gap-3 transition-colors disabled:opacity-50"
-                        >
-                          <div class="w-8 h-8 bg-gradient-to-br from-orange-500 to-orange-600 rounded-lg flex items-center justify-center shadow-sm flex-shrink-0">
-                            <UIcon name="i-heroicons-list-bullet" class="w-4 h-4 text-white" />
-                          </div>
-                          <div class="flex-1 min-w-0">
-                            <div class="font-semibold text-gray-900 dark:text-white text-sm">New List</div>
-                            <div class="text-xs text-gray-500 dark:text-gray-400">With checkbox ready</div>
-                          </div>
-                        </button>
-
-                        <!-- Daily Note -->
-                        <button
-                          @click="handleDailyNote"
-                          :disabled="isCreating"
-                          class="w-full text-left px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-purple-50 dark:hover:bg-purple-900/20 flex items-center gap-3 transition-colors disabled:opacity-50"
-                        >
-                          <div class="w-8 h-8 bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg flex items-center justify-center shadow-sm flex-shrink-0">
-                            <UIcon name="i-heroicons-calendar-days" class="w-4 h-4 text-white" />
-                          </div>
-                          <div class="flex-1 min-w-0">
-                            <div class="font-semibold text-gray-900 dark:text-white text-sm">Daily Note</div>
-                            <div class="text-xs text-gray-500 dark:text-gray-400">Daily journal template</div>
-                          </div>
-                        </button>
-
-                        <!-- From Template -->
-                        <button
-                          @click="handleTemplateNote"
-                          class="w-full text-left px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 flex items-center gap-3 transition-colors"
-                        >
-                          <div class="w-8 h-8 bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-lg flex items-center justify-center shadow-sm flex-shrink-0">
-                            <UIcon name="i-heroicons-document-duplicate" class="w-4 h-4 text-white" />
-                          </div>
-                          <div class="flex-1 min-w-0">
-                            <div class="font-semibold text-gray-900 dark:text-white text-sm">From Template</div>
-                            <div class="text-xs text-gray-500 dark:text-gray-400">Use a pre-made template</div>
-                          </div>
-                        </button>
-
-                        <!-- AI Generate Note -->
-                        <button
-                          @click="handleAiGenerate"
-                          class="w-full text-left px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 flex items-center gap-3 transition-colors"
-                        >
-                          <div class="w-8 h-8 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-lg flex items-center justify-center shadow-sm flex-shrink-0">
-                            <UIcon name="i-heroicons-sparkles" class="w-4 h-4 text-white" />
-                          </div>
-                          <div class="flex-1 min-w-0">
-                            <div class="font-semibold text-gray-900 dark:text-white text-sm">AI Generate</div>
-                            <div class="text-xs text-gray-500 dark:text-gray-400">Create with AI</div>
-                          </div>
-                        </button>
-
-                        <!-- Import Recipe -->
-                        <button
-                          @click="handleRecipeImport"
-                          class="w-full text-left px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-rose-50 dark:hover:bg-rose-900/20 flex items-center gap-3 transition-colors"
-                        >
-                          <div class="w-8 h-8 bg-gradient-to-br from-rose-500 to-rose-600 rounded-lg flex items-center justify-center shadow-sm flex-shrink-0">
-                            <UIcon name="i-heroicons-cake" class="w-4 h-4 text-white" />
-                          </div>
-                          <div class="flex-1 min-w-0">
-                            <div class="font-semibold text-gray-900 dark:text-white text-sm">Import Recipe</div>
-                            <div class="text-xs text-gray-500 dark:text-gray-400">From URL</div>
-                          </div>
-                        </button>
-                      </div>
-                    </div>
-                  </Transition>
+      <!-- Folders Dropdown -->
+      <Teleport to="body">
+        <Transition
+          enter-active-class="transition-all duration-200 ease-out"
+          enter-from-class="opacity-0 scale-95 translate-y-1"
+          enter-to-class="opacity-100 scale-100 translate-y-0"
+          leave-active-class="transition-all duration-150 ease-in"
+          leave-from-class="opacity-100 scale-100 translate-y-0"
+          leave-to-class="opacity-0 scale-95 translate-y-1"
+        >
+          <div
+            v-if="showMobileFoldersSheet"
+            class="fixed z-50 md:hidden bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl max-h-[70vh] overflow-y-auto"
+            :style="{
+              top: `${foldersDropdownPos.top}px`,
+              left: `${foldersDropdownPos.left}px`,
+              width: `${foldersDropdownPos.width}px`
+            }"
+            @click.stop
+          >
+            <div class="p-2 pb-3">
+              <!-- Breadcrumb Navigation -->
+              <div v-if="currentFolderPath.length > 0" class="mb-3 pb-3 border-b border-gray-200 dark:border-gray-700">
+                <button
+                  @click="handleFolderBack"
+                  class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 active:text-gray-900 dark:active:text-white mb-2"
+                >
+                  <UIcon name="i-heroicons-arrow-left" class="w-4 h-4" />
+                  <span>Back</span>
+                </button>
+                <div class="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
+                  <span>Root</span>
+                  <template v-for="(folderId, index) in currentFolderPath" :key="folderId">
+                    <UIcon name="i-heroicons-chevron-right" class="w-3 h-3" />
+                    <span>{{ foldersStore.getFolderById(folderId)?.name || 'Folder' }}</span>
+                  </template>
                 </div>
-                </template>
-                
-                <!-- Quick Notes Section - Commented Out -->
-                <!--
-                <template v-if="false">
-                  <div class="mb-4">
-                    <div class="w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300">
-                      <UIcon name="i-heroicons-bolt" class="w-5 h-5" />
-                      <span class="flex-1 text-left">Quick Notes</span>
-                      <span class="text-xs px-2 py-0.5 rounded-full bg-gray-200 dark:bg-gray-600">
-                        {{ notesWithoutFolder.length }}
-                      </span>
+              </div>
+              
+              <!-- Header with Create Button -->
+              <div v-if="currentFolderPath.length === 0" class="flex items-center justify-between mb-2 pb-2 border-b border-gray-200 dark:border-gray-700">
+                <h3 class="text-sm font-semibold text-gray-900 dark:text-white">Folders</h3>
+                <button @click="openCreateFolderModal(); showMobileFoldersSheet = false" class="p-1.5 rounded-lg active:bg-gray-100 dark:active:bg-gray-700 text-gray-600 dark:text-gray-400" title="New Folder">
+                  <UIcon name="i-heroicons-plus" class="w-4 h-4" />
+                </button>
+              </div>
+              
+              <div v-if="displayedFolders.length === 0" class="text-center py-8">
+                <UIcon name="i-heroicons-folder-open" class="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-3" />
+                <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">
+                  {{ currentFolderPath.length > 0 ? 'No subfolders' : 'No folders yet' }}
+                </p>
+                <button v-if="currentFolderPath.length === 0" @click="openCreateFolderModal(); showMobileFoldersSheet = false" class="text-sm text-primary-600 dark:text-primary-400 font-medium">Create folder</button>
+              </div>
+              <div v-else class="space-y-1">
+                <div
+                  v-for="folder in displayedFolders"
+                  :key="folder.id"
+                  class="flex items-center gap-1.5 group pr-1"
+                >
+                  <button
+                    @click="handleFolderClick(folder)"
+                    :class="[
+                      'flex-1 flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 active:scale-[0.98] min-w-0',
+                      selectedFolderId === folder.id
+                        ? 'bg-primary-50 dark:bg-primary-900/30 border border-primary-500 dark:border-primary-400'
+                        : 'bg-transparent border border-transparent active:bg-gray-100 dark:active:bg-gray-700'
+                    ]"
+                  >
+                    <!-- Folder Icon -->
+                    <div 
+                      :class="[
+                        'w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0',
+                        selectedFolderId === folder.id
+                          ? 'bg-primary-500 dark:bg-primary-600 text-white'
+                          : 'bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-300'
+                      ]"
+                    >
+                      <UIcon name="i-heroicons-folder" class="w-4 h-4" />
                     </div>
                     
-                    <div v-if="notesWithoutFolder.length > 0" class="mt-1 space-y-0.5">
-                      <div
-                        v-for="note in notesWithoutFolder"
-                        :key="`note-${note.id}`"
-                        class="group/note flex items-center gap-2 rounded-lg transition-colors hover:bg-gray-100 dark:hover:bg-gray-700/50 px-3 py-2"
-                        :class="notesStore.activeTabId === note.id ? 'bg-primary-50 dark:bg-primary-900/20' : ''"
+                    <!-- Folder Name -->
+                    <div class="flex-1 text-left min-w-0">
+                      <div 
+                        :class="[
+                          'text-base font-semibold truncate',
+                          selectedFolderId === folder.id
+                            ? 'text-primary-700 dark:text-primary-300'
+                            : 'text-gray-900 dark:text-white'
+                        ]"
                       >
-                        <div @click="handleOpenNote(note.id)" class="flex items-center gap-2 flex-1 min-w-0 cursor-pointer">
-                          <UIcon 
-                            name="i-heroicons-document-text" 
-                            class="w-4 h-4 flex-shrink-0"
-                            :class="notesStore.activeTabId === note.id ? 'text-primary-600 dark:text-primary-400' : 'text-gray-400'"
-                          />
-                          <span 
-                            class="flex-1 text-sm truncate"
-                            :class="notesStore.activeTabId === note.id ? 'text-primary-700 dark:text-primary-300 font-medium' : 'text-gray-700 dark:text-gray-300'"
-                            :title="note.title"
-                          >
-                            {{ note.title }}
-                          </span>
-                        </div>
-                        
-                        <button
-                          @click.stop="handleDeleteNote(note)"
-                          class="flex-shrink-0 p-1.5 rounded-md opacity-100 hover:bg-red-100 dark:hover:bg-red-900/20 transition-all"
-                          title="Delete note"
-                        >
-                          <UIcon name="i-heroicons-trash" class="w-3.5 h-3.5 text-red-600 dark:text-red-400" />
-                        </button>
+                        {{ folder.name }}
                       </div>
                     </div>
-                  </div>
-                </template>
-                -->
-
-                <!-- Folders Section -->
-                <div class="mt-4">
-                  <div class="flex items-center justify-between px-1 mb-3">
-                    <h3 class="text-base md:text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Folders
-                    </h3>
-                    <button
-                      @click="openCreateFolderModal"
-                      class="p-2 md:p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-                      title="New Folder"
-                    >
-                      <UIcon name="i-heroicons-plus" class="w-6 h-6 md:w-4 md:h-4 text-gray-600 dark:text-gray-400" />
-                    </button>
-                  </div>
-
-                  <div v-if="foldersStore.folderTree.length === 0" class="px-3 py-6 text-center">
-                    <UIcon name="i-heroicons-folder-open" class="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-2" />
-                    <p class="text-base md:text-sm text-gray-500 dark:text-gray-400 mb-3">No folders yet</p>
-                    <button
-                      @click="openCreateFolderModal"
-                      class="text-base md:text-sm text-primary-600 dark:text-primary-400 hover:underline"
-                    >
-                      Create your first folder
-                    </button>
-                  </div>
-
-                  <!-- Folder Tree with Notes - Wrapped in overflow container to clip animation at header -->
-                  <div v-else class="overflow-hidden" style="min-height: 0;">
-                    <div class="space-y-0.5">
-                      <FolderTreeItem
-                        v-for="folder in foldersStore.folderTree"
-                        :key="folder.id"
-                        :folder="folder"
-                        :selected-id="selectedFolderId"
-                        :is-expanded="foldersStore.expandedFolderIds.has(folder.id)"
-                        :publish-status="folderPublishStatuses.get(folder.id)"
-                        @select="selectFolder"
-                        @toggle="handleToggleFolder"
-                      @create-subfolder="handleCreateSubfolder"
-                      @create-note="handleCreateNoteInFolder"
-                      @create-list-note="handleListNoteInFolder"
-                      @create-template-note="handleTemplateNoteInFolder"
-                      @create-ai-note="handleAiGenerateInFolder"
-                @import-recipe="handleRecipeImportInFolder"
-                @rename="handleRenameFolder"
-                @delete="handleDeleteFolder"
-                @publish="handlePublishFolder"
-                @unpublish="handleUnpublishFolder"
-                @copy-link="handleCopyFolderLink"
-                @check-publish-status="checkFolderPublishStatus"
-                @move-up="handleMoveUp"
-                @move-down="handleMoveDown"
-                @reorder-folder="handleFolderReorder"
-                @open-note="handleFolderNoteClick"
-                @delete-note="(noteId) => handleDeleteNote(notesStore.notes.find(n => n.id === noteId)!)"
-              />
+                    
+                    <!-- Subfolder Indicator or Active Indicator -->
+                    <div class="flex items-center gap-2 flex-shrink-0">
+                      <span v-if="hasSubfolders(folder.id)" class="text-xs text-gray-400 dark:text-gray-500">
+                        {{ getSubfolderCount(folder.id) }}
+                      </span>
+                      <UIcon 
+                        v-if="hasSubfolders(folder.id)" 
+                        name="i-heroicons-chevron-right" 
+                        class="w-4 h-4 text-gray-400 dark:text-gray-500" 
+                      />
+                      <UIcon 
+                        v-else-if="selectedFolderId === folder.id" 
+                        name="i-heroicons-check-circle" 
+                        class="w-5 h-5 text-primary-600 dark:text-primary-400" 
+                      />
                     </div>
-                  </div>
-                </div>
-
-              </div>
-
-              <!-- Drawer Footer -->
-              <div class="p-4 md:p-3 border-t border-gray-200 dark:border-gray-700">
-                <div class="flex items-center gap-4 md:gap-3 p-2 mb-3 md:mb-2">
-                  <div class="w-12 h-12 md:w-8 md:h-8 bg-gradient-to-br from-primary-400 to-primary-600 rounded-full flex items-center justify-center text-white text-lg md:text-sm font-semibold">
-                    {{ userInitial }}
-                  </div>
-                  <div class="flex-1 min-w-0">
-                    <p class="text-lg md:text-sm font-medium text-gray-900 dark:text-white truncate">
-                      {{ authStore.currentUser?.name || 'User' }}
-                    </p>
-                    <p class="text-base md:text-xs text-gray-500 dark:text-gray-400 truncate">
-                      {{ authStore.currentUser?.email }}
-                    </p>
-                  </div>
-                </div>
-                <div class="space-y-2">
-                  <UButton
-                    icon="i-heroicons-cog-6-tooth"
-                    color="neutral"
-                    variant="soft"
-                    block
-                    @click="navigateTo('/settings'); isMobileSidebarOpen = false"
+                  </button>
+                  
+                  <!-- Folder Menu Button -->
+                  <button
+                    v-if="!hasSubfolders(folder.id)"
+                    @click.stop="handleOpenFolderMenu(folder.id, $event)"
+                    class="p-2.5 rounded-lg transition-colors active:bg-gray-100 dark:active:bg-gray-700 text-gray-500 dark:text-gray-400 active:text-gray-700 dark:active:text-gray-200 flex-shrink-0 -mr-1"
+                    aria-label="Folder menu"
                   >
-                    Settings
-                  </UButton>
-                  <UButton
-                    icon="i-heroicons-arrow-right-on-rectangle"
-                    color="error"
-                    variant="soft"
-                    block
-                    @click="isMobileSidebarOpen = false; authStore.logout()"
-                  >
-                    Logout
-                  </UButton>
+                    <UIcon name="i-heroicons-ellipsis-vertical" class="w-5 h-5" />
+                  </button>
                 </div>
               </div>
             </div>
           </div>
         </Transition>
+        <!-- Backdrop -->
+        <div
+          v-if="showMobileFoldersSheet"
+          class="fixed inset-0 z-40 md:hidden bg-black/20"
+          @click="handleCloseFolderMenu(); showMobileFoldersSheet = false"
+        />
+      </Teleport>
+      
+      <!-- Folder Menu Dropdown -->
+      <Teleport to="body">
+        <Transition
+          enter-active-class="transition-all duration-200 ease-out"
+          enter-from-class="opacity-0 scale-95 translate-y-1"
+          enter-to-class="opacity-100 scale-100 translate-y-0"
+          leave-active-class="transition-all duration-150 ease-in"
+          leave-from-class="opacity-100 scale-100 translate-y-0"
+          leave-to-class="opacity-0 scale-95 translate-y-1"
+        >
+          <div
+            v-if="folderMenuOpen !== null"
+            class="fixed z-50 md:hidden bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl"
+            :style="{
+              top: `${folderMenuPos.top}px`,
+              left: `${folderMenuPos.left}px`,
+              width: `${folderMenuPos.width}px`
+            }"
+            @click.stop
+          >
+            <div class="p-2">
+              <button
+                @click="handleCreateNoteInFolder(folderMenuOpen!); handleCloseFolderMenu(); showMobileFoldersSheet = false"
+                :disabled="isCreating"
+                class="w-full text-left px-4 py-3 rounded-lg active:bg-primary-50 dark:active:bg-primary-900/20 flex items-center gap-3 transition-colors disabled:opacity-50"
+              >
+                <UIcon name="i-heroicons-document-plus" class="w-4 h-4 text-primary-600 dark:text-primary-400" />
+                <span class="text-sm font-medium text-gray-900 dark:text-white">Create Note</span>
+              </button>
+            </div>
+          </div>
+        </Transition>
+        <!-- Backdrop for folder menu -->
+        <div
+          v-if="folderMenuOpen !== null"
+          class="fixed inset-0 z-40 md:hidden bg-black/20"
+          @click="handleCloseFolderMenu()"
+        />
       </Teleport>
 
-      <!-- Main Content Area -->
-      <div class="flex-1 flex flex-col overflow-hidden transition-all duration-300 ease-in-out">
+
+        <!-- Main Content Area -->
+        <div class="flex-1 flex flex-col overflow-hidden transition-all duration-300 ease-in-out">
         <!-- Tab Bar with Actions -->
         <div class="hidden md:flex flex-shrink-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
           <div class="flex items-center justify-between w-full">
@@ -3440,99 +4053,131 @@ onMounted(() => {
           </div>
         </div>
 
-        <!-- Mobile Action Bar (only on mobile) - Always visible to show hamburger menu -->
-        <div class="md:hidden flex items-center justify-between gap-2 px-4 py-2 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
-          <!-- Hamburger Menu Button (Left) - Always visible -->
-          <button
-            @click="isMobileSidebarOpen = true"
-            class="p-2 rounded-lg transition-colors hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400"
-            aria-label="Open menu"
-          >
-            <UIcon name="i-heroicons-bars-3" class="w-5 h-5" />
-          </button>
-          
-          <!-- Action Buttons Group (Right) - Only show when note is active -->
-          <div v-if="activeNote" class="flex items-center gap-2">
-                <!-- Lock/Unlock Button -->
-                <button
-                  v-if="!activeNote.is_shared && !activeNote.share_permission"
-                  @click="toggleLock"
-                  :title="isLocked ? 'Unlock Note' : 'Lock Note'"
-                  class="p-2 rounded-lg transition-colors hover:bg-gray-100 dark:hover:bg-gray-700"
-                  :class="isLocked ? 'text-amber-600 dark:text-amber-400' : 'text-gray-500 dark:text-gray-400'"
-                >
-                  <UIcon :name="isLocked ? 'i-heroicons-lock-closed' : 'i-heroicons-lock-open'" class="w-5 h-5" />
-                </button>
-                
-                <!-- Polish with AI -->
-                <button
-                  v-if="!isLocked && !activeNote.is_shared && !activeNote.share_permission"
-                  @click="polishNote"
-                  :disabled="isPolishing"
-                  class="p-2 rounded-lg transition-colors hover:bg-purple-50 dark:hover:bg-purple-900/20 disabled:opacity-50"
-                  :class="isPolishing ? 'text-purple-600 dark:text-purple-400' : 'text-purple-500 dark:text-purple-400'"
-                  title="Polish with AI"
-                >
-                  <UIcon 
-                    name="i-heroicons-sparkles" 
-                    :class="isPolishing ? 'animate-pulse opacity-70' : ''" 
-                    class="w-5 h-5 transition-opacity" 
-                  />
-                </button>
-                
-                <!-- Publish/Unpublish Note Button -->
-                <button
-                  v-if="activeNote.user_id === authStore.currentUser?.id && !activeNote.is_shared && !activeNote.share_permission"
-                  @click="handlePublishButtonClick"
-                  :disabled="isPublishing"
-                  class="p-2 rounded-lg transition-colors"
-                  :class="publishStatus?.is_published 
-                    ? 'hover:bg-primary-50 dark:hover:bg-primary-900/20 text-primary-600 dark:text-primary-400' 
-                    : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400'"
-                  :title="publishStatus?.is_published ? 'View/Copy Share Link' : 'Publish Note'"
-                >
-                  <UIcon 
-                    :name="publishStatus?.is_published ? 'i-heroicons-globe-alt' : 'i-heroicons-link'"
-                    :class="isPublishing ? 'animate-spin' : ''"
-                    class="w-5 h-5" 
-                  />
-                </button>
-                
-                <!-- File Upload Button -->
-                <button
-                  v-if="!isLocked && (activeNote.user_id === authStore.currentUser?.id || activeNote.share_permission === 'editor')"
-                  @click="triggerFileUpload"
-                  class="p-2 rounded-lg transition-colors hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400"
-                  title="Upload File"
-                >
-                  <UIcon name="i-heroicons-paper-clip" class="w-5 h-5" />
-                </button>
-                
-              </div>
-        </div>
-
         <!-- Note Editor Area - Fully Scrollable -->
-        <div class="flex-1 overflow-y-auto" :class="activeNote ? (isLocked ? 'bg-white dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-900') : 'bg-gray-50 dark:bg-gray-900'">
-          <!-- No tabs open state -->
-          <Transition name="fade-out" mode="out-in">
-            <div v-if="!activeNote" key="no-note" class="min-h-full flex items-center justify-center">
-              <div class="text-center">
-                <UIcon name="i-heroicons-document-text" class="w-20 h-20 mx-auto text-gray-300 dark:text-gray-600 mb-4" />
-                <h3 class="text-xl font-semibold text-gray-900 dark:text-white mb-2">No note selected</h3>
-                <p class="text-gray-500 dark:text-gray-400 mb-6">Select a note from the sidebar or create a new one by right-clicking on a folder</p>
-                <!-- <UButton 
-                  @click="handleCreateNote" 
-                  icon="i-heroicons-plus"
-                  :loading="isCreating"
-                  :disabled="isCreating"
-                >
-                  Create Note
-                </UButton> -->
+        <div class="flex-1 overflow-y-auto md:pb-0 pb-16 relative" :class="activeNote ? (isLocked ? 'bg-white dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-900') : 'bg-gray-50 dark:bg-gray-900'">
+          <!-- Loading indicator when loading note from search (mobile only) - Show first to prevent flash -->
+          <!-- CRITICAL: Show loading indicator when isLoadingNoteFromSearch is true, regardless of activeNote state -->
+          <!-- Use v-show for instant visibility (element always in DOM, just toggles display) -->
+          <div v-show="isLoadingNoteFromSearch || noteJustSelectedFromSearch" class="md:hidden flex items-center justify-center min-h-full absolute inset-0 bg-gray-50 dark:bg-gray-900 z-50">
+            <div class="flex flex-col items-center gap-3">
+              <UIcon 
+                name="i-heroicons-arrow-path" 
+                class="w-8 h-8 text-primary-500 dark:text-primary-400 animate-spin" 
+              />
+              <p class="text-sm text-gray-500 dark:text-gray-400">Loading note...</p>
+            </div>
+          </div>
+          
+          <!-- Mobile Notes List (when no note active) - Use computed to prevent flash -->
+          <!-- CRITICAL: Use computed property to ensure empty state never shows when loading -->
+          <!-- Use v-show with negative condition for instant hiding -->
+          <template v-if="shouldShowEmptyState && !isLoadingNoteFromSearch && !noteJustSelectedFromSearch">
+            <div class="md:hidden min-h-full p-4">
+              <div class="max-w-2xl mx-auto">
+                <div v-if="selectedFolderId === null" class="text-center py-12">
+                  <UIcon name="i-heroicons-folder" class="w-16 h-16 mx-auto text-gray-300 dark:text-gray-600 mb-4" />
+                  <p class="text-base text-gray-500 dark:text-gray-400 mb-4">
+                    Select a folder to view notes
+                  </p>
+                  <button 
+                    @click="handleOpenFoldersSheet" 
+                    class="text-base text-primary-600 dark:text-primary-400 font-medium"
+                  >
+                    Select Folder
+                  </button>
+                </div>
+                
+                <div v-else>
+                  <div class="mb-4 flex items-center justify-between">
+                    <div>
+                      <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+                        {{ foldersStore.getFolderById(selectedFolderId)?.name || 'Folder' }}
+                      </h2>
+                      <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                        {{ displayNotes.length }} {{ displayNotes.length === 1 ? 'note' : 'notes' }}
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div v-if="displayNotes.length === 0" class="text-center py-12">
+                    <UIcon name="i-heroicons-document-text" class="w-16 h-16 mx-auto text-gray-300 dark:text-gray-600 mb-4" />
+                    <p class="text-base text-gray-500 dark:text-gray-400 mb-4">
+                      No notes in this folder
+                    </p>
+                    <button 
+                      @click="handleCreateNoteInFolder(selectedFolderId)" 
+                      class="text-base text-primary-600 dark:text-primary-400 font-medium"
+                      :disabled="isCreating"
+                    >
+                      Create your first note
+                    </button>
+                  </div>
+                  
+                  <div v-else class="space-y-2">
+                    <button
+                      v-for="note in displayNotes"
+                      :key="note.id"
+                      @click="handleOpenNote(String(note.id))"
+                      :class="[
+                        'w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 active:scale-[0.98]',
+                        notesStore.activeTabId === note.id
+                          ? 'bg-primary-50 dark:bg-primary-900/30 border-2 border-primary-500 dark:border-primary-400'
+                          : 'bg-white dark:bg-gray-800 border-2 border-transparent active:bg-gray-100 dark:active:bg-gray-700 shadow-sm'
+                      ]"
+                    >
+                      <!-- Note Icon -->
+                      <div 
+                        :class="[
+                          'w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0',
+                          notesStore.activeTabId === note.id
+                            ? 'bg-primary-500 dark:bg-primary-600 text-white'
+                            : 'bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-300'
+                        ]"
+                      >
+                        <UIcon name="i-heroicons-document-text" class="w-5 h-5" />
+                      </div>
+                      
+                      <!-- Note Title -->
+                      <div class="flex-1 text-left min-w-0">
+                        <div 
+                          :class="[
+                            'text-base font-semibold truncate',
+                            notesStore.activeTabId === note.id
+                              ? 'text-primary-700 dark:text-primary-300'
+                              : 'text-gray-900 dark:text-white'
+                          ]"
+                        >
+                          {{ note.title || 'Untitled Note' }}
+                        </div>
+                        <div class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                          {{ formatDate(note.updated_at) }}
+                        </div>
+                      </div>
+                      
+                      <!-- Active Indicator -->
+                      <div v-if="notesStore.activeTabId === note.id" class="flex-shrink-0">
+                        <UIcon name="i-heroicons-check-circle" class="w-6 h-6 text-primary-600 dark:text-primary-400" />
+                      </div>
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
+            
+            <!-- No tabs open state (desktop only) -->
+            <Transition name="fade-out" mode="out-in">
+              <div v-if="selectedFolderId === null" key="no-note" class="hidden md:flex min-h-full items-center justify-center">
+                <div class="text-center">
+                  <UIcon name="i-heroicons-folder" class="w-20 h-20 mx-auto text-gray-300 dark:text-gray-600 mb-4" />
+                  <h3 class="text-xl font-semibold text-gray-900 dark:text-white mb-2">Select a folder</h3>
+                  <p class="text-gray-500 dark:text-gray-400 mb-6">Choose a folder from the sidebar to view its notes</p>
+                </div>
+              </div>
+            </Transition>
+          </template>
 
-            <!-- Note Editor - Everything Scrolls Together -->
-            <div v-else :key="`note-${activeNote?.id || 'empty'}-space-${spacesStore.currentSpaceId}`">
+          <!-- Note Editor - Everything Scrolls Together -->
+          <div v-else-if="activeNote" :key="`note-${activeNote?.id || 'empty'}-space-${spacesStore.currentSpaceId}`" class="min-h-full">
             <!-- Header Section - Full Width -->
             <div class="border-b border-gray-200 dark:border-gray-700 shadow-sm bg-gradient-to-b from-transparent to-gray-50/50 dark:to-gray-800/50">
               <div class="max-w-5xl xl:max-w-7xl 2xl:max-w-[1600px] mx-auto px-4 md:px-6 pt-6 pb-4">
@@ -3547,11 +4192,11 @@ onMounted(() => {
                   <input
                     v-model="editForm.title"
                     type="text"
-                    :disabled="activeNote.is_shared || !!activeNote.share_permission"
+                    :disabled="activeNote?.is_shared || !!activeNote?.share_permission"
                     class="w-full bg-transparent border-none outline-none text-3xl md:text-4xl font-bold text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-0 disabled:cursor-not-allowed disabled:opacity-70"
                     placeholder="Untitled Note"
                   />
-                  <p v-if="activeNote.is_shared || activeNote.share_permission" class="text-xs text-gray-500 dark:text-gray-400 mt-1 flex items-center gap-1">
+                  <p v-if="activeNote?.is_shared || activeNote?.share_permission" class="text-xs text-gray-500 dark:text-gray-400 mt-1 flex items-center gap-1">
                     <UIcon name="i-heroicons-lock-closed" class="w-3 h-3" />
                     Title is locked for shared notes to avoid confusion while collaborating
                   </p>
@@ -3580,7 +4225,7 @@ onMounted(() => {
             </div>
 
             <!-- Metadata: Folder + Tags -->
-            <div v-if="!isLocked && !activeNote.share_permission" class="flex items-center gap-4 text-sm flex-wrap">
+            <div v-if="!isLocked && activeNote && !activeNote.share_permission" class="flex items-center gap-4 text-sm flex-wrap">
               <!-- Folder -->
               <!-- <div class="flex items-center gap-2 relative">
                 <UIcon name="i-heroicons-folder" class="w-3.5 h-3.5 text-gray-400" />
@@ -3653,7 +4298,7 @@ onMounted(() => {
             </div>
             
             <!-- Read-only metadata (when locked OR when user is not owner) -->
-            <div v-else-if="(isLocked || activeNote.share_permission) && (selectedFolderName || editForm.tags?.length)" class="flex items-center gap-3 text-xs flex-wrap">
+            <div v-else-if="activeNote && (isLocked || activeNote.share_permission) && (selectedFolderName || editForm.tags?.length)" class="flex items-center gap-3 text-xs flex-wrap">
               <!-- <div v-if="selectedFolderName || !editForm.folder_id" class="flex items-center gap-2">
                 <UIcon name="i-heroicons-folder" class="w-3.5 h-3.5 text-gray-400" />
                 <span class="text-gray-600 dark:text-gray-400">{{ selectedFolderName || 'No folder' }}</span>
@@ -3702,7 +4347,7 @@ onMounted(() => {
                       <span>{{ attachment.file_name }}</span>
                     </a>
                     <button
-                      v-if="!isLocked && (activeNote.user_id === authStore.currentUser?.id || activeNote.share_permission === 'editor')"
+                      v-if="activeNote && !isLocked && (activeNote.user_id === authStore.currentUser?.id || activeNote.share_permission === 'editor')"
                       @click="deleteAttachment(attachment.id)"
                       class="opacity-0 group-hover:opacity-100 transition-opacity text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300"
                       :title="`Delete ${attachment.file_name}`"
@@ -3725,8 +4370,9 @@ onMounted(() => {
               <!-- Use UnifiedEditor for all notes (collaborative or regular) -->
               <ClientOnly>
                 <UnifiedEditor
-                  v-if="activeNote.is_shared || activeNote.share_permission"
+                  v-if="activeNote && (activeNote.is_shared || activeNote.share_permission)"
                   ref="collaborativeEditorRef"
+                  data-note-editor
                   :key="`collab-${activeNote.id}-${authStore.currentUser?.id || 'anon'}`"
                   :is-collaborative="true"
                   :note-id="activeNote.id"
@@ -3738,12 +4384,13 @@ onMounted(() => {
                   @update:content="(content) => { if (activeNote) activeNote.content = content }"
                 />
                 <UnifiedEditor
-                  v-else
+                  v-else-if="activeNote"
                   ref="tiptapEditorRef"
                   :key="`regular-${activeNote.id}`"
+                  data-note-editor
                   v-model="editForm.content"
                   :is-collaborative="false"
-                  :note-id="activeNote?.id"
+                  :note-id="activeNote.id"
                   :editable="!isLocked"
                   :show-toolbar="false"
                   placeholder="Start writing... Right-click for options or press ? for keyboard shortcuts"
@@ -3751,7 +4398,6 @@ onMounted(() => {
               </ClientOnly>
             </div>
           </div>
-          </Transition>
         </div>
 
         <!-- Floating Action Button with Menu - Commented Out -->
@@ -3889,6 +4535,91 @@ onMounted(() => {
               <UButton color="error" block @click="confirmDelete" :loading="isDeleting" :disabled="isDeleting">Delete</UButton>
             </div>
           </div>
+        </div>
+      </Transition>
+    </Teleport>
+
+    <!-- Mobile Delete Confirmation Modal -->
+    <Teleport to="body">
+      <Transition
+        enter-active-class="transition-all duration-200 ease-out"
+        enter-from-class="opacity-0"
+        enter-to-class="opacity-100"
+        leave-active-class="transition-all duration-150 ease-in"
+        leave-from-class="opacity-100"
+        leave-to-class="opacity-0"
+      >
+        <div
+          v-if="showMobileDeleteModal"
+          class="fixed inset-0 z-50 md:hidden flex items-start justify-center pt-16 px-4"
+        >
+          <!-- Backdrop -->
+          <div 
+            class="absolute inset-0 bg-black/50 backdrop-blur-sm" 
+            @click="cancelDeleteMobile"
+          />
+          
+          <!-- Modal Content -->
+          <Transition
+            enter-active-class="transition-all duration-200 ease-out"
+            enter-from-class="opacity-0 -translate-y-4 scale-95"
+            enter-to-class="opacity-100 translate-y-0 scale-100"
+            leave-active-class="transition-all duration-150 ease-in"
+            leave-from-class="opacity-100 translate-y-0 scale-100"
+            leave-to-class="opacity-0 -translate-y-4 scale-95"
+          >
+            <div
+              v-if="showMobileDeleteModal"
+              class="relative bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md border border-gray-200 dark:border-gray-700"
+              @click.stop
+            >
+              
+              <div class="px-6 py-6">
+                <!-- Icon -->
+                <div class="flex items-center justify-center w-16 h-16 mx-auto mb-4 bg-red-100 dark:bg-red-900/30 rounded-full">
+                  <UIcon name="i-heroicons-trash" class="w-8 h-8 text-red-600 dark:text-red-400" />
+                </div>
+                
+                <!-- Title -->
+                <h3 class="text-xl font-semibold text-gray-900 dark:text-white text-center mb-2">
+                  Delete Note?
+                </h3>
+                
+                <!-- Message -->
+                <p class="text-sm text-gray-600 dark:text-gray-400 text-center mb-6">
+                  Are you sure you want to delete 
+                  <span class="font-semibold text-gray-900 dark:text-white">
+                    "{{ noteToDeleteMobile?.title || 'Untitled Note' }}"
+                  </span>? 
+                  This action cannot be undone.
+                </p>
+                
+                <!-- Action Buttons -->
+                <div class="flex flex-col gap-3">
+                  <button
+                    @click="confirmDeleteMobile"
+                    :disabled="isDeleting"
+                    class="w-full px-4 py-3.5 bg-red-600 hover:bg-red-700 dark:bg-red-600 dark:hover:bg-red-700 text-white font-semibold rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    <UIcon 
+                      v-if="isDeleting"
+                      name="i-heroicons-arrow-path" 
+                      class="w-5 h-5 animate-spin" 
+                    />
+                    <span>{{ isDeleting ? 'Deleting...' : 'Delete' }}</span>
+                  </button>
+                  
+                  <button
+                    @click="cancelDeleteMobile"
+                    :disabled="isDeleting"
+                    class="w-full px-4 py-3.5 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-900 dark:text-white font-semibold rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          </Transition>
         </div>
       </Transition>
     </Teleport>
@@ -4207,7 +4938,8 @@ onMounted(() => {
     <SearchModal 
       :is-open="showSearchModal"
       @update:is-open="showSearchModal = $event"
-      @selected="handleNoteSelected"
+      @loading-start="handleLoadingStart"
+      @selected="(note, isLoading) => handleNoteSelected(note, isLoading)"
     />
 
     <!-- Publish Modal -->
@@ -4430,7 +5162,8 @@ onMounted(() => {
         </div>
       </Transition>
     </Teleport>
-  </div>
+      </div>
+    </div>
 </template>
 
 <style scoped>
@@ -4504,29 +5237,61 @@ onMounted(() => {
   width: 0;
 }
 
-/* Drawer animation - Smooth slide-in from left */
-.drawer-enter-active {
-  transition: opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.drawer-leave-active {
+/* Bottom Sheet animation - Slide up from bottom */
+.sheet-enter-active {
   transition: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.drawer-enter-active .absolute.left-0 {
-  transition: transform 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+.sheet-leave-active {
+  transition: opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.drawer-leave-active .absolute.left-0 {
-  transition: transform 0.3s cubic-bezier(0.55, 0.055, 0.675, 0.19);
+.sheet-enter-active .absolute.bottom-0 {
+  transition: transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
 }
 
-.drawer-enter-from .absolute.left-0 {
-  transform: translateX(-100%);
+.sheet-leave-active .absolute.bottom-0 {
+  transition: transform 0.25s cubic-bezier(0.55, 0.055, 0.675, 0.19);
 }
 
-.drawer-leave-to .absolute.left-0 {
-  transform: translateX(-100%);
+.sheet-enter-from .absolute.bottom-0 {
+  transform: translateY(100%);
+}
+
+.sheet-leave-to .absolute.bottom-0 {
+  transform: translateY(100%);
+}
+
+.sheet-enter-from .absolute.inset-0.bg-black\/50 {
+  opacity: 0;
+}
+
+.sheet-leave-to .absolute.inset-0.bg-black\/50 {
+  opacity: 0;
+}
+
+/* Mobile-specific: Remove hover states, use active/tap states only */
+@media (max-width: 767px) {
+  /* Disable all hover effects on mobile */
+  * {
+    -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
+  }
+  
+  /* Remove hover states on mobile - use active states instead */
+  /* Hover states are disabled via md: prefix in classes */
+  
+  /* Ensure active states work properly */
+  button:active,
+  a:active {
+    transform: scale(0.98);
+    transition: transform 0.1s ease;
+  }
+  
+  /* Make buttons more tactile */
+  button {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
 }
 
 .drawer-enter-from .absolute.inset-0.bg-black\/50 {

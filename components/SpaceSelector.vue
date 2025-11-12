@@ -149,7 +149,7 @@ const currentSpace = computed(() => {
     <!-- Space Selector Button -->
     <button
       @click="isDropdownOpen = !isDropdownOpen"
-      class="w-full flex items-center justify-between gap-3 md:gap-2 px-4 md:px-3 py-3 md:py-2.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors text-left border border-gray-200 dark:border-gray-700"
+      class="w-full flex items-center justify-between gap-3 md:gap-2 px-4 md:px-3 py-3 md:py-2.5 rounded-lg md:hover:bg-gray-100 md:dark:hover:bg-gray-700/50 active:bg-gray-100 dark:active:bg-gray-700/50 transition-colors text-left border border-gray-200 dark:border-gray-700"
       :class="isDropdownOpen ? 'bg-gray-100 dark:bg-gray-700/50 border-primary-300 dark:border-primary-700' : 'border-transparent'"
     >
       <div class="flex items-center gap-3 md:gap-2 flex-1 min-w-0">
@@ -197,7 +197,7 @@ const currentSpace = computed(() => {
           <div
             v-for="space in spacesStore.spaces"
             :key="space.id"
-            class="group flex items-center justify-between px-4 md:px-3 py-3 md:py-2 hover:bg-gray-100 dark:hover:bg-gray-700/50 cursor-pointer transition-colors"
+            class="group flex items-center justify-between px-4 md:px-3 py-3 md:py-2 md:hover:bg-gray-100 md:dark:hover:bg-gray-700/50 active:bg-gray-100 dark:active:bg-gray-700/50 cursor-pointer transition-colors"
             :class="space.id === spacesStore.currentSpaceId ? 'bg-primary-50 dark:bg-primary-900/20' : ''"
             @click="handleSelectSpace(space.id)"
           >
@@ -234,7 +234,7 @@ const currentSpace = computed(() => {
             <div class="flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
               <button
                 @click="handleEditSpace({ id: space.id, name: space.name }, $event)"
-                class="p-1.5 md:p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                class="p-1.5 md:p-1 rounded md:hover:bg-gray-200 md:dark:hover:bg-gray-600 active:bg-gray-200 dark:active:bg-gray-600 transition-colors"
                 title="Edit space"
               >
                 <UIcon name="i-heroicons-pencil" class="w-4 h-4 md:w-3.5 md:h-3.5 text-gray-600 dark:text-gray-400" />
@@ -242,7 +242,7 @@ const currentSpace = computed(() => {
               <button
                 v-if="spacesStore.spaces.length > 1"
                 @click="handleDeleteSpace(space.id, $event)"
-                class="p-1.5 md:p-1 rounded hover:bg-red-100 dark:hover:bg-red-900/20 transition-colors"
+                class="p-1.5 md:p-1 rounded md:hover:bg-red-100 md:dark:hover:bg-red-900/20 active:bg-red-100 dark:active:bg-red-900/20 transition-colors"
                 title="Delete space"
               >
                 <UIcon name="i-heroicons-trash" class="w-4 h-4 md:w-3.5 md:h-3.5 text-red-600 dark:text-red-400" />
@@ -257,7 +257,7 @@ const currentSpace = computed(() => {
         <!-- New Space Button -->
         <button
           @click="handleNewSpace"
-          class="w-full flex items-center gap-3 md:gap-2 px-4 md:px-3 py-3 md:py-2 text-lg md:text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors"
+          class="w-full flex items-center gap-3 md:gap-2 px-4 md:px-3 py-3 md:py-2 text-lg md:text-sm text-gray-700 dark:text-gray-300 md:hover:bg-gray-100 md:dark:hover:bg-gray-700/50 active:bg-gray-100 dark:active:bg-gray-700/50 transition-colors"
         >
           <UIcon name="i-heroicons-plus" class="w-5 h-5 md:w-4 md:h-4 text-gray-500 dark:text-gray-400" />
           <span>New Space</span>
@@ -324,7 +324,7 @@ const currentSpace = computed(() => {
                     <button
                       type="button"
                       @click="cancelDelete"
-                      class="flex-shrink-0 text-gray-400 hover:text-gray-500 dark:hover:text-gray-300 transition-colors"
+                      class="flex-shrink-0 text-gray-400 md:hover:text-gray-500 md:dark:hover:text-gray-300 active:text-gray-500 dark:active:text-gray-300 transition-colors"
                       :disabled="isDeleting"
                     >
                       <UIcon name="i-heroicons-x-mark" class="w-6 h-6" />

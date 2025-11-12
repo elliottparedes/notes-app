@@ -1711,11 +1711,14 @@ onBeforeUnmount(() => {
   table-layout: auto;
   /* width is set above with right margin for clickability */
   margin: 1rem 0;
-  overflow: hidden;
   display: block;
   max-width: 100%;
   overflow-x: auto;
+  overflow-y: hidden;
   white-space: nowrap;
+  /* Enable smooth scrolling on mobile */
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x;
 }
 
 /* Reset table to standard display for tbody, thead, etc */
