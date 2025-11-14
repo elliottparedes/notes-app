@@ -29,6 +29,7 @@ import TableCell from '@tiptap/extension-table-cell'
 import TableHeader from '@tiptap/extension-table-header'
 import Image from '@tiptap/extension-image'
 import Gapcursor from '@tiptap/extension-gapcursor'
+import History from '@tiptap/extension-history'
 import { Extension, Mark } from '@tiptap/core'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 import { TextSelection } from '@tiptap/pm/state'
@@ -958,6 +959,12 @@ const baseExtensions = [
     placeholder: props.placeholder || 'Start writing...'
   }),
 ]
+
+// CONDITIONAL: Add History extension only for non-collaborative notes
+// (Collaborative editing uses Y.Doc's own history mechanism)
+if (!props.isCollaborative || !ydoc) {
+  baseExtensions.push(History)
+}
 
 // CONDITIONAL: Add Collaboration extension only if collaborative
 if (props.isCollaborative && ydoc) {
