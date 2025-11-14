@@ -874,12 +874,9 @@ onMounted(() => {
   // Attach to document for drag events (use capture to catch events early)
   document.addEventListener('dragover', handleFolderDragOver, true);
   
-  // Close context menu when clicking outside (mobile only)
+  // Close context menu when clicking outside
   const handleClickOutside = (event: MouseEvent) => {
     if (!showContextMenu.value) return;
-    
-    // Only handle clicks on mobile
-    if (!isMobile()) return;
     
     const target = event.target as HTMLElement;
     
@@ -898,12 +895,18 @@ onMounted(() => {
       return;
     }
     
-    // Close if clicking anywhere else
+    // Don't close if clicking on a button (as per user requirement: "anywhere but a button")
+    // This ensures buttons can handle their own clicks without closing the menu
+    if (target.tagName === 'BUTTON' || target.closest('button')) {
+      return;
+    }
+    
+    // Close if clicking anywhere else (not a button, not inside menu, not the menu button)
     showContextMenu.value = false;
   };
   
-  // Use a watcher to add/remove listener only when menu is open on mobile
-  watch(() => showContextMenu.value && isMobile(), (shouldListen) => {
+  // Use a watcher to add/remove listener only when menu is open
+  watch(() => showContextMenu.value, (shouldListen) => {
     if (shouldListen) {
       // Add listener on next tick to avoid interfering with the toggle
       setTimeout(() => {

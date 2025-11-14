@@ -3921,7 +3921,14 @@ onMounted(() => {
         <div
           v-if="folderMenuOpen !== null"
           class="fixed inset-0 z-40 md:hidden bg-black/20"
-          @click="handleCloseFolderMenu()"
+          @click="(e) => {
+            const target = e.target as HTMLElement;
+            // Don't close if clicking on a button
+            if (target.tagName === 'BUTTON' || target.closest('button')) {
+              return;
+            }
+            handleCloseFolderMenu();
+          }"
         />
       </Teleport>
 

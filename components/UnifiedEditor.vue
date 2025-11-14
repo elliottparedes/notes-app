@@ -730,6 +730,7 @@ const contextMenuPos = ref({ x: 0, y: 0 })
 const contextMenuSubmenu = ref<string | null>(null)
 const submenuButtonRefs = ref<{ [key: string]: HTMLElement | null }>({})
 const editorContainer = ref<HTMLElement | null>(null)
+const linkClickHandlerRef = ref<((event: MouseEvent) => void) | null>(null)
 
 // Modal states
 const showLinkModal = ref(false)
@@ -857,8 +858,52 @@ const baseExtensions = [
   OrderedList,
   ListItem,
   // Links and images
-  Link.configure({
-    openOnClick: false,
+  Link.extend({
+    addProseMirrorPlugins() {
+      return [
+        ...(this.parent?.() || []),
+        new Plugin({
+          key: new PluginKey('linkClickHandler'),
+          props: {
+            handleDOMEvents: {
+              click: (view, event) => {
+                const target = event.target as HTMLElement
+                let link: HTMLAnchorElement | null = null
+                
+                if (target.tagName === 'A') {
+                  link = target as HTMLAnchorElement
+                } else {
+                  link = target.closest('a')
+                }
+                
+                if (link && link.href) {
+                  // If Ctrl/Cmd is held, allow default behavior (editing in editable mode)
+                  if (event.ctrlKey || event.metaKey) {
+                    return false
+                  }
+                  
+                  // Prevent default and open in new tab
+                  event.preventDefault()
+                  event.stopPropagation()
+                  
+                  let href = link.href
+                  if (!href.startsWith('http://') && !href.startsWith('https://') && !href.startsWith('mailto:') && !href.startsWith('#')) {
+                    href = 'https://' + href
+                  }
+                  
+                  window.open(href, '_blank', 'noopener,noreferrer')
+                  return true
+                }
+                
+                return false
+              }
+            }
+          }
+        })
+      ]
+    }
+  }).configure({
+    openOnClick: true,
     HTMLAttributes: {
       class: 'text-primary-600 dark:text-primary-400 hover:underline cursor-pointer'
     },
@@ -1025,7 +1070,8 @@ watch(editor, (editorInstance) => {
       const viewportHeight = window.innerHeight
       const viewportWidth = window.innerWidth
       const menuWidth = 224
-      const estimatedMenuHeight = 350
+      // Updated height for 7 insert items (Link, Image, YouTube, Table, Code Block, Quote, Horizontal Rule)
+      const estimatedMenuHeight = 280
       
       let x = coords.left
       let y = coords.top + 20
@@ -1561,6 +1607,48 @@ onMounted(() => {
     console.error(`[UnifiedEditor ${props.noteId || 'no-id'}] ❌ No editor instance!`)
     return
   }
+
+  // Add link click handler (fallback)
+  nextTick(() => {
+    if (editor.value) {
+      const editorElement = editor.value.view.dom
+      
+      linkClickHandlerRef.value = (event: MouseEvent) => {
+        const target = event.target as HTMLElement
+        let link: HTMLAnchorElement | null = null
+        
+        if (target.tagName === 'A') {
+          link = target as HTMLAnchorElement
+        } else {
+          link = target.closest('a')
+        }
+        
+        if (link && link.href) {
+          // If Ctrl/Cmd is held, allow default behavior (editing in editable mode)
+          if (event.ctrlKey || event.metaKey) {
+            return
+          }
+          
+          // Prevent default and open in new tab
+          event.preventDefault()
+          event.stopPropagation()
+          event.stopImmediatePropagation()
+          
+          let href = link.href
+          if (!href.startsWith('http://') && !href.startsWith('https://') && !href.startsWith('mailto:') && !href.startsWith('#')) {
+            href = 'https://' + href
+          }
+          
+          window.open(href, '_blank', 'noopener,noreferrer')
+        }
+      }
+      
+      if (linkClickHandlerRef.value) {
+        editorElement.addEventListener('click', linkClickHandlerRef.value, true)
+        console.log(`[UnifiedEditor ${props.noteId || 'no-id'}] ✅ Link click handler attached`)
+      }
+    }
+  })
 
   // CONDITIONAL: Only set up WebSocket if collaborative
   if (props.isCollaborative && props.noteId && ydoc) {
@@ -2353,67 +2441,39 @@ onBeforeUnmount(() => {
           :style="{ top: `${contextMenuPos.y}px`, left: `${contextMenuPos.x}px` }"
           @click.stop
         >
-          <!-- Format Submenu -->
-          <div class="relative">
-            <button
-              :ref="el => submenuButtonRefs['format'] = el as HTMLElement"
-              @mouseenter="toggleSubmenu('format')"
-              @click.stop="toggleSubmenu('format')"
-              class="w-full flex items-center gap-3 px-3 py-2.5 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300"
-              :class="contextMenuSubmenu === 'format' ? 'bg-gray-100 dark:bg-gray-700' : ''"
-            >
-              <span class="font-bold text-base">Aa</span>
-              <span class="flex-1 text-left">Format</span>
-              <span class="text-xs">›</span>
-            </button>
-          </div>
-
-          <!-- Headings Submenu -->
-          <div class="relative">
-            <button
-              :ref="el => submenuButtonRefs['headings'] = el as HTMLElement"
-              @mouseenter="toggleSubmenu('headings')"
-              @click.stop="toggleSubmenu('headings')"
-              class="w-full flex items-center gap-3 px-3 py-2.5 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300"
-              :class="contextMenuSubmenu === 'headings' ? 'bg-gray-100 dark:bg-gray-700' : ''"
-            >
-              <span class="text-lg font-bold">H</span>
-              <span class="flex-1 text-left">Headings</span>
-              <span class="text-xs">›</span>
-            </button>
-          </div>
-
-          <!-- Lists Submenu -->
-          <div class="relative">
-            <button
-              :ref="el => submenuButtonRefs['lists'] = el as HTMLElement"
-              @mouseenter="toggleSubmenu('lists')"
-              @click.stop="toggleSubmenu('lists')"
-              class="w-full flex items-center gap-3 px-3 py-2.5 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300"
-              :class="contextMenuSubmenu === 'lists' ? 'bg-gray-100 dark:bg-gray-700' : ''"
-            >
-              <span class="text-base">•</span>
-              <span class="flex-1 text-left">Lists</span>
-              <span class="text-xs">›</span>
-            </button>
-          </div>
-
-          <div class="border-t border-gray-200 dark:border-gray-700 my-1" />
-
-          <!-- Insert Submenu -->
-          <div class="relative">
-            <button
-              :ref="el => submenuButtonRefs['insert'] = el as HTMLElement"
-              @mouseenter="toggleSubmenu('insert')"
-              @click.stop="toggleSubmenu('insert')"
-              class="w-full flex items-center gap-3 px-3 py-2.5 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300"
-              :class="contextMenuSubmenu === 'insert' ? 'bg-gray-100 dark:bg-gray-700' : ''"
-            >
-              <span class="text-lg font-bold">+</span>
-              <span class="flex-1 text-left">Insert</span>
-              <span class="text-xs">›</span>
-            </button>
-          </div>
+          <!-- Insert Options (now primary menu) -->
+          <button @click="setLink(); closeContextMenu()" class="w-full flex items-center gap-3 px-3 py-2.5 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300">
+            <span class="text-sm w-5">🔗</span>
+            <span class="flex-1 text-left">Link</span>
+            <span class="text-xs text-gray-400">⌘K</span>
+          </button>
+          <button @click="addImage(); closeContextMenu()" class="w-full flex items-center gap-3 px-3 py-2.5 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300">
+            <span class="text-sm w-5">🖼️</span>
+            <span class="flex-1 text-left">Image</span>
+          </button>
+          <button @click="addYouTube(); closeContextMenu()" class="w-full flex items-center gap-3 px-3 py-2.5 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300">
+            <span class="text-sm w-5">📹</span>
+            <span class="flex-1 text-left">YouTube Video</span>
+          </button>
+          <button @click="() => {
+            editor?.chain().focus().insertTable({ rows: 3, cols: 3 }).run();
+            closeContextMenu();
+          }" class="w-full flex items-center gap-3 px-3 py-2.5 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300">
+            <span class="text-xs w-5">⊞</span>
+            <span class="flex-1 text-left">Table</span>
+          </button>
+          <button @click="() => { if (editor) { editor.chain().focus().setCodeBlock().run(); } closeContextMenu(); }" class="w-full flex items-center gap-3 px-3 py-2.5 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300">
+            <span class="font-mono text-xs w-5">{ }</span>
+            <span class="flex-1 text-left">Code Block</span>
+          </button>
+          <button @click="() => { if (editor) { editor.chain().focus().setBlockquote().run(); } closeContextMenu(); }" class="w-full flex items-center gap-3 px-3 py-2.5 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300">
+            <span class="w-5">"</span>
+            <span class="flex-1 text-left">Quote</span>
+          </button>
+          <button @click="editor?.chain().focus().setHorizontalRule().run(); closeContextMenu()" class="w-full flex items-center gap-3 px-3 py-2.5 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300">
+            <span class="w-5">—</span>
+            <span class="flex-1 text-left">Horizontal Rule</span>
+          </button>
 
           <!-- Table Controls (only show when in a table) -->
           <template v-if="editor?.isActive('table')">
@@ -2432,130 +2492,6 @@ onBeforeUnmount(() => {
               </button>
             </div>
           </template>
-        </div>
-      </Transition>
-
-      <!-- Format Flyout -->
-      <Transition name="context-menu">
-        <div
-          v-if="contextMenuSubmenu === 'format' && submenuButtonRefs['format']"
-          class="fixed z-[10000] w-52 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-xl py-1"
-          :style="{ bottom: `${getSubmenuPosition('format').bottom}px`, left: `${getSubmenuPosition('format').left}px` }"
-          @click.stop
-        >
-          <button @click="editor?.chain().focus().toggleBold().run(); closeContextMenu()" class="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors" :class="editor?.isActive('bold') ? 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20' : 'text-gray-700 dark:text-gray-300'">
-            <span class="font-bold w-5">B</span>
-            <span class="flex-1 text-left">Bold</span>
-            <span class="text-xs text-gray-400">⌘B</span>
-          </button>
-          <button @click="editor?.chain().focus().toggleItalic().run(); closeContextMenu()" class="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors" :class="editor?.isActive('italic') ? 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20' : 'text-gray-700 dark:text-gray-300'">
-            <span class="italic w-5">I</span>
-            <span class="flex-1 text-left">Italic</span>
-            <span class="text-xs text-gray-400">⌘I</span>
-          </button>
-          <button @click="editor?.chain().focus().toggleUnderline().run(); closeContextMenu()" class="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors" :class="editor?.isActive('underline') ? 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20' : 'text-gray-700 dark:text-gray-300'">
-            <span class="underline w-5">U</span>
-            <span class="flex-1 text-left">Underline</span>
-            <span class="text-xs text-gray-400">⌘U</span>
-          </button>
-          <button @click="editor?.chain().focus().toggleStrike().run(); closeContextMenu()" class="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors" :class="editor?.isActive('strike') ? 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20' : 'text-gray-700 dark:text-gray-300'">
-            <span class="line-through w-5">S</span>
-            <span class="flex-1 text-left">Strike</span>
-          </button>
-          <button @click="applyInlineCode" class="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors" :class="editor?.isActive('code') ? 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20' : 'text-gray-700 dark:text-gray-300'">
-            <span class="font-mono text-xs w-5">&lt;/&gt;</span>
-            <span class="flex-1 text-left">Code</span>
-          </button>
-        </div>
-      </Transition>
-
-      <!-- Headings Flyout -->
-      <Transition name="context-menu">
-        <div
-          v-if="contextMenuSubmenu === 'headings' && submenuButtonRefs['headings']"
-          class="fixed z-[10000] w-52 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-xl py-1"
-          :style="{ bottom: `${getSubmenuPosition('headings').bottom}px`, left: `${getSubmenuPosition('headings').left}px` }"
-          @click.stop
-        >
-          <button @click="() => { if (editor) { const result = editor.chain().focus().setHeading({ level: 1 }).run(); console.log('[UnifiedEditor] Set Heading 1:', result); } closeContextMenu(); }" class="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors" :class="editor?.isActive('heading', { level: 1 }) ? 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20 font-semibold' : 'text-gray-700 dark:text-gray-300'">
-            <span class="font-bold text-xs w-6">H1</span>
-            <span class="flex-1 text-left">Heading 1</span>
-          </button>
-          <button @click="() => { if (editor) { const result = editor.chain().focus().setHeading({ level: 2 }).run(); console.log('[UnifiedEditor] Set Heading 2:', result); } closeContextMenu(); }" class="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors" :class="editor?.isActive('heading', { level: 2 }) ? 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20 font-semibold' : 'text-gray-700 dark:text-gray-300'">
-            <span class="font-bold text-xs w-6">H2</span>
-            <span class="flex-1 text-left">Heading 2</span>
-          </button>
-          <button @click="() => { if (editor) { const result = editor.chain().focus().setHeading({ level: 3 }).run(); console.log('[UnifiedEditor] Set Heading 3:', result); } closeContextMenu(); }" class="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors" :class="editor?.isActive('heading', { level: 3 }) ? 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20 font-semibold' : 'text-gray-700 dark:text-gray-300'">
-            <span class="font-bold text-xs w-6">H3</span>
-            <span class="flex-1 text-left">Heading 3</span>
-          </button>
-        </div>
-      </Transition>
-
-      <!-- Lists Flyout -->
-      <Transition name="context-menu">
-        <div
-          v-if="contextMenuSubmenu === 'lists' && submenuButtonRefs['lists']"
-          class="fixed z-[10000] w-52 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-xl py-1"
-          :style="{ bottom: `${getSubmenuPosition('lists').bottom}px`, left: `${getSubmenuPosition('lists').left}px` }"
-          @click.stop
-        >
-          <button @click="() => { closeContextMenu(); nextTick(() => { if (editor) { editor.chain().focus().toggleBulletList().run(); } }); }" class="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors" :class="editor?.isActive('bulletList') ? 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20 font-semibold' : 'text-gray-700 dark:text-gray-300'">
-            <span class="w-5">•</span>
-            <span class="flex-1 text-left">Bullet List</span>
-          </button>
-          <button @click="() => { closeContextMenu(); nextTick(() => { if (editor) { editor.chain().focus().toggleOrderedList().run(); } }); }" class="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors" :class="editor?.isActive('orderedList') ? 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20 font-semibold' : 'text-gray-700 dark:text-gray-300'">
-            <span class="text-xs w-5">1.</span>
-            <span class="flex-1 text-left">Numbered List</span>
-          </button>
-          <button @click="() => { if (editor) { editor.chain().focus().toggleTaskList().run(); } closeContextMenu(); }" class="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors" :class="editor?.isActive('taskList') ? 'text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20 font-semibold' : 'text-gray-700 dark:text-gray-300'">
-            <span class="w-5">☐</span>
-            <span class="flex-1 text-left">Task List</span>
-          </button>
-        </div>
-      </Transition>
-
-      <!-- Insert Flyout -->
-      <Transition name="context-menu">
-        <div
-          v-if="contextMenuSubmenu === 'insert' && submenuButtonRefs['insert']"
-          class="fixed z-[10000] w-52 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-xl py-1"
-          :style="{ bottom: `${getSubmenuPosition('insert').bottom}px`, left: `${getSubmenuPosition('insert').left}px` }"
-          @click.stop
-        >
-          <button @click="setLink()" class="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300">
-            <span class="text-sm w-5">🔗</span>
-            <span class="flex-1 text-left">Link</span>
-            <span class="text-xs text-gray-400">⌘K</span>
-          </button>
-          <button @click="addImage()" class="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300">
-            <span class="text-sm w-5">🖼️</span>
-            <span class="flex-1 text-left">Image</span>
-          </button>
-          <button @click="addYouTube()" class="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300">
-            <span class="text-sm w-5">📹</span>
-            <span class="flex-1 text-left">YouTube Video</span>
-          </button>
-          <button @click="() => {
-            // Insert table
-            editor?.chain().focus().insertTable({ rows: 3, cols: 3 }).run();
-            closeContextMenu();
-          }" class="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300">
-            <span class="text-xs w-5">⊞</span>
-            <span class="flex-1 text-left">Table</span>
-          </button>
-          <button @click="() => { if (editor) { const result = editor.chain().focus().setCodeBlock().run(); console.log('[UnifiedEditor] Set Code Block:', result); } closeContextMenu(); }" class="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300">
-            <span class="font-mono text-xs w-5">{ }</span>
-            <span class="flex-1 text-left">Code Block</span>
-          </button>
-          <button @click="() => { if (editor) { const result = editor.chain().focus().setBlockquote().run(); console.log('[UnifiedEditor] Set Blockquote:', result); } closeContextMenu(); }" class="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300">
-            <span class="w-5">"</span>
-            <span class="flex-1 text-left">Quote</span>
-          </button>
-          <button @click="editor?.chain().focus().setHorizontalRule().run(); closeContextMenu()" class="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300">
-            <span class="w-5">—</span>
-            <span class="flex-1 text-left">Horizontal Rule</span>
-          </button>
         </div>
       </Transition>
 

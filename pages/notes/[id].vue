@@ -978,14 +978,15 @@ onUnmounted(() => {
           </div>
           <ClientOnly>
             <template #default>
-              <TiptapEditor
+              <UnifiedEditor
                 ref="tiptapEditorRef"
                 v-model="editForm.content"
                 placeholder="Start writing..."
                 :editable="!isLocked"
-                :showToolbar="showEditorToolbar"
-                :noteId="noteId"
-                :onAttachmentUpload="handleAttachmentUploadedFromEditor"
+                :show-toolbar="showEditorToolbar"
+                :note-id="noteId"
+                :is-collaborative="false"
+                :on-attachment-upload="handleAttachmentUploadedFromEditor"
                 @attachment-uploaded="handleAttachmentUploadedFromEditor"
                 @attachmentUploaded="handleAttachmentUploadedFromEditor"
               />
