@@ -38,11 +38,10 @@ interface PublishedNoteRow {
   created_at: Date;
 }
 
-// Helper to recursively get folder structure
-async function getFolderTree(
+// Helper to get folder with its notes (no subfolders)
+async function getFolderDetails(
   folderId: number,
-  ownerId: number,
-  parentPublishedNoteIds: Set<string> = new Set()
+  ownerId: number
 ): Promise<PublishedFolderWithDetails> {
   // Get folder details
   const [folder] = await executeQuery<FolderDetailsRow[]>(
@@ -67,57 +66,34 @@ async function getFolderTree(
     [folderId, ownerId]
   );
 
-  // Get published subfolders
-  const subfoldersData = await executeQuery<Array<{ id: number }>>(
-    'SELECT id FROM folders WHERE parent_id = ? AND user_id = ?',
-    [folderId, ownerId]
-  );
-
-  const publishedSubfolders: PublishedFolderWithDetails[] = [];
-  for (const subfolder of subfoldersData) {
-    // Check if subfolder is published
-    const [isPublished] = await executeQuery<PublishedFolderRow[]>(
-      'SELECT * FROM published_folders WHERE folder_id = ? AND is_active = TRUE',
-      [subfolder.id]
-    );
-
-    if (isPublished) {
-      publishedSubfolders.push(await getFolderTree(subfolder.id, ownerId, parentPublishedNoteIds));
-    }
-  }
-
   // Get published notes with details
   const publishedNotes: PublishedNoteWithDetails[] = [];
   for (const note of notes) {
-    if (!parentPublishedNoteIds.has(note.id)) {
-      const [publishedNote] = await executeQuery<PublishedNoteRow[]>(
-        'SELECT * FROM published_notes WHERE note_id = ? AND is_active = TRUE',
-        [note.id]
+    const [publishedNote] = await executeQuery<PublishedNoteRow[]>(
+      'SELECT * FROM published_notes WHERE note_id = ? AND is_active = TRUE',
+      [note.id]
+    );
+
+    if (publishedNote) {
+      const [owner] = await executeQuery<UserDetailsRow[]>(
+        'SELECT name, email FROM users WHERE id = ?',
+        [ownerId]
       );
 
-      if (publishedNote) {
-        const [owner] = await executeQuery<UserDetailsRow[]>(
-          'SELECT name, email FROM users WHERE id = ?',
-          [ownerId]
-        );
-
-        publishedNotes.push({
-          id: publishedNote.id,
-          note_id: note.id,
-          share_id: publishedNote.share_id,
-          owner_id: ownerId,
-          is_active: Boolean(publishedNote.is_active),
-          created_at: publishedNote.created_at,
-          updated_at: publishedNote.created_at,
-          note_title: note.title,
-          note_content: note.content,
-          note_updated_at: note.updated_at,
-          owner_name: owner?.name || null,
-          owner_email: owner?.email || ''
-        });
-
-        parentPublishedNoteIds.add(note.id);
-      }
+      publishedNotes.push({
+        id: publishedNote.id,
+        note_id: note.id,
+        share_id: publishedNote.share_id,
+        owner_id: ownerId,
+        is_active: Boolean(publishedNote.is_active),
+        created_at: publishedNote.created_at,
+        updated_at: publishedNote.created_at,
+        note_title: note.title,
+        note_content: note.content,
+        note_updated_at: note.updated_at,
+        owner_name: owner?.name || null,
+        owner_email: owner?.email || ''
+      });
     }
   }
 
@@ -144,7 +120,7 @@ async function getFolderTree(
     updated_at: publishedFolderRecord.updated_at,
     folder_name: folder.name,
     notes: publishedNotes,
-    subfolders: publishedSubfolders
+    subfolders: [] // No subfolders anymore
   };
 }
 
@@ -171,9 +147,9 @@ export default defineEventHandler(async (event): Promise<PublishedFolderWithDeta
     });
   }
 
-  // Get folder tree recursively
-  const folderTree = await getFolderTree(published.folder_id, published.owner_id, new Set());
+  // Get folder details (no subfolders)
+  const folderDetails = await getFolderDetails(published.folder_id, published.owner_id);
 
-  return folderTree;
+  return folderDetails;
 });
 

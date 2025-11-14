@@ -100,65 +100,6 @@ export default defineEventHandler(async (event): Promise<PublishResponse> => {
       }
     }
 
-    // Auto-publish all subfolders recursively
-    async function publishSubfolders(parentId: number) {
-    const subfolders = await executeQuery<Array<{ id: number }>>(
-      'SELECT id FROM folders WHERE parent_id = ? AND user_id = ?',
-      [parentId, userId]
-    );
-
-      for (const subfolder of subfolders) {
-        // Check if subfolder is already published
-        const existingSubfolderResults = await executeQuery<Array<{ share_id: string }>>(
-          'SELECT share_id FROM published_folders WHERE folder_id = ? AND owner_id = ?',
-          [subfolder.id, userId]
-        );
-
-        if (existingSubfolderResults.length > 0) {
-          await executeQuery(
-            'UPDATE published_folders SET is_active = TRUE, updated_at = CURRENT_TIMESTAMP WHERE folder_id = ? AND owner_id = ?',
-            [subfolder.id, userId]
-          );
-        } else {
-          const subfolderShareId = randomUUID();
-          await executeQuery(
-            'INSERT INTO published_folders (folder_id, share_id, owner_id, is_active) VALUES (?, ?, ?, TRUE)',
-            [subfolder.id, subfolderShareId, userId]
-          );
-        }
-
-        // Recursively publish subfolders and their notes
-        const subfolderNotes = await executeQuery<Array<{ id: string }>>(
-          'SELECT id FROM notes WHERE folder_id = ? AND user_id = ?',
-          [subfolder.id, userId]
-        );
-
-        for (const note of subfolderNotes) {
-          const existingNoteResults = await executeQuery<Array<{ share_id: string }>>(
-            'SELECT share_id FROM published_notes WHERE note_id = ? AND owner_id = ?',
-            [note.id, userId]
-          );
-
-          if (existingNoteResults.length > 0) {
-            await executeQuery(
-              'UPDATE published_notes SET is_active = TRUE, updated_at = CURRENT_TIMESTAMP WHERE note_id = ? AND owner_id = ?',
-              [note.id, userId]
-            );
-          } else {
-            const noteShareId = randomUUID();
-            await executeQuery(
-              'INSERT INTO published_notes (note_id, share_id, owner_id, is_active) VALUES (?, ?, ?, TRUE)',
-              [note.id, noteShareId, userId]
-            );
-          }
-        }
-
-      // Recursively publish nested subfolders
-      await publishSubfolders(subfolder.id);
-    }
-  }
-
-    await publishSubfolders(folderId);
 
     const baseUrl = getBaseUrl(event);
     const shareUrl = `${baseUrl}/p/folder/${shareId}`;

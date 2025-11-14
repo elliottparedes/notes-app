@@ -15,7 +15,7 @@ export default defineEventHandler(async (event) => {
   }
   
   try {
-    // Determine space_id: from body, from parent folder, or from user's first space
+    // Determine space_id: from body or from user's first space
     let spaceId: number;
     
     if (body.space_id) {
@@ -31,20 +31,6 @@ export default defineEventHandler(async (event) => {
         });
       }
       spaceId = body.space_id;
-    } else if (body.parent_id) {
-      // Get space_id from parent folder
-      const parent = await executeQuery<any[]>(`
-        SELECT id, space_id FROM folders 
-        WHERE id = ? AND user_id = ?
-      `, [body.parent_id, userId]);
-
-      if (parent.length === 0) {
-        throw createError({
-          statusCode: 400,
-          statusMessage: 'Parent folder not found'
-        });
-      }
-      spaceId = parent[0].space_id;
     } else {
       // Get user's first space as default
       const spaces = await executeQuery<any[]>(`
@@ -60,51 +46,23 @@ export default defineEventHandler(async (event) => {
       spaceId = spaces[0].id;
     }
 
-    // Check if folder with same name already exists for this user under the same parent and space
-    const checkQuery = body.parent_id
-      ? 'SELECT id FROM folders WHERE user_id = ? AND name = ? AND parent_id = ? AND space_id = ?'
-      : 'SELECT id FROM folders WHERE user_id = ? AND name = ? AND parent_id IS NULL AND space_id = ?';
-    
-    const checkParams = body.parent_id
-      ? [userId, body.name.trim(), body.parent_id, spaceId]
-      : [userId, body.name.trim(), spaceId];
-    
-    const existing = await executeQuery<any[]>(checkQuery, checkParams);
+    // Check if folder with same name already exists for this user in the same space
+    const existing = await executeQuery<any[]>(`
+      SELECT id FROM folders WHERE user_id = ? AND name = ? AND space_id = ? AND parent_id IS NULL
+    `, [userId, body.name.trim(), spaceId]);
 
     if (existing.length > 0) {
       throw createError({
         statusCode: 400,
-        statusMessage: 'A folder with this name already exists in this location'
+        statusMessage: 'A folder with this name already exists in this space'
       });
     }
 
-    // Verify parent belongs to same space if provided
-    if (body.parent_id) {
-      const parent = await executeQuery<any[]>(`
-        SELECT id, space_id FROM folders 
-        WHERE id = ? AND user_id = ?
-      `, [body.parent_id, userId]);
-
-      if (parent.length === 0) {
-        throw createError({
-          statusCode: 400,
-          statusMessage: 'Parent folder not found'
-        });
-      }
-      
-      if (parent[0].space_id !== spaceId) {
-        throw createError({
-          statusCode: 400,
-          statusMessage: 'Parent folder must be in the same space'
-        });
-      }
-    }
-
-    // Create the folder
+    // Create the folder (always root-level, parent_id is NULL)
     const result: any = await executeQuery(`
       INSERT INTO folders (user_id, space_id, name, parent_id, created_at, updated_at)
-      VALUES (?, ?, ?, ?, NOW(), NOW())
-    `, [userId, spaceId, body.name.trim(), body.parent_id || null]);
+      VALUES (?, ?, ?, NULL, NOW(), NOW())
+    `, [userId, spaceId, body.name.trim()]);
 
     // Fetch the created folder
     const folders = await executeQuery<Folder[]>(`

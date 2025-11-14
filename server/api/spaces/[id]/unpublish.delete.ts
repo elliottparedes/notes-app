@@ -32,8 +32,8 @@ export default defineEventHandler(async (event) => {
       });
     }
 
-    // Recursive function to unpublish folder and all its notes and subfolders
-    async function unpublishFolderRecursive(folderId: number) {
+    // Function to unpublish folder and all its notes (no subfolders)
+    async function unpublishFolder(folderId: number) {
       // Unpublish all notes in this folder
       const notesInFolder = await executeQuery<Array<{ id: string }>>(
         'SELECT id FROM notes WHERE folder_id = ? AND user_id = ?',
@@ -46,23 +46,6 @@ export default defineEventHandler(async (event) => {
           [note.id, userId]
         );
       }
-
-      // Get all subfolders
-      const subfolders = await executeQuery<Array<{ id: number }>>(
-        'SELECT id FROM folders WHERE parent_id = ? AND user_id = ?',
-        [folderId, userId]
-      );
-
-      // Recursively unpublish subfolders and their contents
-      for (const subfolder of subfolders) {
-        // First unpublish the subfolder itself
-        await executeQuery(
-          'UPDATE published_folders SET is_active = FALSE, updated_at = CURRENT_TIMESTAMP WHERE folder_id = ? AND owner_id = ?',
-          [subfolder.id, userId]
-        );
-        // Then recursively unpublish its contents
-        await unpublishFolderRecursive(subfolder.id);
-      }
     }
 
     // Get all folders in this space
@@ -71,15 +54,15 @@ export default defineEventHandler(async (event) => {
       [spaceId, userId]
     );
 
-    // Unpublish all folders recursively
+    // Unpublish all folders (no recursion needed)
     for (const folder of foldersInSpace) {
       // First unpublish the folder itself
       await executeQuery(
         'UPDATE published_folders SET is_active = FALSE, updated_at = CURRENT_TIMESTAMP WHERE folder_id = ? AND owner_id = ?',
         [folder.id, userId]
       );
-      // Then recursively unpublish its contents
-      await unpublishFolderRecursive(folder.id);
+      // Then unpublish its notes
+      await unpublishFolder(folder.id);
     }
 
     // Unpublish all notes without folders in this space

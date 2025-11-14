@@ -27,56 +27,34 @@ export default defineEventHandler(async (event) => {
       });
     }
 
-    // Get all descendant folder IDs (for cascade deletion)
-    const getDescendants = async (parentId: number): Promise<number[]> => {
-      const children = await executeQuery<{ id: number }[]>(`
-        SELECT id FROM folders WHERE parent_id = ?
-      `, [parentId]);
-      
-      let descendants = children.map(c => c.id);
-      
-      for (const child of children) {
-        const childDescendants = await getDescendants(child.id);
-        descendants = descendants.concat(childDescendants);
-      }
-      
-      return descendants;
-    };
+    // Get note IDs that will be deleted (for cleaning up shared_notes)
+    const notesInFolder = await executeQuery<{ id: string }[]>(`
+      SELECT id FROM notes 
+      WHERE folder_id = ? AND user_id = ?
+    `, [folderId, userId]);
 
-    const descendantIds = await getDescendants(folderId);
-    const allFolderIds = [folderId, ...descendantIds];
+    // Delete notes in this folder
+    await executeQuery(`
+      DELETE FROM notes 
+      WHERE folder_id = ? AND user_id = ?
+    `, [folderId, userId]);
 
-    // Delete all notes in these folders
-    if (allFolderIds.length > 0) {
-      // Get note IDs that will be deleted (for cleaning up shared_notes)
-      const notesInFolders = await executeQuery<{ id: string }[]>(`
-        SELECT id FROM notes 
-        WHERE folder_id IN (${allFolderIds.map(() => '?').join(',')}) AND user_id = ?
-      `, [...allFolderIds, userId]);
-
-      // Delete notes in these folders
+    // Delete shared note entries for these notes (if any)
+    if (notesInFolder.length > 0) {
+      const noteIds = notesInFolder.map(n => n.id);
       await executeQuery(`
-        DELETE FROM notes 
-        WHERE folder_id IN (${allFolderIds.map(() => '?').join(',')}) AND user_id = ?
-      `, [...allFolderIds, userId]);
-
-      // Delete shared note entries for these notes (if any)
-      if (notesInFolders.length > 0) {
-        const noteIds = notesInFolders.map(n => n.id);
-        await executeQuery(`
-          DELETE FROM shared_notes 
-          WHERE note_id IN (${noteIds.map(() => '?').join(',')})
-        `, noteIds);
-      }
-
-      // Delete all folders (cascade)
-      await executeQuery(`
-        DELETE FROM folders 
-        WHERE id IN (${allFolderIds.map(() => '?').join(',')})
-      `, allFolderIds);
+        DELETE FROM shared_notes 
+        WHERE note_id IN (${noteIds.map(() => '?').join(',')})
+      `, noteIds);
     }
 
-    return { success: true, deletedCount: allFolderIds.length };
+    // Delete the folder
+    await executeQuery(`
+      DELETE FROM folders 
+      WHERE id = ?
+    `, [folderId]);
+
+    return { success: true, deletedCount: 1 };
   } catch (error: any) {
     console.error('Error deleting folder:', error);
     

@@ -42,14 +42,10 @@ export default defineEventHandler(async (event) => {
 
     const folder = folderResults[0];
 
-    // Get all sibling folders (folders with the same parent_id AND same space_id)
+    // Get all folders in the same space (all folders are root-level now)
     const siblings = await executeQuery<Folder[]>(
-      'SELECT id, user_id, name, parent_id, space_id FROM folders WHERE user_id = ? AND space_id = ? AND ' +
-      (folder.parent_id === null 
-        ? 'parent_id IS NULL' 
-        : 'parent_id = ?') +
-      ' ORDER BY created_at ASC',
-      folder.parent_id === null ? [userId, folder.space_id] : [userId, folder.space_id, folder.parent_id]
+      'SELECT id, user_id, name, parent_id, space_id FROM folders WHERE user_id = ? AND space_id = ? AND parent_id IS NULL ORDER BY created_at ASC',
+      [userId, folder.space_id]
     );
 
     // Get user's current folder order
@@ -65,10 +61,10 @@ export default defineEventHandler(async (event) => {
       folderOrder = {};
     }
     
-    // Create a key for this level (root or parent_id)
-    const levelKey = folder.parent_id === null ? 'root' : `parent_${folder.parent_id}`;
+    // All folders are root-level, so use 'root' key
+    const levelKey = 'root';
     
-    // Get current order for this level or create default order
+    // Get current order for root level or create default order
     let currentOrder = folderOrder[levelKey] || siblings.map(s => s.id);
     
     // Ensure all siblings are in the order array

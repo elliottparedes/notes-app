@@ -54,7 +54,6 @@ const searchInputRef = ref<HTMLInputElement | null>(null);
 const showMobileSpacesSheet = ref(false);
 const showMobileFoldersSheet = ref(false);
 const showMobileCreateMenu = ref(false);
-const currentFolderPath = ref<number[]>([]); // Track navigation path for folders
 const spaceButtonRef = ref<HTMLButtonElement | null>(null);
 const folderButtonRef = ref<HTMLButtonElement | null>(null);
 const createButtonRef = ref<HTMLButtonElement | null>(null);
@@ -178,7 +177,6 @@ const showCreateFolderModal = ref(false);
 const showRenameFolderModal = ref(false);
 const showDeleteFolderModal = ref(false);
 const newFolderName = ref('');
-const newFolderParentId = ref<number | null>(null);
 const renameFolderName = ref('');
 const folderToManage = ref<number | null>(null);
 const isFolderActionLoading = ref(false);
@@ -972,15 +970,7 @@ function selectAllNotes() {
   }
 }
 
-// Folder tree handlers
-function handleToggleFolder(folderId: number) {
-  foldersStore.toggleFolder(folderId);
-}
-
-function handleCreateSubfolder(parentId: number) {
-  newFolderParentId.value = parentId;
-  openCreateFolderModal();
-}
+// Folder tree handlers (no toggle needed - folders always show notes)
 
 // Mobile sheet handlers
 function handleOpenSpacesSheet() {
@@ -1022,7 +1012,6 @@ function handleOpenFoldersSheet() {
       };
     }
     showMobileFoldersSheet.value = true;
-    currentFolderPath.value = []; // Reset to root
   });
 }
 
@@ -1084,47 +1073,18 @@ async function handleSelectSpace(spaceId: number) {
 function handleSelectFolder(folderId: number) {
   selectFolder(folderId);
   showMobileFoldersSheet.value = false;
-  currentFolderPath.value = []; // Reset navigation path
 }
 
-// Computed: Get folders to display based on current navigation path
+// Computed: Get folders to display (all folders in current space)
 const displayedFolders = computed(() => {
-  if (currentFolderPath.value.length === 0) {
-    // Show root folders (no parent)
-    return foldersStore.folders.filter(f => f.parent_id === null);
-  } else {
-    // Show subfolders of current folder
-    const currentFolderId = currentFolderPath.value[currentFolderPath.value.length - 1];
-    return foldersStore.folders.filter(f => f.parent_id === currentFolderId);
-  }
+  const currentSpaceId = spacesStore.currentSpaceId;
+  if (!currentSpaceId) return [];
+  return foldersStore.folders.filter(f => f.space_id === currentSpaceId);
 });
 
-// Check if folder has subfolders
-function hasSubfolders(folderId: number): boolean {
-  return foldersStore.folders.some(f => f.parent_id === folderId);
-}
-
-// Get count of subfolders
-function getSubfolderCount(folderId: number): number {
-  return foldersStore.folders.filter(f => f.parent_id === folderId).length;
-}
-
-// Handle folder click - navigate into folder if it has subfolders, otherwise select
+// Handle folder click - always select folder (no navigation needed)
 function handleFolderClick(folder: Folder) {
-  if (hasSubfolders(folder.id)) {
-    // Navigate into folder
-    currentFolderPath.value.push(folder.id);
-  } else {
-    // Select folder and close sheet
-    handleSelectFolder(folder.id);
-  }
-}
-
-// Handle back navigation
-function handleFolderBack() {
-  if (currentFolderPath.value.length > 0) {
-    currentFolderPath.value.pop();
-  }
+  handleSelectFolder(folder.id);
 }
 
 
@@ -1577,7 +1537,7 @@ async function initializeFoldersSortable() {
     
     foldersSortableInstance = SortableJS.create(foldersContainerRef.value, {
       animation: 150,
-      ghostClass: 'sortable-ghost',
+      ghostClass: '', // No ghost for folders - animation is enough
       chosenClass: 'sortable-chosen',
       dragClass: 'sortable-drag',
       draggable: '.folder-item',
@@ -1641,9 +1601,9 @@ async function initializeFoldersSortable() {
 
 // Watch for folder tree changes and reinitialize Sortable
 watch(
-  () => foldersStore.folderTree.length,
+  () => foldersStore.folders.length,
   async () => {
-    if (foldersStore.folderTree.length > 0) {
+    if (foldersStore.folders.length > 0) {
       await nextTick();
       await initializeFoldersSortable();
     }
@@ -1673,8 +1633,7 @@ async function createFolder() {
 
   try {
     const folder = await foldersStore.createFolder({
-      name,
-      parent_id: newFolderParentId.value
+      name
     });
 
     toast.add({
@@ -1684,7 +1643,6 @@ async function createFolder() {
     });
 
     showCreateFolderModal.value = false;
-    newFolderParentId.value = null;
     selectedFolderId.value = folder.id;
   } catch (error) {
     toast.add({
@@ -3522,7 +3480,7 @@ onMounted(() => {
               </button>
             </div>
 
-            <div v-if="foldersStore.folderTree.length === 0" class="px-3 py-6 text-center">
+            <div v-if="foldersStore.folders.length === 0" class="px-3 py-6 text-center">
               <UIcon name="i-heroicons-folder-open" class="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-2" />
               <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">No folders yet</p>
               <button
@@ -3537,15 +3495,14 @@ onMounted(() => {
             <div v-else class="overflow-hidden" style="min-height: 0;">
               <div ref="foldersContainerRef" class="space-y-0.5 transition-all duration-300" id="root-folders-container">
                 <FolderTreeItem
-                  v-for="folder in foldersStore.folderTree"
+                  v-for="folder in foldersStore.folders"
                   :key="folder.id"
                   :folder="folder"
                   :selected-id="selectedFolderId"
                   :is-expanded="foldersStore.expandedFolderIds.has(folder.id)"
                   :publish-status="folderPublishStatuses.get(folder.id)"
                   @select="selectFolder"
-                  @toggle="handleToggleFolder"
-                  @create-subfolder="handleCreateSubfolder"
+                  @toggle="(id) => foldersStore.toggleFolder(id)"
                   @create-note="handleCreateNoteInFolder"
                   @create-quick-note="handleQuickNoteInFolder"
                   @create-list-note="handleListNoteInFolder"
@@ -3772,25 +3729,8 @@ onMounted(() => {
           >
             <div class="p-2 pb-3">
               <!-- Breadcrumb Navigation -->
-              <div v-if="currentFolderPath.length > 0" class="mb-3 pb-3 border-b border-gray-200 dark:border-gray-700">
-                <button
-                  @click="handleFolderBack"
-                  class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 active:text-gray-900 dark:active:text-white mb-2"
-                >
-                  <UIcon name="i-heroicons-arrow-left" class="w-4 h-4" />
-                  <span>Back</span>
-                </button>
-                <div class="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
-                  <span>Root</span>
-                  <template v-for="(folderId, index) in currentFolderPath" :key="folderId">
-                    <UIcon name="i-heroicons-chevron-right" class="w-3 h-3" />
-                    <span>{{ foldersStore.getFolderById(folderId)?.name || 'Folder' }}</span>
-                  </template>
-                </div>
-              </div>
-              
               <!-- Header with Create Button -->
-              <div v-if="currentFolderPath.length === 0" class="flex items-center justify-between mb-2 pb-2 border-b border-gray-200 dark:border-gray-700">
+              <div class="flex items-center justify-between mb-2 pb-2 border-b border-gray-200 dark:border-gray-700">
                 <h3 class="text-sm font-semibold text-gray-900 dark:text-white">Folders</h3>
                 <button @click="openCreateFolderModal(); showMobileFoldersSheet = false" class="p-1.5 rounded-lg active:bg-gray-100 dark:active:bg-gray-700 text-gray-600 dark:text-gray-400" title="New Folder">
                   <UIcon name="i-heroicons-plus" class="w-4 h-4" />
@@ -3800,9 +3740,9 @@ onMounted(() => {
               <div v-if="displayedFolders.length === 0" class="text-center py-8">
                 <UIcon name="i-heroicons-folder-open" class="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-3" />
                 <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">
-                  {{ currentFolderPath.length > 0 ? 'No subfolders' : 'No folders yet' }}
+                  No folders yet
                 </p>
-                <button v-if="currentFolderPath.length === 0" @click="openCreateFolderModal(); showMobileFoldersSheet = false" class="text-sm text-primary-600 dark:text-primary-400 font-medium">Create folder</button>
+                <button @click="openCreateFolderModal(); showMobileFoldersSheet = false" class="text-sm text-primary-600 dark:text-primary-400 font-medium">Create folder</button>
               </div>
               <div v-else class="space-y-1">
                 <div
@@ -3847,16 +3787,8 @@ onMounted(() => {
                     
                     <!-- Subfolder Indicator or Active Indicator -->
                     <div class="flex items-center gap-2 flex-shrink-0">
-                      <span v-if="hasSubfolders(folder.id)" class="text-xs text-gray-400 dark:text-gray-500">
-                        {{ getSubfolderCount(folder.id) }}
-                      </span>
                       <UIcon 
-                        v-if="hasSubfolders(folder.id)" 
-                        name="i-heroicons-chevron-right" 
-                        class="w-4 h-4 text-gray-400 dark:text-gray-500" 
-                      />
-                      <UIcon 
-                        v-else-if="selectedFolderId === folder.id" 
+                        v-if="selectedFolderId === folder.id" 
                         name="i-heroicons-check-circle" 
                         class="w-5 h-5 text-primary-600 dark:text-primary-400" 
                       />
@@ -3865,7 +3797,6 @@ onMounted(() => {
                   
                   <!-- Folder Menu Button -->
                   <button
-                    v-if="!hasSubfolders(folder.id)"
                     @click.stop="handleOpenFolderMenu(folder.id, $event)"
                     class="p-2.5 rounded-lg transition-colors active:bg-gray-100 dark:active:bg-gray-700 text-gray-500 dark:text-gray-400 active:text-gray-700 dark:active:text-gray-200 flex-shrink-0 -mr-1"
                     aria-label="Folder menu"
@@ -4265,11 +4196,10 @@ onMounted(() => {
                     </button>
                     <div class="border-t border-gray-200 dark:border-gray-700 my-1"></div>
                     <FolderSelectorItem
-                      v-for="folder in foldersStore.folderTree"
+                      v-for="folder in foldersStore.folders"
                       :key="folder.id"
                       :folder="folder"
                       :selected-id="editForm.folder_id ?? null"
-                      :depth="0"
                       @select="(id) => { selectFolderForNote(id); showFolderDropdown = false; }"
                     />
                   </div>

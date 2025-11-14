@@ -33,28 +33,21 @@ export default defineEventHandler(async (event) => {
     const validFolderIds = new Set(folders.map(f => f.id));
     
     // Filter folder_order to only include folders from current space
-    // This prevents ordering issues when folders from different spaces share the same keys
     const filterOrderBySpace = (order: number[]): number[] => {
       return order.filter(id => validFolderIds.has(id));
     };
     
-    // Helper function to sort folders by custom order
-    const sortFoldersByOrder = (foldersToSort: Folder[], parentId: number | null): Folder[] => {
-      const levelKey = parentId === null ? 'root' : `parent_${parentId}`;
-      let customOrder = folderOrder[levelKey];
-      
-      // Filter custom order to only include folders from current space
-      if (customOrder && customOrder.length > 0) {
-        customOrder = filterOrderBySpace(customOrder);
-      }
-      
-      if (!customOrder || customOrder.length === 0) {
-        // No custom order, return as-is (by created_at)
-        return [...foldersToSort];
-      }
-      
-      // Create a new sorted array based on custom order
-      return [...foldersToSort].sort((a, b) => {
+    // Get custom order for root-level folders (all folders are root-level now)
+    let customOrder = folderOrder['root'];
+    
+    // Filter custom order to only include folders from current space
+    if (customOrder && customOrder.length > 0) {
+      customOrder = filterOrderBySpace(customOrder);
+    }
+    
+    // Sort folders by custom order if available
+    if (customOrder && customOrder.length > 0) {
+      const sortedFolders = [...folders].sort((a, b) => {
         const indexA = customOrder.indexOf(a.id);
         const indexB = customOrder.indexOf(b.id);
         
@@ -70,47 +63,12 @@ export default defineEventHandler(async (event) => {
         // Neither in custom order, keep original order
         return 0;
       });
-    };
-
-    // Build folder tree structure
-    const folderMap = new Map<number, Folder>();
-    const rootFolders: Folder[] = [];
-
-    // First pass: create map
-    folders.forEach(folder => {
-      folderMap.set(folder.id, { ...folder, children: [] });
-    });
-
-    // Second pass: build tree
-    folders.forEach(folder => {
-      const folderWithChildren = folderMap.get(folder.id);
-      if (!folderWithChildren) return;
-
-      if (folder.parent_id === null) {
-        rootFolders.push(folderWithChildren);
-      } else {
-        const parent = folderMap.get(folder.parent_id);
-        if (parent) {
-          if (!parent.children) parent.children = [];
-          parent.children.push(folderWithChildren);
-        }
-      }
-    });
-
-    // Third pass: sort each level by custom order
-    const sortedRootFolders = sortFoldersByOrder(rootFolders, null);
+      
+      return sortedFolders;
+    }
     
-    // Recursively sort children
-    const sortChildren = (folder: Folder) => {
-      if (folder.children && folder.children.length > 0) {
-        folder.children = sortFoldersByOrder(folder.children, folder.id);
-        folder.children.forEach(sortChildren);
-      }
-    };
-    
-    sortedRootFolders.forEach(sortChildren);
-
-    return sortedRootFolders;
+    // No custom order, return as-is (by created_at)
+    return folders;
   } catch (error) {
     console.error('Error fetching folders:', error);
     throw createError({

@@ -52,20 +52,15 @@ interface PublishedFolderRow {
   created_at: Date;
 }
 
-// Helper to recursively build folder tree
-async function buildFolderTree(
+// Helper to build flat folder list (no nesting)
+async function buildFolderList(
   folders: FolderRow[],
   publishedFolders: PublishedFolderRow[],
   publishedNotes: Map<string, PublishedNoteRow>,
   ownerId: number
 ): Promise<PublishedFolderWithDetails[]> {
-  const folderMap = new Map<number, FolderRow>();
   const publishedFolderMap = new Map<number, PublishedFolderRow>();
-
-  folders.forEach(f => folderMap.set(f.id, f));
   publishedFolders.forEach(pf => publishedFolderMap.set(pf.folder_id, pf));
-
-  const rootFolders = folders.filter(f => f.parent_id === null);
 
   async function getFolderNotes(folderId: number): Promise<PublishedNoteWithDetails[]> {
     const notes = await executeQuery<NoteRow[]>(
@@ -102,30 +97,29 @@ async function buildFolderTree(
     return publishedFolderNotes;
   }
 
-  async function buildFolder(folder: FolderRow): Promise<PublishedFolderWithDetails> {
-    const publishedFolder = publishedFolderMap.get(folder.id)!;
-    const notes = await getFolderNotes(folder.id);
-    
-    const children = folders.filter(f => f.parent_id === folder.id);
-    const subfolders = await Promise.all(
-      children.map(child => buildFolder(child))
-    );
-
-    return {
-      id: publishedFolder.id,
-      folder_id: folder.id,
-      share_id: publishedFolder.share_id,
-      owner_id: ownerId,
-      is_active: Boolean(publishedFolder.is_active),
-      created_at: publishedFolder.created_at,
-      updated_at: publishedFolder.created_at,
-      folder_name: folder.name,
-      notes,
-      subfolders
-    };
+  // All folders are root-level now, so just build them flat
+  const folderList: PublishedFolderWithDetails[] = [];
+  for (const folder of folders) {
+    const publishedFolder = publishedFolderMap.get(folder.id);
+    if (publishedFolder) {
+      const notes = await getFolderNotes(folder.id);
+      
+      folderList.push({
+        id: publishedFolder.id,
+        folder_id: folder.id,
+        share_id: publishedFolder.share_id,
+        owner_id: ownerId,
+        is_active: Boolean(publishedFolder.is_active),
+        created_at: publishedFolder.created_at,
+        updated_at: publishedFolder.created_at,
+        folder_name: folder.name,
+        notes,
+        subfolders: [] // No subfolders anymore
+      });
+    }
   }
 
-  return Promise.all(rootFolders.map(folder => buildFolder(folder)));
+  return folderList;
 }
 
 export default defineEventHandler(async (event): Promise<PublishedSpaceWithDetails> => {
@@ -220,7 +214,7 @@ export default defineEventHandler(async (event): Promise<PublishedSpaceWithDetai
   );
 
   // Build folder tree
-  const folders = await buildFolderTree(
+  const folders = await buildFolderList(
     allFolders.filter(f => publishedFoldersData.some(pf => pf.folder_id === f.id)),
     publishedFoldersData,
     publishedNotesMap,

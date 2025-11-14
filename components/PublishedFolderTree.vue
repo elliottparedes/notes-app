@@ -63,7 +63,7 @@ function openNote(shareId: string) {
         {{ folder.folder_name }}
       </span>
       <span class="text-xs text-gray-500 dark:text-gray-400 flex-shrink-0 bg-gray-200 dark:bg-gray-700 px-2 py-0.5 rounded-full">
-        {{ folder.notes.length + folder.subfolders.length }}
+        {{ folder.notes.length }}
       </span>
     </div>
 
@@ -89,17 +89,6 @@ function openNote(shareId: string) {
             <span class="text-sm font-medium truncate flex-1">{{ note.note_title }}</span>
           </div>
         </TransitionGroup>
-
-        <!-- Subfolders (recursive) -->
-        <PublishedFolderTree
-          v-for="subfolder in folder.subfolders"
-          :key="subfolder.folder_id"
-          :folder="subfolder"
-          :expanded-folders="expandedFolders"
-          :selected-note-id="selectedNoteId"
-          @toggle-folder="$emit('toggle-folder', $event)"
-          @open-note="$emit('open-note', $event)"
-        />
       </div>
     </Transition>
   </div>

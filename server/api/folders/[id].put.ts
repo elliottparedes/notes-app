@@ -39,66 +39,16 @@ export default defineEventHandler(async (event) => {
       });
     }
 
-    // Prevent moving a folder into itself or its descendants
-    if (body.parent_id !== undefined && body.parent_id !== null) {
-      const isDescendant = async (parentId: number): Promise<boolean> => {
-        if (parentId === folderId) return true;
-        
-        const parents = await executeQuery<any[]>(`
-          SELECT parent_id FROM folders WHERE id = ?
-        `, [parentId]);
-        
-        if (parents.length === 0 || parents[0].parent_id === null) return false;
-        return isDescendant(parents[0].parent_id);
-      };
-
-      if (await isDescendant(body.parent_id)) {
-        throw createError({
-          statusCode: 400,
-          statusMessage: 'Cannot move a folder into itself or its descendants'
-        });
-      }
-
-      // Verify parent folder exists, belongs to user, and is in the same space
-      const parentFolders = await executeQuery<any[]>(`
-        SELECT id, space_id FROM folders WHERE id = ? AND user_id = ?
-      `, [body.parent_id, userId]);
-
-      if (parentFolders.length === 0) {
-        throw createError({
-          statusCode: 400,
-          statusMessage: 'Parent folder not found'
-        });
-      }
-      
-      // Ensure parent is in the same space as the folder being moved
-      if (parentFolders[0].space_id !== folder.space_id) {
-        throw createError({
-          statusCode: 400,
-          statusMessage: 'Parent folder must be in the same space'
-        });
-      }
-    }
-
-    // Check for duplicate name in same location and space
+    // Check for duplicate name in same space
     if (body.name && body.name.trim() !== folder.name) {
-      const parentId = body.parent_id !== undefined ? body.parent_id : folder.parent_id;
-      const spaceId = folder.space_id;
-      
-      const checkQuery = parentId === null
-        ? 'SELECT id FROM folders WHERE user_id = ? AND name = ? AND parent_id IS NULL AND space_id = ? AND id != ?'
-        : 'SELECT id FROM folders WHERE user_id = ? AND name = ? AND parent_id = ? AND space_id = ? AND id != ?';
-      
-      const checkParams = parentId === null
-        ? [userId, body.name.trim(), spaceId, folderId]
-        : [userId, body.name.trim(), parentId, spaceId, folderId];
-      
-      const existing = await executeQuery<any[]>(checkQuery, checkParams);
+      const existing = await executeQuery<any[]>(`
+        SELECT id FROM folders WHERE user_id = ? AND name = ? AND space_id = ? AND parent_id IS NULL AND id != ?
+      `, [userId, body.name.trim(), folder.space_id, folderId]);
 
       if (existing.length > 0) {
         throw createError({
           statusCode: 400,
-          statusMessage: 'A folder with this name already exists in this location'
+          statusMessage: 'A folder with this name already exists in this space'
         });
       }
     }
@@ -110,11 +60,6 @@ export default defineEventHandler(async (event) => {
     if (body.name !== undefined) {
       updates.push('name = ?');
       values.push(body.name.trim());
-    }
-
-    if (body.parent_id !== undefined) {
-      updates.push('parent_id = ?');
-      values.push(body.parent_id);
     }
 
     if (updates.length === 0) {

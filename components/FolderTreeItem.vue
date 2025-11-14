@@ -5,17 +5,13 @@ import type Sortable from 'sortablejs';
 interface Props {
   folder: Folder;
   selectedId: number | null;
-  depth?: number;
   isExpanded?: boolean;
-  // For drag-and-drop: parent folder to get siblings
-  parentFolder?: Folder | null;
   publishStatus?: { is_published: boolean; share_url?: string } | undefined;
 }
 
 interface Emits {
   (e: 'select', folderId: number): void;
   (e: 'toggle', folderId: number): void;
-  (e: 'create-subfolder', parentId: number): void;
   (e: 'create-note', folderId: number): void;
   (e: 'create-quick-note', folderId: number): void;
   (e: 'create-list-note', folderId: number): void;
@@ -36,17 +32,12 @@ interface Emits {
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  depth: 0,
   isExpanded: false
 });
 
 const emit = defineEmits<Emits>();
 const notesStore = useNotesStore();
 const foldersStore = useFoldersStore();
-
-const hasChildren = computed(() => {
-  return props.folder.children && props.folder.children.length > 0;
-});
 
 const folderNotes = computed(() => {
   // Exclude notes shared WITH the user (they appear in "Shared" section instead)
@@ -99,8 +90,15 @@ const noteCount = computed(() => {
 });
 
 const hasContent = computed(() => {
-  return hasChildren.value || noteCount.value > 0;
+  return noteCount.value > 0;
 });
+
+function handleToggle(event: Event) {
+  event.stopPropagation();
+  if (hasContent.value) {
+    emit('toggle', props.folder.id);
+  }
+}
 
 // Check if folder can move up/down within siblings
 const canMoveUp = computed(() => {
@@ -139,19 +137,8 @@ function isMobile(): boolean {
 const notesContainerRef = ref<HTMLElement | null>(null);
 let notesSortableInstance: Sortable | null = null;
 
-// Folder sortable container for subfolders
-const subfoldersContainerRef = ref<HTMLElement | null>(null);
-let foldersSortableInstance: Sortable | null = null;
-
 function handleSelect() {
   emit('select', props.folder.id);
-}
-
-function handleToggle(event: Event) {
-  event.stopPropagation();
-  if (hasContent.value) {
-    emit('toggle', props.folder.id);
-  }
 }
 
 function handleNoteClick(noteId: string, event?: Event) {
@@ -358,22 +345,12 @@ function handleNewNoteClick(event: MouseEvent) {
   // On desktop, don't prevent default - let hover handler work
 }
 
-// Folder colors based on depth for visual hierarchy
-const folderColors = [
-  'text-blue-600 dark:text-blue-400',
-  'text-purple-600 dark:text-purple-400',
-  'text-green-600 dark:text-green-400',
-  'text-orange-600 dark:text-orange-400',
-  'text-pink-600 dark:text-pink-400',
-];
-
-const folderColor = computed(() => {
-  return folderColors[props.depth % folderColors.length] || 'text-blue-600 dark:text-blue-400';
-});
+// Folder color (no depth-based colors anymore)
+const folderColor = 'text-blue-600 dark:text-blue-400';
 
 // Initialize SortableJS for notes
 async function initializeNotesSortable() {
-  // Initialize if folder is expanded (even if empty - to allow drops)
+  // Initialize if folder is expanded
   if (!notesContainerRef.value || !props.isExpanded) {
     return;
   }
@@ -448,15 +425,18 @@ async function initializeNotesSortable() {
         }
         return true; // Allow the move
       },
-      onAdd: (evt) => {
+      onAdd: async (evt) => {
         // Auto-expand folder when item is added (dragged into)
         const toElement = evt.to;
         if (toElement) {
           const folderIdAttr = toElement.getAttribute('data-folder-id');
           if (folderIdAttr && folderIdAttr !== 'null') {
             const folderId = parseInt(folderIdAttr);
+            // Expand the target folder if it's collapsed to show the moved note
             if (!foldersStore.expandedFolderIds.has(folderId)) {
               foldersStore.expandFolder(folderId);
+              // Wait a tick for folder expansion
+              await nextTick();
             }
           }
         }
@@ -577,7 +557,6 @@ async function initializeNotesSortable() {
               fromFolderId: currentNote.folder_id,
               toFolderId: targetFolderId,
               newIndex,
-              depth: props.depth,
               targetFolderIdValid: targetFolderId !== null || targetFolderId === null // null is valid for root
             });
             
@@ -589,7 +568,6 @@ async function initializeNotesSortable() {
             
             // Expand the target folder if it's collapsed to show the moved note
             if (targetFolderId !== null) {
-              console.log('[FolderTreeItem] Expanding target folder:', targetFolderId);
               foldersStore.expandFolder(targetFolderId);
             }
             
@@ -711,169 +689,24 @@ async function initializeNotesSortable() {
   }
 }
 
-// Initialize SortableJS for folders (subfolders within this folder)
-async function initializeFoldersSortable() {
-  // Only initialize if we have children (subfolders to drag)
-  if (!hasChildren.value || !subfoldersContainerRef.value) {
-    console.log('[FolderTreeItem] Skipping folders sortable - no children or no container', {
-      hasChildren: hasChildren.value,
-      hasContainer: !!subfoldersContainerRef.value
-    });
-    return;
-  }
-  
-  // Only initialize if folder is expanded (so we can see the subfolders)
-  if (!props.isExpanded) {
-    console.log('[FolderTreeItem] Skipping folders sortable - folder not expanded');
-    return;
-  }
-  
-  if (foldersSortableInstance) {
-    foldersSortableInstance.destroy();
-    foldersSortableInstance = null;
-  }
-  
-  await nextTick();
-  
-  if (!subfoldersContainerRef.value) {
-    return;
-  }
-  
-  try {
-    const SortableJS = (await import('sortablejs')).default;
-    
-    foldersSortableInstance = SortableJS.create(subfoldersContainerRef.value, {
-      animation: 150,
-      ghostClass: 'sortable-ghost',
-      chosenClass: 'sortable-chosen',
-      dragClass: 'sortable-drag',
-      draggable: '.folder-item',
-      forceFallback: false,
-      // Longer delay on mobile to prevent conflicts with scrolling
-      delay: 300, // 300ms delay for touch devices (only applies when delayOnTouchOnly is true)
-      delayOnTouchOnly: true,
-      touchStartThreshold: 3,
-      filter: '.no-drag',
-      preventOnFilter: false,
-      group: {
-        name: 'folders',
-        pull: false, // Don't allow moving folders between different parents
-        put: false // Don't allow dropping folders from other parents
-      },
-      onStart: () => {
-        console.log('[FolderTreeItem] Folder drag started');
-      },
-      onEnd: async (evt) => {
-        const { oldIndex, newIndex, item } = evt;
-        
-        console.log('[FolderTreeItem] Folder drag ended', {
-          oldIndex,
-          newIndex,
-          item,
-          parentFolderId: props.folder.id
-        });
-        
-        if (oldIndex === undefined || newIndex === undefined || oldIndex === newIndex) {
-          console.log('[FolderTreeItem] No folder reorder needed');
-          return;
-        }
-        
-        const folderId = item.getAttribute('data-folder-id');
-        if (!folderId) {
-          console.error('[FolderTreeItem] No folder ID found on dragged item');
-          return;
-        }
-        
-        console.log('[FolderTreeItem] Folder reordered', {
-          folderId,
-          oldIndex,
-          newIndex,
-          parentFolderId: props.folder.id
-        });
-        
-        // Emit reorder event to parent (dashboard.vue handles it)
-        emit('reorder-folder', parseInt(folderId), newIndex);
-      }
-    });
-    
-    console.log('[FolderTreeItem] Folders Sortable initialized');
-  } catch (error) {
-    console.error('[FolderTreeItem] Error initializing folders Sortable:', error);
-  }
-}
-
-// Watch for expansion changes and reinitialize Sortable
+// Initialize notes sortable when folder is expanded
 watch(
-  () => [props.isExpanded, hasChildren.value],
-  async () => {
-    if (props.isExpanded) {
-      // Always initialize notes sortable when expanded (needed for drops)
+  () => props.isExpanded,
+  async (isExpanded) => {
+    if (isExpanded) {
       await nextTick();
       await initializeNotesSortable();
-      
-      // Initialize folders sortable if there are subfolders
-      if (hasChildren.value) {
-        await nextTick();
-        await initializeFoldersSortable();
-      }
     } else {
       if (notesSortableInstance) {
         notesSortableInstance.destroy();
         notesSortableInstance = null;
       }
-      // Keep folders sortable instance if folder has children (might be collapsed but still needs drag)
-      // Only destroy if truly empty
-      if (!hasChildren.value && foldersSortableInstance) {
-        foldersSortableInstance.destroy();
-        foldersSortableInstance = null;
-      }
     }
   },
   { immediate: true }
 );
 
-// Also watch for subfolders container availability
-watch(
-  () => subfoldersContainerRef.value,
-  async (container) => {
-    if (container && (hasChildren.value || props.isExpanded)) {
-      await nextTick();
-      await initializeFoldersSortable();
-    }
-  },
-  { immediate: true }
-);
-
-// Handle drag-over events on folder items to auto-expand
 onMounted(() => {
-  // Handle drag over folder items to auto-expand them
-  const handleFolderDragOver = (event: DragEvent) => {
-    // Check if SortableJS is dragging (it adds classes to body)
-    const isSortableDragging = document.body.classList.contains('sortable-drag') || 
-                             document.querySelector('.sortable-ghost') ||
-                             document.querySelector('.sortable-chosen');
-    
-    if (!isSortableDragging) {
-      return;
-    }
-    
-    const target = event.target as HTMLElement;
-    const folderItem = target.closest('.folder-item');
-    
-    if (folderItem) {
-      const folderIdAttr = folderItem.getAttribute('data-folder-id');
-      if (folderIdAttr && folderIdAttr !== 'null') {
-        const folderId = parseInt(folderIdAttr);
-        if (!foldersStore.expandedFolderIds.has(folderId)) {
-          foldersStore.expandFolder(folderId);
-        }
-      }
-    }
-  };
-  
-  // Attach to document for drag events (use capture to catch events early)
-  document.addEventListener('dragover', handleFolderDragOver, true);
-  
   // Close context menu when clicking outside
   const handleClickOutside = (event: MouseEvent) => {
     if (!showContextMenu.value) return;
@@ -919,24 +752,18 @@ onMounted(() => {
   
   onUnmounted(() => {
     document.removeEventListener('click', handleClickOutside);
-    document.removeEventListener('dragover', handleFolderDragOver, true);
     if (notesSortableInstance) {
       notesSortableInstance.destroy();
       notesSortableInstance = null;
-    }
-    if (foldersSortableInstance) {
-      foldersSortableInstance.destroy();
-      foldersSortableInstance = null;
     }
   });
 });
 </script>
 
 <template>
-  <!-- Folder Item (root element must be draggable for SortableJS) -->
+  <!-- Folder Item -->
     <div
     class="folder-item group/folder relative flex items-center gap-2 rounded-lg transition-colors md:hover:bg-gray-100 md:dark:hover:bg-gray-700/50 active:bg-gray-100 dark:active:bg-gray-700/50 cursor-grab active:cursor-grabbing"
-      :style="{ paddingLeft: `${depth * 12 + 8}px` }"
     :data-folder-id="folder.id"
     >
       <!-- Expand/Collapse Button -->
@@ -954,13 +781,11 @@ onMounted(() => {
       <!-- Folder Button -->
       <button
         @click.stop="handleSelect"
-        @mousedown.stop
-        class="no-drag flex-1 flex items-center gap-3 md:gap-2 py-3 md:py-2.5 pr-2 text-lg md:text-sm font-medium transition-colors rounded-lg min-w-0 text-gray-700 dark:text-gray-300 md:hover:bg-gray-100 md:dark:hover:bg-gray-700/30 active:bg-gray-100 dark:active:bg-gray-700/30"
+        class="flex-1 flex items-center gap-3 md:gap-2 py-3 md:py-2.5 pr-2 text-lg md:text-sm font-medium transition-colors rounded-lg min-w-0 text-gray-700 dark:text-gray-300 md:hover:bg-gray-100 md:dark:hover:bg-gray-700/30 active:bg-gray-100 dark:active:bg-gray-700/30"
       >
         <UIcon 
           name="i-heroicons-folder" 
-          class="w-6 h-6 md:w-4 md:h-4 flex-shrink-0"
-          :class="folderColor"
+          class="w-6 h-6 md:w-4 md:h-4 flex-shrink-0 text-blue-600 dark:text-blue-400"
         />
         <span class="truncate flex-1 text-left">{{ folder.name }}</span>
         <span 
@@ -1022,14 +847,6 @@ onMounted(() => {
             <span>Move Down</span>
           </button>
           <div v-if="canMoveUp || canMoveDown" class="my-1 border-t border-gray-200 dark:border-gray-700"></div>
-          <button
-            type="button"
-            @click="emit('create-subfolder', folder.id); showContextMenu = false"
-            class="w-full text-left px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 md:hover:bg-gray-100 md:dark:hover:bg-gray-700 active:bg-gray-100 dark:active:bg-gray-700 flex items-center gap-3"
-          >
-            <UIcon name="i-heroicons-folder-plus" class="w-5 h-5 text-blue-500" />
-            <span>New Subfolder</span>
-          </button>
           <div class="relative">
               <!-- Mobile: Direct create note, Desktop: Show submenu -->
               <button
@@ -1169,27 +986,23 @@ onMounted(() => {
       />
     </Teleport>
 
-    <!-- Children (Notes and Subfolders) -->
+    <!-- Notes in this folder -->
     <Transition name="expand">
-      <!-- Always render when expanded to allow drops into empty folders -->
-      <div v-if="isExpanded" class="expand-container" :data-folder-id="folder.id">
+      <div v-if="isExpanded" class="notes-wrapper expand-container" :data-folder-id="folder.id">
         <div class="expand-content">
-          <!-- Notes in this folder - always render container, even if empty -->
+          <!-- Notes container - always render, even if empty -->
           <div
             ref="notesContainerRef"
             class="notes-container"
             :data-folder-id="folder.id"
-            :class="{ 'empty-folder': folderNotes.length === 0 && !hasChildren }"
+            :class="{ 'empty-folder': folderNotes.length === 0 }"
           >
         <div
           v-for="note in folderNotes"
           :key="`note-${note.id}`"
             :data-note-id="note.id"
             class="note-item group/note flex items-center gap-2 rounded-lg transition-colors md:hover:bg-gray-100 md:dark:hover:bg-gray-700/50 active:bg-gray-100 dark:active:bg-gray-700/50 cursor-grab active:cursor-grabbing"
-            :style="{ 
-              paddingLeft: `${(depth + 1) * 12 + 8}px`,
-              transition: 'padding-left 0.15s ease'
-            }"
+            style="padding-left: 20px;"
           :class="notesStore.activeTabId === note.id ? 'bg-primary-50 dark:bg-primary-900/20' : ''"
         >
           <div class="w-6 flex-shrink-0" />
@@ -1220,35 +1033,7 @@ onMounted(() => {
           >
             <UIcon name="i-heroicons-trash" class="w-5 h-5 md:w-3.5 md:h-3.5 text-red-600 dark:text-red-400" />
           </button>
-          </div>
         </div>
-
-        <!-- Subfolders (Recursive) - Draggable -->
-        <div
-          v-if="hasChildren"
-          ref="subfoldersContainerRef"
-          class="subfolders-container space-y-0.5"
-          :data-parent-folder-id="folder.id"
-        >
-        <FolderTreeItem
-          v-for="child in folder.children"
-          :key="child.id"
-          :folder="child"
-          :selected-id="selectedId"
-          :depth="depth + 1"
-          :is-expanded="foldersStore.expandedFolderIds.has(child.id)"
-          @select="emit('select', $event)"
-          @toggle="emit('toggle', $event)"
-          @create-subfolder="emit('create-subfolder', $event)"
-          @create-note="emit('create-note', $event)"
-          @rename="emit('rename', $event)"
-          @delete="emit('delete', $event)"
-          @move-up="emit('move-up', $event)"
-          @move-down="emit('move-down', $event)"
-            @reorder-folder="(folderId, newIndex) => emit('reorder-folder', folderId, newIndex)"
-          @open-note="emit('open-note', $event)"
-          @delete-note="emit('delete-note', $event)"
-        />
         </div>
         </div>
       </div>
@@ -1418,6 +1203,13 @@ body.sortable-dragging :deep(.sortable-chosen:not(.note-item)) {
   outline: none !important;
 }
 
+/* Hide ghost element for folders - animation is enough */
+.folder-item.sortable-ghost {
+  opacity: 0 !important;
+  visibility: hidden !important;
+}
+
+
 .folder-item,
 .note-item {
   user-select: none;
@@ -1484,6 +1276,38 @@ body.sortable-dragging .notes-container.sortable-source-container {
 body.sortable-dragging .notes-container:empty:hover:not(.sortable-source-container) {
   min-height: 50px;
   padding: 8px 0;
+}
+</style>
+
+<style>
+/* Hide the red circle/cross cursor (no-drop) when dragging folders/notes - global style */
+body.sortable-dragging,
+body.sortable-dragging *,
+body.sortable-dragging *::before,
+body.sortable-dragging *::after {
+  cursor: grabbing !important;
+  cursor: -webkit-grabbing !important;
+  cursor: -moz-grabbing !important;
+}
+
+body.sortable-dragging .folder-item,
+body.sortable-dragging .note-item,
+body.sortable-dragging .folder-item *,
+body.sortable-dragging .note-item * {
+  cursor: grabbing !important;
+  cursor: -webkit-grabbing !important;
+  cursor: -moz-grabbing !important;
+}
+
+/* Prevent the browser's default drag image/cursor */
+body.sortable-dragging img,
+body.sortable-dragging svg {
+  pointer-events: none !important;
+  -webkit-user-drag: none !important;
+  -khtml-user-drag: none !important;
+  -moz-user-drag: none !important;
+  -o-user-drag: none !important;
+  user-drag: none !important;
 }
 </style>
 

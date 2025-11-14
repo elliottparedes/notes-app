@@ -124,15 +124,7 @@ export default defineEventHandler(async (event): Promise<PublishResponse> => {
         }
       }
 
-      // Recursively publish subfolders
-      const subfolders = await executeQuery<Array<{ id: number }>>(
-        'SELECT id FROM folders WHERE parent_id = ? AND user_id = ?',
-        [folderId, userId]
-      );
-
-      for (const subfolder of subfolders) {
-        await publishFolderRecursive(subfolder.id);
-      }
+      // No subfolders to publish (all folders are root-level now)
     }
 
     // Publish all root folders in the space
