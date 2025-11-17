@@ -1075,6 +1075,11 @@ const displayedFolders = computed(() => {
   return foldersStore.folders.filter(f => f.space_id === currentSpaceId);
 });
 
+// Computed: Get note count for a folder
+const getFolderNoteCount = (folderId: number) => {
+  return notesStore.notes.filter(n => n.folder_id === folderId && !n.share_permission).length;
+};
+
 // Handle folder click - always select folder (no navigation needed)
 function handleFolderClick(folder: Folder) {
   handleSelectFolder(folder.id);
@@ -3013,36 +3018,44 @@ onMounted(() => {
     <div v-else :key="`dashboard-${authStore.currentUser?.id}-${sessionKey}`" class="flex flex-col h-screen bg-gray-50 dark:bg-gray-900 overflow-hidden relative">
       <!-- Mobile Action Bar (only on mobile) - Quick actions - AT TOP LEVEL -->
       <div class="md:hidden flex items-center justify-between gap-2 px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex-shrink-0">
-        <!-- Left: Space/Folder Navigation (when no note active) OR Back Button + Note Title (when note active) -->
+        <!-- Left: Space Navigation (when no note active) OR Back Button + Note Title (when note active) -->
         <div v-if="!activeNote" class="flex-1 min-w-0 flex items-center gap-2">
-          <!-- Space Selector -->
-          <button
-            ref="spaceButtonRef"
-            @click="handleOpenSpacesSheet"
-            class="flex items-center gap-2 px-3 py-1.5 rounded-lg active:bg-gray-100 dark:active:bg-gray-700 transition-colors flex-shrink-0"
-          >
-            <UIcon name="i-heroicons-building-office-2" class="w-4 h-4 text-gray-600 dark:text-gray-400" />
-            <span class="text-sm font-medium text-gray-900 dark:text-white truncate max-w-[100px]">
-              {{ spacesStore.currentSpace?.name || 'Select Space' }}
-            </span>
-            <UIcon name="i-heroicons-chevron-down" class="w-3 h-3 text-gray-400 dark:text-gray-500" />
-          </button>
+          <!-- When folder is selected: Show back button + folder name -->
+          <template v-if="selectedFolderId !== null">
+            <!-- Back Button -->
+            <button
+              @click="selectAllNotes"
+              class="p-1.5 rounded-lg active:bg-gray-100 dark:active:bg-gray-700 text-gray-600 dark:text-gray-400 flex-shrink-0"
+            >
+              <UIcon name="i-heroicons-arrow-left" class="w-5 h-5" />
+            </button>
+            
+            <!-- Folder Name -->
+            <div class="flex items-center gap-2 min-w-0 flex-1">
+              <UIcon name="i-heroicons-folder" class="w-4 h-4 text-blue-600 dark:text-blue-400 flex-shrink-0" />
+              <span class="text-sm font-semibold text-gray-900 dark:text-white truncate">
+                {{ foldersStore.getFolderById(selectedFolderId)?.name || 'Folder' }}
+              </span>
+            </div>
+          </template>
           
-          <!-- Folder Selector (always visible) -->
-          <span class="text-gray-400 dark:text-gray-500">/</span>
-          <button
-            ref="folderButtonRef"
-            @click="handleOpenFoldersSheet"
-            class="flex items-center gap-2 px-3 py-1.5 rounded-lg active:bg-gray-100 dark:active:bg-gray-700 transition-colors flex-shrink-0"
-          >
-            <UIcon name="i-heroicons-folder" class="w-4 h-4 text-gray-600 dark:text-gray-400" />
-            <span class="text-sm font-medium text-gray-900 dark:text-white truncate max-w-[100px]">
-              {{ selectedFolderId !== null 
-                ? (foldersStore.getFolderById(selectedFolderId)?.name || 'Folder')
-                : 'Select Folder' }}
-            </span>
-            <UIcon name="i-heroicons-chevron-down" class="w-3 h-3 text-gray-400 dark:text-gray-500" />
-          </button>
+          <!-- When no folder selected: Show space selector -->
+          <template v-else>
+            <button
+              ref="spaceButtonRef"
+              @click="handleOpenSpacesSheet"
+              class="flex items-center gap-2 px-3 py-1.5 rounded-lg active:bg-gray-100 dark:active:bg-gray-700 transition-colors flex-shrink-0"
+            >
+              <UIcon 
+                :name="(spacesStore.currentSpace?.icon && spacesStore.currentSpace.icon.trim() !== '') ? `i-lucide-${spacesStore.currentSpace.icon}` : 'i-heroicons-building-office-2'" 
+                class="w-4 h-4 text-gray-600 dark:text-gray-400" 
+              />
+              <span class="text-sm font-medium text-gray-900 dark:text-white truncate max-w-[100px]">
+                {{ spacesStore.currentSpace?.name || 'Select Space' }}
+              </span>
+              <UIcon name="i-heroicons-chevron-down" class="w-3 h-3 text-gray-400 dark:text-gray-500" />
+            </button>
+          </template>
         </div>
         
         <div v-else class="flex-1 min-w-0 flex items-center gap-2">
@@ -3901,31 +3914,53 @@ onMounted(() => {
           <template v-if="shouldShowEmptyState && !isLoadingNoteFromSearch && !noteJustSelectedFromSearch">
             <div class="md:hidden min-h-full p-4">
               <div class="max-w-2xl mx-auto">
-                <div v-if="selectedFolderId === null" class="text-center py-12">
-                  <UIcon name="i-heroicons-folder" class="w-16 h-16 mx-auto text-gray-300 dark:text-gray-600 mb-4" />
-                  <p class="text-base text-gray-500 dark:text-gray-400 mb-4">
-                    Select a folder to view notes
-                  </p>
-                  <button 
-                    @click="handleOpenFoldersSheet" 
-                    class="text-base text-primary-600 dark:text-primary-400 font-medium"
-                  >
-                    Select Folder
-                  </button>
-                </div>
-                
-                <div v-else>
-                  <div class="mb-4 flex items-center justify-between">
-                    <div>
-                      <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
-                        {{ foldersStore.getFolderById(selectedFolderId)?.name || 'Folder' }}
-                      </h2>
-                      <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                        {{ displayNotes.length }} {{ displayNotes.length === 1 ? 'note' : 'notes' }}
-                      </p>
-                    </div>
+                <!-- Folder List View (when no folder selected) -->
+                <div v-if="selectedFolderId === null">
+                  <div v-if="displayedFolders.length === 0" class="text-center py-12">
+                    <UIcon name="i-heroicons-folder-open" class="w-16 h-16 mx-auto text-gray-300 dark:text-gray-600 mb-4" />
+                    <p class="text-base text-gray-500 dark:text-gray-400 mb-4">
+                      No folders yet
+                    </p>
+                    <button 
+                      @click="openCreateFolderModal" 
+                      class="text-base text-primary-600 dark:text-primary-400 font-medium"
+                    >
+                      Create folder
+                    </button>
                   </div>
                   
+                  <div v-else class="space-y-2">
+                    <button
+                      v-for="folder in displayedFolders"
+                      :key="folder.id"
+                      @click="selectFolder(folder.id)"
+                      class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 active:scale-[0.98] bg-white dark:bg-gray-800 border-2 border-transparent active:bg-gray-100 dark:active:bg-gray-700 shadow-sm"
+                    >
+                      <!-- Folder Icon -->
+                      <div class="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400">
+                        <UIcon name="i-heroicons-folder" class="w-5 h-5" />
+                      </div>
+                      
+                      <!-- Folder Name -->
+                      <div class="flex-1 text-left min-w-0">
+                        <div class="text-base font-semibold text-gray-900 dark:text-white truncate">
+                          {{ folder.name }}
+                        </div>
+                        <div class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                          {{ getFolderNoteCount(folder.id) }} {{ getFolderNoteCount(folder.id) === 1 ? 'note' : 'notes' }}
+                        </div>
+                      </div>
+                      
+                      <!-- Chevron -->
+                      <div class="flex-shrink-0">
+                        <UIcon name="i-heroicons-chevron-right" class="w-5 h-5 text-gray-400 dark:text-gray-500" />
+                      </div>
+                    </button>
+                  </div>
+                </div>
+                
+                <!-- Notes in Folder View (when folder selected) -->
+                <div v-else>
                   <div v-if="displayNotes.length === 0" class="text-center py-12">
                     <UIcon name="i-heroicons-document-text" class="w-16 h-16 mx-auto text-gray-300 dark:text-gray-600 mb-4" />
                     <p class="text-base text-gray-500 dark:text-gray-400 mb-4">
