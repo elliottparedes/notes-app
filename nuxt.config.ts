@@ -71,6 +71,25 @@ export default defineNuxtConfig({
       start_url: '/dashboard',
       icons: [
         {
+          src: '/swan-unfold-white.png',
+          sizes: '192x192',
+          type: 'image/png',
+          purpose: 'any'
+        },
+        {
+          src: '/swan-unfold-white.png',
+          sizes: '512x512',
+          type: 'image/png',
+          purpose: 'any'
+        },
+        {
+          src: '/swan-unfold-white.png',
+          sizes: '512x512',
+          type: 'image/png',
+          purpose: 'maskable'
+        },
+        // Fallback to original if white version doesn't exist
+        {
           src: '/swan-unfold.png',
           sizes: '192x192',
           type: 'image/png',
@@ -81,12 +100,6 @@ export default defineNuxtConfig({
           sizes: '512x512',
           type: 'image/png',
           purpose: 'any'
-        },
-        {
-          src: '/swan-unfold.png',
-          sizes: '512x512',
-          type: 'image/png',
-          purpose: 'maskable'
         }
       ]
     },

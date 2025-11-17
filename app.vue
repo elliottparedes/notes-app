@@ -7,7 +7,7 @@ const { baseUrl } = useSEO()
 useHead({
   link: [
     { rel: 'icon', type: 'image/png', href: '/swan-unfold.png' },
-    { rel: 'apple-touch-icon', href: '/swan-unfold.png', sizes: '192x192' },
+    { rel: 'apple-touch-icon', href: '/swan-unfold-white.png', sizes: '180x180' },
     { rel: 'alternate', type: 'application/rss+xml', href: `${baseUrl}/rss.xml` }
   ],
   meta: [
