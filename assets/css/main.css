@@ -22,16 +22,24 @@
     opacity: 1 !important; /* Show on mobile since hover doesn't work */
   }
   
-  /* Enable horizontal scrolling for tables on mobile */
+  /* Enable horizontal scrolling for tables on mobile while allowing vertical page scroll */
   .ProseMirror table,
   table {
     overflow-x: auto !important;
     overflow-y: hidden !important;
     -webkit-overflow-scrolling: touch !important;
-    touch-action: pan-x !important;
+    touch-action: pan-y pan-x !important;
     display: block !important;
     width: 100% !important;
     max-width: 100% !important;
+  }
+  
+  /* Allow vertical scrolling to pass through table cells */
+  .ProseMirror table td,
+  .ProseMirror table th,
+  table td,
+  table th {
+    touch-action: pan-y pan-x !important;
   }
   
   /* Ensure table cells don't break layout */
