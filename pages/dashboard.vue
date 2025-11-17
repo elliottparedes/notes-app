@@ -181,9 +181,8 @@ const renameFolderName = ref('');
 const folderToManage = ref<number | null>(null);
 const isFolderActionLoading = ref(false);
 
-// Folder drag-and-drop
+// Folder container ref (kept for potential future use)
 const foldersContainerRef = ref<HTMLElement | null>(null);
-let foldersSortableInstance: any = null;
 
 // AI generation modal
 const showAiGenerateModal = ref(false);
@@ -494,17 +493,11 @@ onMounted(async () => {
     await notesStore.loadTabsFromStorage();
   }
   
-  // Initialize folder drag-and-drop after data is loaded
+  // Data loaded
   await nextTick();
-  await initializeFoldersSortable();
 });
 
 onUnmounted(() => {
-  if (foldersSortableInstance) {
-    foldersSortableInstance.destroy();
-    foldersSortableInstance = null;
-  }
-  
   // Clean up keyboard shortcut listener
   if (process.client && keyboardShortcutHandler) {
     window.removeEventListener('keydown', keyboardShortcutHandler);
@@ -1506,110 +1499,6 @@ async function handleFolderReorder(folderId: number, newIndex: number) {
   }
 }
 
-// Initialize folder drag-and-drop
-async function initializeFoldersSortable() {
-  if (!foldersContainerRef.value) {
-    return;
-  }
-  
-  if (foldersSortableInstance) {
-    foldersSortableInstance.destroy();
-    foldersSortableInstance = null;
-  }
-  
-  await nextTick();
-  
-  if (!foldersContainerRef.value) {
-    return;
-  }
-  
-  try {
-    const SortableJS = (await import('sortablejs')).default;
-    
-    // Check if folder items exist
-    const folderItems = foldersContainerRef.value.querySelectorAll('.folder-item');
-    console.log('[Dashboard] Found folder items:', folderItems.length);
-    
-    if (folderItems.length === 0) {
-      console.warn('[Dashboard] No folder items found, cannot initialize Sortable');
-      return;
-    }
-    
-    foldersSortableInstance = SortableJS.create(foldersContainerRef.value, {
-      animation: 150,
-      ghostClass: '', // No ghost for folders - animation is enough
-      chosenClass: 'sortable-chosen',
-      dragClass: 'sortable-drag',
-      draggable: '.folder-item',
-      forceFallback: false,
-      delay: 0,
-      delayOnTouchOnly: true,
-      touchStartThreshold: 3,
-      filter: '.no-drag',
-      preventOnFilter: false,
-      group: {
-        name: 'folders',
-        pull: false, // Don't allow moving folders between different parents
-        put: false // Don't allow dropping folders from other parents
-      },
-      onStart: (evt) => {
-        console.log('[Dashboard] Root folder drag started', evt);
-      },
-      onEnd: async (evt) => {
-        const { oldIndex, newIndex, item } = evt;
-        
-        console.log('[Dashboard] Root folder drag ended', {
-          oldIndex,
-          newIndex,
-          item
-        });
-        
-        if (oldIndex === undefined || newIndex === undefined || oldIndex === newIndex) {
-          console.log('[Dashboard] No root folder reorder needed');
-          return;
-        }
-        
-        const folderId = item.getAttribute('data-folder-id');
-        if (!folderId) {
-          console.error('[Dashboard] No folder ID found on dragged item');
-          return;
-        }
-        
-        console.log('[Dashboard] Reordering root folder', {
-          folderId,
-          oldIndex,
-          newIndex
-        });
-        
-        try {
-          await handleFolderReorder(parseInt(folderId), newIndex);
-        } catch (error) {
-          console.error('Failed to reorder folder:', error);
-        }
-      }
-    });
-    
-    console.log('[Dashboard] Root folders Sortable initialized', {
-      container: foldersContainerRef.value,
-      childCount: foldersContainerRef.value?.children.length,
-      folderItems: foldersContainerRef.value?.querySelectorAll('.folder-item').length
-    });
-  } catch (error) {
-    console.error('[Dashboard] Error initializing folders Sortable:', error);
-  }
-}
-
-// Watch for folder tree changes and reinitialize Sortable
-watch(
-  () => foldersStore.folders.length,
-  async () => {
-    if (foldersStore.folders.length > 0) {
-      await nextTick();
-      await initializeFoldersSortable();
-    }
-  },
-  { immediate: true }
-);
 
 // Folder CRUD operations
 function openCreateFolderModal() {

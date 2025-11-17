@@ -1203,11 +1203,6 @@ body.sortable-dragging :deep(.sortable-chosen:not(.note-item)) {
   outline: none !important;
 }
 
-/* Hide ghost element for folders - animation is enough */
-.folder-item.sortable-ghost {
-  opacity: 0 !important;
-  visibility: hidden !important;
-}
 
 
 .folder-item,
