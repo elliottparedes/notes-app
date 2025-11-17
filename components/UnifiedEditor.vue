@@ -288,6 +288,10 @@ const TaskItemWithStrike = TaskItem.extend({
                   tr.setSelection(TextSelection.near(tr.doc.resolve(startPos + 1)))
                 }
                 view.dispatch(tr)
+                // Ensure focus is maintained on mobile after transaction
+                requestAnimationFrame(() => {
+                  view.focus()
+                })
                 return true // Return true to prevent other handlers (like BulletList) from running
               }
             } else {
@@ -314,6 +318,10 @@ const TaskItemWithStrike = TaskItem.extend({
                   tr.setSelection(TextSelection.create(tr.doc, startPos + 2))
                 }
                 view.dispatch(tr)
+                // Ensure focus is maintained on mobile after transaction
+                requestAnimationFrame(() => {
+                  view.focus()
+                })
                 return true // Return true to prevent other handlers (like BulletList) from running
               }
             }
@@ -2718,6 +2726,13 @@ onBeforeUnmount(() => {
   border: none !important;
   box-shadow: none !important;
   min-height: 400px;
+  /* Ensure caret is visible on mobile */
+  caret-color: #1f2937 !important;
+}
+
+.dark .unified-editor :deep(.ProseMirror),
+.dark .collaborative-editor :deep(.ProseMirror) {
+  caret-color: #e5e7eb !important;
 }
 
 .unified-editor :deep(.ProseMirror:focus),
@@ -2869,6 +2884,21 @@ onBeforeUnmount(() => {
   line-height: 1.5 !important;
   width: auto !important;
   vertical-align: baseline !important;
+  /* Ensure caret is visible on mobile after checkbox creation */
+  caret-color: #1f2937 !important;
+}
+
+.dark .unified-editor :deep(.ProseMirror li[data-type="taskItem"] p),
+.dark .collaborative-editor :deep(.ProseMirror li[data-type="taskItem"] p),
+.dark .unified-editor :deep(.ProseMirror li[data-type="taskItem"] > div > p),
+.dark .collaborative-editor :deep(.ProseMirror li[data-type="taskItem"] > div > p),
+.dark .unified-editor :deep(.ProseMirror li[data-type="taskItem"] > p),
+.dark .collaborative-editor :deep(.ProseMirror li[data-type="taskItem"] > p),
+.dark .unified-editor :deep(.ProseMirror ul[data-type="taskList"] li p),
+.dark .collaborative-editor :deep(.ProseMirror ul[data-type="taskList"] li p),
+.dark .unified-editor :deep(.ProseMirror ul[data-type="taskList"] li > div > p),
+.dark .collaborative-editor :deep(.ProseMirror ul[data-type="taskList"] li > div > p) {
+  caret-color: #e5e7eb !important;
 }
 
 .unified-editor :deep(.ProseMirror ul),
