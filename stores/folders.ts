@@ -80,21 +80,80 @@ export const useFoldersStore = defineStore('folders', {
         // Use provided spaceId or current space from spaces store
         const targetSpaceId = spaceId !== undefined ? spaceId : spacesStore.currentSpaceId;
 
+        // Try to load from cache first (for silent fetches like space switching)
+        if (silent && process.client && targetSpaceId) {
+          const cacheStartTime = performance.now();
+          const cacheKey = `folders_cache_${targetSpaceId}`;
+          const cached = localStorage.getItem(cacheKey);
+          if (cached) {
+            try {
+              const cachedData = JSON.parse(cached);
+              // Check if cache is less than 5 minutes old
+              if (cachedData.timestamp && Date.now() - cachedData.timestamp < 5 * 60 * 1000) {
+                this.folders = cachedData.folders;
+                const cacheDuration = performance.now() - cacheStartTime;
+                console.log(`[FoldersStore] ✅ CACHE HIT: Loaded ${this.folders.length} folders from cache for space ${targetSpaceId} in ${cacheDuration.toFixed(2)}ms`);
+                
+                // Sync in background
+                this.syncFoldersInBackground(targetSpaceId).catch(console.error);
+                
+                // Load expanded state from localStorage
+                if (process.client) {
+                  const expanded = localStorage.getItem('expanded_folders');
+                  if (expanded) {
+                    try {
+                      const ids = JSON.parse(expanded) as number[];
+                      this.expandedFolderIds = new Set(ids);
+                    } catch (err) {
+                      console.error('Failed to parse expanded folders:', err);
+                    }
+                  }
+                }
+                
+                return; // Return early with cached data
+              } else {
+                const cacheAge = Date.now() - cachedData.timestamp;
+                console.log(`[FoldersStore] ⚠️ CACHE EXPIRED: Cache is ${(cacheAge / 1000).toFixed(0)}s old (max 5min)`);
+              }
+            } catch (e) {
+              // Cache invalid, continue to fetch
+              console.warn('[FoldersStore] ⚠️ CACHE INVALID: Failed to parse cache, fetching fresh data');
+            }
+          } else {
+            const cacheDuration = performance.now() - cacheStartTime;
+            console.log(`[FoldersStore] ⚠️ CACHE MISS: No cached folders found for space ${targetSpaceId} (checked in ${cacheDuration.toFixed(2)}ms)`);
+          }
+        }
+
         // Build query params
         const queryParams: Record<string, string> = {};
         if (targetSpaceId) {
           queryParams.space_id = targetSpaceId.toString();
         }
 
+        const serverStartTime = performance.now();
+        console.log(`[FoldersStore] 🌐 Fetching folders from server for space ${targetSpaceId || 'all'}...`);
         const folders = await $fetch<Folder[]>('/api/folders', {
           headers: {
             Authorization: `Bearer ${authStore.token}`
           },
           query: queryParams
         });
+        const serverDuration = performance.now() - serverStartTime;
+        console.log(`[FoldersStore] ✅ Server response: ${folders.length} folders in ${serverDuration.toFixed(2)}ms`);
 
         // Store flat array directly (no tree structure)
         this.folders = folders;
+
+        // Cache folders
+        if (process.client && targetSpaceId) {
+          const cacheKey = `folders_cache_${targetSpaceId}`;
+          localStorage.setItem(cacheKey, JSON.stringify({
+            folders,
+            timestamp: Date.now()
+          }));
+          console.log(`[FoldersStore] 💾 Cached ${folders.length} folders for space ${targetSpaceId}`);
+        }
 
         // Load expanded state from localStorage
         if (process.client) {
@@ -115,6 +174,40 @@ export const useFoldersStore = defineStore('folders', {
         if (!silent) {
           this.loading = false;
         }
+      }
+    },
+
+    async syncFoldersInBackground(spaceId: number): Promise<void> {
+      try {
+        const authStore = useAuthStore();
+        if (!authStore.token) {
+          return;
+        }
+
+        const folders = await $fetch<Folder[]>('/api/folders', {
+          headers: {
+            Authorization: `Bearer ${authStore.token}`
+          },
+          query: {
+            space_id: spaceId.toString()
+          }
+        });
+
+        // Update cache
+        if (process.client) {
+          const cacheKey = `folders_cache_${spaceId}`;
+          localStorage.setItem(cacheKey, JSON.stringify({
+            folders,
+            timestamp: Date.now()
+          }));
+        }
+
+        // Update store
+        this.folders = folders;
+        
+        console.log('[FoldersStore] Background sync completed for space', spaceId);
+      } catch (err) {
+        console.error('[FoldersStore] Background sync error:', err);
       }
     },
 

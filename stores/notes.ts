@@ -2,6 +2,12 @@ import { defineStore } from 'pinia';
 import { toRaw } from 'vue';
 import type { Note, CreateNoteDto, UpdateNoteDto, NoteFilters } from '~/models';
 import { useAuthStore } from './auth';
+import { 
+  saveNotesToCache, 
+  getNotesFromCache, 
+  updateCachedNote, 
+  deleteCachedNote 
+} from '~/utils/notesCache';
 
 interface NotesState {
   notes: Note[];
@@ -113,7 +119,7 @@ export const useNotesStore = defineStore('notes', {
   },
 
   actions: {
-    async fetchNotes(): Promise<void> {
+    async fetchNotes(useCache: boolean = true): Promise<void> {
       this.loading = true;
       this.error = null;
 
@@ -123,18 +129,101 @@ export const useNotesStore = defineStore('notes', {
           throw new Error('Not authenticated');
         }
 
+        // Step 1: Load from cache immediately if available
+        if (useCache && process.client) {
+          const cacheStartTime = performance.now();
+          const cachedNotes = await getNotesFromCache();
+          const cacheDuration = performance.now() - cacheStartTime;
+          
+          if (cachedNotes.length > 0) {
+            console.log(`[NotesStore] ✅ CACHE HIT: Loaded ${cachedNotes.length} notes from cache in ${cacheDuration.toFixed(2)}ms`);
+            this.notes = cachedNotes;
+            this.loading = false; // Show cached data immediately
+            
+            // Step 2: Sync with server in background (don't await)
+            this.syncNotesInBackground().catch(err => {
+              console.error('[NotesStore] Background sync failed:', err);
+            });
+            
+            return; // Return early with cached data
+          } else {
+            console.log(`[NotesStore] ⚠️ CACHE MISS: No cached notes found (checked in ${cacheDuration.toFixed(2)}ms)`);
+          }
+        }
+
+        // Step 3: If no cache, fetch from server
+        const serverStartTime = performance.now();
+        console.log('[NotesStore] 🌐 Fetching notes from server...');
+        const response = await $fetch<Note[]>('/api/notes', {
+          headers: {
+            Authorization: `Bearer ${authStore.token}`
+          }
+        });
+        const serverDuration = performance.now() - serverStartTime;
+        console.log(`[NotesStore] ✅ Server response: ${response.length} notes in ${serverDuration.toFixed(2)}ms`);
+
+        this.notes = response;
+        
+        // Step 4: Save to cache
+        if (process.client) {
+          await saveNotesToCache(response);
+        }
+      } catch (err: unknown) {
+        this.error = err instanceof Error ? err.message : 'Failed to fetch notes';
+        throw err;
+      } finally {
+        this.loading = false;
+      }
+    },
+
+    async syncNotesInBackground(): Promise<void> {
+      try {
+        const authStore = useAuthStore();
+        if (!authStore.token) {
+          console.log('[NotesStore] ⚠️ Background sync skipped (no auth token)');
+          return;
+        }
+
+        const syncStartTime = performance.now();
+        console.log('[NotesStore] 🔄 Starting background sync...');
+        
         const response = await $fetch<Note[]>('/api/notes', {
           headers: {
             Authorization: `Bearer ${authStore.token}`
           }
         });
 
-        this.notes = response;
-      } catch (err: unknown) {
-        this.error = err instanceof Error ? err.message : 'Failed to fetch notes';
-        throw err;
-      } finally {
-        this.loading = false;
+        const fetchDuration = performance.now() - syncStartTime;
+
+        // Update cache
+        if (process.client) {
+          await saveNotesToCache(response);
+        }
+        
+        // Merge server data with local (server wins on conflicts)
+        const serverNotesMap = new Map(response.map(n => [n.id, n]));
+        const beforeCount = this.notes.length;
+        
+        this.notes = this.notes.map(localNote => {
+          const serverNote = serverNotesMap.get(localNote.id);
+          if (serverNote) {
+            // Server is source of truth
+            return serverNote;
+          }
+          return localNote;
+        });
+        
+        // Add any new notes from server
+        const localNoteIds = new Set(this.notes.map(n => n.id));
+        const newNotes = response.filter(n => !localNoteIds.has(n.id));
+        this.notes.push(...newNotes);
+        
+        const totalDuration = performance.now() - syncStartTime;
+        console.log(`[NotesStore] ✅ Background sync completed: ${beforeCount} → ${this.notes.length} notes (fetch: ${fetchDuration.toFixed(2)}ms, total: ${totalDuration.toFixed(2)}ms)`);
+      } catch (err) {
+        const duration = performance.now() - syncStartTime;
+        console.error(`[NotesStore] ❌ Background sync error after ${duration.toFixed(2)}ms:`, err);
+        // Don't throw - this is background operation
       }
     },
 
@@ -163,6 +252,11 @@ export const useNotesStore = defineStore('notes', {
         } else {
           // If note not in array, add it (e.g., if it was just shared with user)
           this.notes.push(response);
+        }
+
+        // Update cache
+        if (process.client) {
+          await updateCachedNote(response);
         }
       } catch (err: unknown) {
         this.error = err instanceof Error ? err.message : 'Failed to fetch note';
@@ -199,6 +293,11 @@ export const useNotesStore = defineStore('notes', {
           this.notes.push(response);
         } else {
           this.notes[noteIndex] = response;
+        }
+
+        // Update cache
+        if (process.client) {
+          await updateCachedNote(response);
         }
 
         return response;
@@ -238,6 +337,11 @@ export const useNotesStore = defineStore('notes', {
         if (this.currentNote?.id === id) {
           this.currentNote = response;
         }
+
+        // Update cache
+        if (process.client) {
+          await updateCachedNote(response);
+        }
       } catch (err: unknown) {
         this.error = err instanceof Error ? err.message : 'Failed to update note';
         throw err;
@@ -267,6 +371,11 @@ export const useNotesStore = defineStore('notes', {
 
         if (this.currentNote?.id === id) {
           this.currentNote = null;
+        }
+
+        // Update cache
+        if (process.client) {
+          await deleteCachedNote(id);
         }
       } catch (err: unknown) {
         this.error = err instanceof Error ? err.message : 'Failed to delete note';

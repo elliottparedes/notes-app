@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia';
 import type { User, UserSignupDto, UserLoginDto, AuthResponse } from '~/models';
+import { clearNotesCache } from '~/utils/notesCache';
 
 interface AuthState {
   user: User | null;
@@ -144,7 +145,17 @@ export const useAuthStore = defineStore('auth', {
       this.needsPasswordReset = false;
       
       if (process.client) {
-        // Clear auth-related items but preserve IndexedDB (notes)
+        // Clear notes cache
+        await clearNotesCache();
+        
+        // Clear folder caches
+        Object.keys(localStorage).forEach(key => {
+          if (key.startsWith('folders_cache_')) {
+            localStorage.removeItem(key);
+          }
+        });
+        
+        // Clear auth-related items
         localStorage.removeItem('auth_token');
         localStorage.removeItem('session_version');
         localStorage.removeItem('cached_user');

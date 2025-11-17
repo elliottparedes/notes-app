@@ -136,6 +136,7 @@ function isMobile(): boolean {
 // SortableJS instances
 const notesContainerRef = ref<HTMLElement | null>(null);
 let notesSortableInstance: Sortable | null = null;
+const isMounted = ref(false);
 
 function handleSelect() {
   emit('select', props.folder.id);
@@ -350,8 +351,8 @@ const folderColor = 'text-blue-600 dark:text-blue-400';
 
 // Initialize SortableJS for notes
 async function initializeNotesSortable() {
-  // Initialize if folder is expanded
-  if (!notesContainerRef.value || !props.isExpanded) {
+  // Don't initialize if component is not mounted or folder is not expanded
+  if (!isMounted.value || !props.isExpanded) {
     return;
   }
   
@@ -359,18 +360,55 @@ async function initializeNotesSortable() {
   // Empty folders need sortable to accept dropped notes
   
   if (notesSortableInstance) {
-    notesSortableInstance.destroy();
+    try {
+      notesSortableInstance.destroy();
+    } catch (err) {
+      console.warn('[FolderTreeItem] Error destroying existing Sortable instance:', err);
+    }
     notesSortableInstance = null;
   }
   
+  // Wait for DOM to be ready - multiple ticks to ensure ref is set
+  await nextTick();
   await nextTick();
   
+  // Check if component is still mounted
+  if (!isMounted.value) {
+    return;
+  }
+  
+  // Check if ref exists and element is in DOM
   if (!notesContainerRef.value) {
+    console.warn('[FolderTreeItem] notesContainerRef is null, retrying...');
+    // Retry once after a short delay
+    await new Promise(resolve => setTimeout(resolve, 50));
+    await nextTick();
+    
+    // Check again if component is still mounted
+    if (!isMounted.value) {
+      return;
+    }
+    
+    if (!notesContainerRef.value) {
+      console.warn('[FolderTreeItem] notesContainerRef still null after retry, skipping Sortable initialization');
+      return;
+    }
+  }
+  
+  // Verify element is actually in the DOM
+  if (!process.client || !document.body.contains(notesContainerRef.value)) {
+    console.warn('[FolderTreeItem] notesContainerRef element not in DOM, skipping Sortable initialization');
     return;
   }
   
   try {
     const SortableJS = (await import('sortablejs')).default;
+    
+    // Final check before creating Sortable - ensure component is still mounted and ref exists
+    if (!isMounted.value || !notesContainerRef.value) {
+      console.warn('[FolderTreeItem] Component unmounted or ref became null before Sortable creation');
+      return;
+    }
     
     notesSortableInstance = SortableJS.create(notesContainerRef.value, {
       animation: 150,
@@ -694,11 +732,17 @@ watch(
   () => props.isExpanded,
   async (isExpanded) => {
     if (isExpanded) {
+      // Wait a bit longer to ensure DOM is ready, especially during space switching
       await nextTick();
+      await new Promise(resolve => setTimeout(resolve, 10));
       await initializeNotesSortable();
     } else {
       if (notesSortableInstance) {
-        notesSortableInstance.destroy();
+        try {
+          notesSortableInstance.destroy();
+        } catch (err) {
+          console.warn('[FolderTreeItem] Error destroying Sortable instance:', err);
+        }
         notesSortableInstance = null;
       }
     }
@@ -707,6 +751,8 @@ watch(
 );
 
 onMounted(() => {
+  isMounted.value = true;
+  
   // Close context menu when clicking outside
   const handleClickOutside = (event: MouseEvent) => {
     if (!showContextMenu.value) return;
@@ -751,9 +797,14 @@ onMounted(() => {
   });
   
   onUnmounted(() => {
+    isMounted.value = false;
     document.removeEventListener('click', handleClickOutside);
     if (notesSortableInstance) {
-      notesSortableInstance.destroy();
+      try {
+        notesSortableInstance.destroy();
+      } catch (err) {
+        console.warn('[FolderTreeItem] Error destroying Sortable on unmount:', err);
+      }
       notesSortableInstance = null;
     }
   });

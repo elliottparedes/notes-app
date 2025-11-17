@@ -26,23 +26,16 @@ const isLoadingNoteFromSearch = ref(false); // Track when loading note from sear
 const shouldShowEmptyState = computed(() => {
   const isLoading = isLoadingNoteFromSearch.value;
   const justSelected = noteJustSelectedFromSearch.value;
+  const isSwitching = isSwitchingSpace.value;
   const hasActiveNote = !!activeNote.value;
-  const shouldShow = !isLoading && !justSelected && !hasActiveNote;
+  const shouldShow = !isLoading && !justSelected && !isSwitching && !hasActiveNote;
   
-  // Log when computed is evaluated
-  if (isLoading || justSelected || !hasActiveNote) {
-    console.log('[Dashboard] shouldShowEmptyState computed:', {
-      isLoading,
-      justSelected,
-      hasActiveNote,
-      shouldShow,
-      activeNoteId: activeNote.value?.id,
-      timestamp: Date.now()
-    });
-  }
+  // Never show empty state if we're:
+  // - Loading from search
+  // - Just selected a note
+  // - Switching spaces (prevents flash)
+  if (isLoading || justSelected || isSwitching) return false;
   
-  // Never show empty state if we're loading from search OR just selected (prevent flash)
-  if (isLoading || justSelected) return false;
   // Only show if no active note
   return !hasActiveNote;
 });
@@ -242,30 +235,68 @@ if (process.client) {
 // Fetch data on mount
 // Function to load all data
 async function loadData() {
+  const loadStartTime = performance.now();
   loading.value = true;
+  console.log('[Dashboard] 🚀 Starting data load...');
+  
   try {
+    // Initialize IndexedDB cache
+    if (process.client) {
+      const cacheInitStart = performance.now();
+      const { initNotesCache } = await import('~/utils/notesCache');
+      await initNotesCache();
+      const cacheInitDuration = performance.now() - cacheInitStart;
+      console.log(`[Dashboard] 💾 Cache initialization: ${cacheInitDuration.toFixed(2)}ms`);
+    }
+    
     // Fetch spaces first, then folders (which depends on current space)
+    const spacesStart = performance.now();
     await spacesStore.fetchSpaces();
+    const spacesDuration = performance.now() - spacesStart;
+    console.log(`[Dashboard] 🌌 Spaces loaded: ${spacesStore.spaces.length} spaces in ${spacesDuration.toFixed(2)}ms`);
     
     // Ensure spaces are loaded before proceeding
     if (spacesStore.spaces.length === 0) {
-      console.warn('[Dashboard] No spaces found after fetch');
+      console.warn('[Dashboard] ⚠️ No spaces found after fetch');
     }
     
+    // Fetch notes with cache-first strategy
+    // This will load from cache immediately, then sync in background
+    const dataFetchStart = performance.now();
     await Promise.all([
       foldersStore.fetchFolders(),
-      notesStore.fetchNotes(),
+      notesStore.fetchNotes(true), // useCache = true
       notesStore.loadNoteOrder(),
       sharedNotesStore.fetchSharedNotes()
     ]);
+    const dataFetchDuration = performance.now() - dataFetchStart;
+    console.log(`[Dashboard] 📦 Data fetch completed in ${dataFetchDuration.toFixed(2)}ms`);
     
     // Ensure folders are loaded before marking as initialized
     // Wait an extra tick to ensure all reactive updates are complete
     await nextTick();
     
+    const totalDuration = performance.now() - loadStartTime;
+    console.log(`[Dashboard] ✅ Initialization complete in ${totalDuration.toFixed(2)}ms`);
     hasInitialized.value = true;
+    
+    // Prefetch folders for all spaces in background to eliminate cache misses
+    if (process.client && spacesStore.spaces.length > 1) {
+      console.log(`[Dashboard] 🔄 Prefetching folders for ${spacesStore.spaces.length - 1} other spaces...`);
+      // Don't await - let it run in background
+      Promise.all(
+        spacesStore.spaces
+          .filter(s => s.id !== spacesStore.currentSpaceId)
+          .map(space => foldersStore.fetchFolders(space.id, true).catch(err => {
+            console.warn(`[Dashboard] Failed to prefetch folders for space ${space.id}:`, err);
+          }))
+      ).then(() => {
+        console.log(`[Dashboard] ✅ Finished prefetching folders for all spaces`);
+      });
+    }
   } catch (error) {
-    console.error('Failed to load data:', error);
+    const totalDuration = performance.now() - loadStartTime;
+    console.error(`[Dashboard] ❌ Failed to load data after ${totalDuration.toFixed(2)}ms:`, error);
     toast.add({
       title: 'Error',
       description: 'Failed to load data',
@@ -281,14 +312,20 @@ async function loadData() {
 // Animation state for space switching
 const isSwitchingSpace = ref(false);
 
+// Detect mobile device
+const isMobile = computed(() => {
+  if (!process.client) return false;
+  return window.innerWidth < 768;
+});
+
 // Watch for space changes and refetch folders, update tabs
 watch(() => spacesStore.currentSpaceId, async (newSpaceId, oldSpaceId) => {
   if (hasInitialized.value && newSpaceId !== oldSpaceId && newSpaceId !== null) {
-    console.log('[Dashboard] Space watcher triggered:', {
-      oldSpaceId,
-      newSpaceId,
+    const switchStartTime = performance.now();
+    console.log(`[Dashboard] 🔄 Space switch started: ${oldSpaceId} → ${newSpaceId}`, {
       isLoadingNoteFromSearch: isLoadingNoteFromSearch.value,
       noteJustSelectedFromSearch: noteJustSelectedFromSearch.value,
+      cachedNotesCount: notesStore.notes.length,
       timestamp: Date.now()
     });
     
@@ -340,23 +377,34 @@ watch(() => spacesStore.currentSpaceId, async (newSpaceId, oldSpaceId) => {
         notesStore.saveTabsToStorage();
       }
       
-      // Wait for tab fade out animation
-      await nextTick();
-      await new Promise(resolve => setTimeout(resolve, 250));
+      // Fetch new folders FIRST (silently) - should use cache (instant)
+      // This way folders are ready before animations complete
+      const folderFetchStart = performance.now();
+      await foldersStore.fetchFolders(undefined, true);
+      const folderFetchDuration = performance.now() - folderFetchStart;
+      console.log(`[Dashboard] 📁 Folder fetch completed in ${folderFetchDuration.toFixed(2)}ms`);
       
-      // Scroll folders up (wrap up animation)
+      await sharedNotesStore.fetchSharedNotes();
+      
+      // Now start animations - faster timings
+      const isMobileDevice = process.client && window.innerWidth < 768;
+      const tabFadeDelay = isMobileDevice ? 100 : 150;
+      const scrollUpDelay = isMobileDevice ? 150 : 200;
+      
+      // Wait for tab fade out animation (reduced)
+      await nextTick();
+      await new Promise(resolve => setTimeout(resolve, tabFadeDelay));
+      
+      // Scroll folders up (wrap up animation) - faster
       if (foldersContainerRef.value) {
-        foldersContainerRef.value.style.transition = 'transform 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease-out';
+        const transitionDuration = isMobileDevice ? '0.2s' : '0.3s';
+        foldersContainerRef.value.style.transition = `transform ${transitionDuration} cubic-bezier(0.4, 0, 0.2, 1), opacity ${transitionDuration} ease-out`;
         foldersContainerRef.value.style.transform = 'translateY(-100%)';
         foldersContainerRef.value.style.opacity = '0';
       }
       
-      // Wait for scroll up animation
-      await new Promise(resolve => setTimeout(resolve, 400));
-      
-      // Fetch new folders (silently)
-      await foldersStore.fetchFolders(undefined, true);
-      await sharedNotesStore.fetchSharedNotes();
+      // Wait for scroll up animation (reduced)
+      await new Promise(resolve => setTimeout(resolve, scrollUpDelay));
       
       // Final tab validation after folders are loaded
       // This ensures tabs that should stay are still valid
@@ -414,18 +462,19 @@ watch(() => spacesStore.currentSpaceId, async (newSpaceId, oldSpaceId) => {
         foldersContainerRef.value.style.transform = 'translateY(-100%)';
         foldersContainerRef.value.style.opacity = '0';
         
-        // Force reflow
+        // Force reflow (minimal delay)
         await nextTick();
-        await new Promise(resolve => setTimeout(resolve, 50));
         
-        // Animate down
-        foldersContainerRef.value.style.transition = 'transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.4s ease-in';
+        // Animate down - faster on mobile
+        const transitionDuration = isMobileDevice ? '0.2s' : '0.3s';
+        foldersContainerRef.value.style.transition = `transform ${transitionDuration} cubic-bezier(0.34, 1.56, 0.64, 1), opacity ${transitionDuration} ease-in`;
         foldersContainerRef.value.style.transform = 'translateY(0)';
         foldersContainerRef.value.style.opacity = '1';
       }
       
-      // Wait for scroll down animation
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Wait for scroll down animation - much faster
+      const scrollDownDelay = isMobileDevice ? 200 : 300;
+      await new Promise(resolve => setTimeout(resolve, scrollDownDelay));
       
       // Clean up animation styles
       if (foldersContainerRef.value) {
@@ -434,14 +483,11 @@ watch(() => spacesStore.currentSpaceId, async (newSpaceId, oldSpaceId) => {
         foldersContainerRef.value.style.opacity = '';
       }
       
-      // Wait a bit more to ensure smooth transition
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
-      // End space switching animation - this will restore activeNote if it's valid
-      // But don't clear it if we're loading from search (keep loading state)
+      // Clear switching state and log completion
       if (!isLoadingNoteFromSearch.value) {
         isSwitchingSpace.value = false;
-        console.log('[Dashboard] Clearing isSwitchingSpace');
+        const switchDuration = performance.now() - switchStartTime;
+        console.log(`[Dashboard] ✅ Space switch completed in ${switchDuration.toFixed(2)}ms`);
       } else {
         console.log('[Dashboard] Keeping isSwitchingSpace=false (loading from search)');
         // Still clear it, but loading state will prevent activeNote from being hidden
@@ -553,15 +599,19 @@ const activeNote = computed(() => {
   const isLoading = isLoadingNoteFromSearch.value;
   const isSwitching = isSwitchingSpace.value;
   
-  // Log when activeNote computed is evaluated and might return null
-  if (!storeNote || (isSwitching && !isLoading)) {
-    console.log('[Dashboard] activeNote computed:', {
-      storeNoteId: storeNote?.id,
-      isSwitchingSpace: isSwitching,
-      isLoadingNoteFromSearch: isLoading,
-      willReturnNull: isSwitching && !isLoading && storeNote && !storeNote.share_permission && storeNote.folder_id !== null,
-      timestamp: Date.now()
-    });
+  // Only log when actually hiding a note (reduce noise)
+  if (isSwitching && !isLoading && storeNote && !storeNote.share_permission && storeNote.folder_id !== null) {
+    // Check if note's folder belongs to current space
+    const noteFolder = foldersStore.getFolderById(storeNote.folder_id);
+    const belongsToCurrentSpace = noteFolder && noteFolder.space_id === spacesStore.currentSpaceId;
+    
+    if (!belongsToCurrentSpace) {
+      console.log('[Dashboard] Hiding active note during space switch:', {
+        noteId: storeNote.id,
+        folderId: storeNote.folder_id,
+        currentSpaceId: spacesStore.currentSpaceId
+      });
+    }
   }
   
   // Don't show active note if we're switching spaces and it's being closed
@@ -571,12 +621,16 @@ const activeNote = computed(() => {
     const note = notesStore.activeNote;
     if (note) {
       // During space switch, only show if it's a shared note or has no folder (global)
-      // Otherwise, hide it to prevent flashing
       if (note.share_permission || note.folder_id === null) {
         return note;
       }
-      // Check if note's folder belongs to the new space (we'll verify after folders load)
-      // For now, hide it during transition to prevent flash
+      // Check if note's folder belongs to the new space (folders are already loaded)
+      const noteFolder = foldersStore.getFolderById(note.folder_id);
+      if (noteFolder && noteFolder.space_id === spacesStore.currentSpaceId) {
+        // Note belongs to new space, keep it visible
+        return note;
+      }
+      // Note doesn't belong to new space, hide it
       return null;
     }
   }
@@ -3015,7 +3069,41 @@ onMounted(() => {
     </div>
 
     <!-- Main dashboard with Notion-like layout -->
-    <div v-else :key="`dashboard-${authStore.currentUser?.id}-${sessionKey}`" class="flex flex-col h-screen bg-gray-50 dark:bg-gray-900 overflow-hidden relative">
+    <div 
+      v-else 
+      :key="`dashboard-${authStore.currentUser?.id}-${sessionKey}`" 
+      class="flex flex-col h-screen bg-gray-50 dark:bg-gray-900 overflow-hidden relative transition-opacity duration-200"
+      :class="{ 'opacity-95': isSwitchingSpace && isMobile }"
+    >
+      <!-- Mobile Space Switching Loading Overlay (mobile only) -->
+      <!-- Beautiful loading overlay with smooth animations to make switching feel instant -->
+      <Transition
+        enter-active-class="transition-all duration-200 ease-out"
+        enter-from-class="opacity-0 scale-95"
+        enter-to-class="opacity-100 scale-100"
+        leave-active-class="transition-all duration-150 ease-in"
+        leave-from-class="opacity-100 scale-100"
+        leave-to-class="opacity-0 scale-95"
+      >
+        <div
+          v-if="isSwitchingSpace && isMobile"
+          class="md:hidden fixed inset-0 bg-white/90 dark:bg-gray-900/90 backdrop-blur-md z-[100] flex items-center justify-center"
+          @touchmove.prevent
+          @click.prevent
+        >
+          <!-- Animated spinner with pulse effect - clean and minimal -->
+          <div class="relative">
+            <!-- Outer pulse ring -->
+            <div class="absolute inset-0 rounded-full bg-primary-600/20 dark:bg-primary-400/20 animate-ping"></div>
+            <!-- Spinner -->
+            <div class="relative w-14 h-14">
+              <div class="absolute inset-0 border-4 border-gray-200/50 dark:border-gray-700/50 rounded-full"></div>
+              <div class="absolute inset-0 border-4 border-primary-600 dark:border-primary-400 rounded-full border-t-transparent animate-spin"></div>
+            </div>
+          </div>
+        </div>
+      </Transition>
+      
       <!-- Mobile Action Bar (only on mobile) - Quick actions - AT TOP LEVEL -->
       <div class="md:hidden flex items-center justify-between gap-2 px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex-shrink-0">
         <!-- Left: Space Navigation (when no note active) OR Back Button + Note Title (when note active) -->
@@ -3032,7 +3120,7 @@ onMounted(() => {
             
             <!-- Folder Name -->
             <div class="flex items-center gap-2 min-w-0 flex-1">
-              <UIcon name="i-heroicons-folder" class="w-4 h-4 text-blue-600 dark:text-blue-400 flex-shrink-0" />
+              <UIcon name="i-heroicons-folder" class="w-4 h-4 text-primary-600 dark:text-primary-400 flex-shrink-0" />
               <span class="text-sm font-semibold text-gray-900 dark:text-white truncate">
                 {{ foldersStore.getFolderById(selectedFolderId)?.name || 'Folder' }}
               </span>
@@ -3937,7 +4025,7 @@ onMounted(() => {
                       class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 active:scale-[0.98] bg-white dark:bg-gray-800 border-2 border-transparent active:bg-gray-100 dark:active:bg-gray-700 shadow-sm"
                     >
                       <!-- Folder Icon -->
-                      <div class="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400">
+                      <div class="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 bg-primary-100 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400">
                         <UIcon name="i-heroicons-folder" class="w-5 h-5" />
                       </div>
                       
