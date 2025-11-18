@@ -370,8 +370,10 @@ const editor = useEditor({
     }),
     Image.configure({
       HTMLAttributes: {
-        class: 'max-w-full h-auto rounded-lg my-4'
-      }
+        class: 'max-w-2xl w-full h-auto rounded-lg my-4 mx-auto block'
+      },
+      inline: false,
+      allowBase64: true
     }),
     YouTube.configure({
       HTMLAttributes: {
@@ -1846,6 +1848,28 @@ defineExpose({
   width: 100%;
   height: 100%;
   border: 0;
+}
+
+/* Image sizing - prevent huge images */
+.unified-editor :deep(.ProseMirror img),
+.collaborative-editor :deep(.ProseMirror img) {
+  max-width: 42rem !important; /* max-w-2xl equivalent */
+  width: 100% !important;
+  height: auto !important;
+  display: block !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+  border-radius: 0.5rem;
+  margin-top: 1rem !important;
+  margin-bottom: 1rem !important;
+}
+
+/* Ensure images don't exceed container width on mobile */
+@media (max-width: 768px) {
+  .unified-editor :deep(.ProseMirror img),
+  .collaborative-editor :deep(.ProseMirror img) {
+    max-width: 100% !important;
+  }
 }
 </style>
 
