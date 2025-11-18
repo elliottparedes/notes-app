@@ -385,16 +385,13 @@ watch(() => spacesStore.currentSpaceId, async (newSpaceId, oldSpaceId) => {
         notesStore.saveTabsToStorage();
       }
       
-      
-      // Fetch new folders FIRST (silently) - should use cache (instant)
-      // This way folders are ready before animations complete
+      // Fetch folders and notes for the new space
       const folderFetchStart = performance.now();
       await foldersStore.fetchFolders(undefined, true);
       const folderFetchDuration = performance.now() - folderFetchStart;
       console.log(`[Dashboard] 📁 Folder fetch completed in ${folderFetchDuration.toFixed(2)}ms`);
       
       // Reload notes filtered by the new space (will use cache if available)
-      // This ensures we only show notes from the current space
       const notesFetchStart = performance.now();
       await notesStore.fetchNotes(true); // useCache = true - will filter by current space
       const notesFetchDuration = performance.now() - notesFetchStart;
@@ -402,25 +399,8 @@ watch(() => spacesStore.currentSpaceId, async (newSpaceId, oldSpaceId) => {
       
       await sharedNotesStore.fetchSharedNotes();
       
-      // Now start space switching scroll animations FIRST
-      const isMobileDevice = process.client && window.innerWidth < 768;
-      const tabFadeDelay = isMobileDevice ? 100 : 150;
-      const scrollUpDelay = isMobileDevice ? 150 : 200;
-      
-      // Wait for tab fade out animation (reduced)
+      // Wait for DOM to update
       await nextTick();
-      await new Promise(resolve => setTimeout(resolve, tabFadeDelay));
-      
-      // Scroll folders up (wrap up animation) - faster
-      if (foldersContainerRef.value) {
-        const transitionDuration = isMobileDevice ? '0.2s' : '0.3s';
-        foldersContainerRef.value.style.transition = `transform ${transitionDuration} cubic-bezier(0.4, 0, 0.2, 1), opacity ${transitionDuration} ease-out`;
-        foldersContainerRef.value.style.transform = 'translateY(-100%)';
-        foldersContainerRef.value.style.opacity = '0';
-      }
-      
-      // Wait for scroll up animation (reduced)
-      await new Promise(resolve => setTimeout(resolve, scrollUpDelay));
       
       // Final tab validation after folders are loaded
       // This ensures tabs that should stay are still valid
@@ -470,35 +450,6 @@ watch(() => spacesStore.currentSpaceId, async (newSpaceId, oldSpaceId) => {
         notesStore.saveTabsToStorage();
       }
       
-      // Wait for next tick to ensure DOM is updated with new folders
-      await nextTick();
-      
-      // Scroll folders down (wrap down animation) - start from above
-      if (foldersContainerRef.value) {
-        foldersContainerRef.value.style.transform = 'translateY(-100%)';
-        foldersContainerRef.value.style.opacity = '0';
-        
-        // Force reflow (minimal delay)
-        await nextTick();
-        
-        // Animate down - faster on mobile
-        const transitionDuration = isMobileDevice ? '0.2s' : '0.3s';
-        foldersContainerRef.value.style.transition = `transform ${transitionDuration} cubic-bezier(0.34, 1.56, 0.64, 1), opacity ${transitionDuration} ease-in`;
-        foldersContainerRef.value.style.transform = 'translateY(0)';
-        foldersContainerRef.value.style.opacity = '1';
-      }
-      
-      // Wait for scroll down animation - much faster
-      const scrollDownDelay = isMobileDevice ? 200 : 300;
-      await new Promise(resolve => setTimeout(resolve, scrollDownDelay));
-      
-      // Clean up scroll animation styles
-      if (foldersContainerRef.value) {
-        foldersContainerRef.value.style.transition = '';
-        foldersContainerRef.value.style.transform = '';
-        foldersContainerRef.value.style.opacity = '';
-      }
-      
       // Clear switching state and log completion
       if (!isLoadingNoteFromSearch.value) {
         isSwitchingSpace.value = false;
@@ -512,13 +463,6 @@ watch(() => spacesStore.currentSpaceId, async (newSpaceId, oldSpaceId) => {
     } catch (error) {
       console.error('Failed to fetch folders for new space:', error);
       isSwitchingSpace.value = false;
-      
-      // Clean up on error
-      if (foldersContainerRef.value) {
-        foldersContainerRef.value.style.transition = '';
-        foldersContainerRef.value.style.transform = '';
-        foldersContainerRef.value.style.opacity = '';
-      }
     }
   }
 });
