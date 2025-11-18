@@ -69,7 +69,7 @@ export default defineEventHandler(async (event): Promise<Note> => {
   }
 
   try {
-    // Call OpenRouter API with google/gemini-2.5-flash model
+    // Call OpenRouter API with anthropic/claude-haiku-4.5 model
     const openRouterResponse = await $fetch<OpenRouterResponse>('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -78,7 +78,7 @@ export default defineEventHandler(async (event): Promise<Note> => {
         'X-Title': 'Markdown Notes App' // Optional: Your app name
       },
       body: {
-        model: 'google/gemini-2.5-flash',
+        model: 'anthropic/claude-haiku-4.5',
         messages: [
           {
             role: 'system',
@@ -122,7 +122,17 @@ Generate the content as clean, semantic HTML that can be rendered directly in a 
     // Parse the JSON response
     let aiNote: AiGeneratedNote;
     try {
-      aiNote = JSON.parse(generatedContent);
+      // Sometimes the AI might include markdown code blocks, so let's handle that
+      let jsonString = generatedContent.trim();
+      
+      // Remove markdown code blocks if present
+      if (jsonString.startsWith('```json')) {
+        jsonString = jsonString.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+      } else if (jsonString.startsWith('```')) {
+        jsonString = jsonString.replace(/^```\s*/, '').replace(/\s*```$/, '');
+      }
+      
+      aiNote = JSON.parse(jsonString);
       
       // Validate the response structure
       if (!aiNote.title || !aiNote.content) {

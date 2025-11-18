@@ -1068,7 +1068,7 @@ onMounted(() => {
             
             <!-- Note Title -->
             <span 
-              class="flex-1 text-lg md:text-sm pr-2 truncate"
+              class="flex-1 text-lg md:text-sm pr-2 truncate leading-normal pb-0.5"
               :class="notesStore.activeTabId === note.id ? 'text-primary-700 dark:text-primary-300 font-medium' : 'text-gray-700 dark:text-gray-300'"
               :title="note.title"
             >

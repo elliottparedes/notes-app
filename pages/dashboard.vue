@@ -4059,7 +4059,7 @@ onMounted(() => {
                       <div class="flex-1 text-left min-w-0">
                         <div 
                           :class="[
-                            'text-base font-semibold truncate',
+                            'text-base font-semibold truncate leading-normal pb-0.5',
                             notesStore.activeTabId === note.id
                               ? 'text-primary-700 dark:text-primary-300'
                               : 'text-gray-900 dark:text-white'
@@ -4102,7 +4102,7 @@ onMounted(() => {
                 <!-- Title -->
                 <h1
                   v-if="isLocked"
-                  class="w-full bg-transparent border-none outline-none text-3xl md:text-4xl font-bold text-gray-900 dark:text-white mb-3"
+                  class="w-full bg-transparent border-none outline-none text-3xl md:text-4xl font-bold text-gray-900 dark:text-white mb-3 leading-normal pb-1"
                 >
                   {{ editForm.title || 'Untitled Note' }}
                 </h1>
@@ -4111,7 +4111,7 @@ onMounted(() => {
                     v-model="editForm.title"
                     type="text"
                     :disabled="activeNote?.is_shared || !!activeNote?.share_permission"
-                    class="w-full bg-transparent border-none outline-none text-3xl md:text-4xl font-bold text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-0 disabled:cursor-not-allowed disabled:opacity-70"
+                    class="w-full bg-transparent border-none outline-none text-3xl md:text-4xl font-bold text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-0 disabled:cursor-not-allowed disabled:opacity-70 leading-normal pb-1"
                     placeholder="Untitled Note"
                   />
                   <p v-if="activeNote?.is_shared || activeNote?.share_permission" class="text-xs text-gray-500 dark:text-gray-400 mt-1 flex items-center gap-1">

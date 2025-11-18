@@ -68,7 +68,7 @@ Do not include any markdown formatting. Use HTML tags only.`;
         'X-Title': 'Markdown Notes App'
       },
       body: {
-        model: 'microsoft/phi-4',
+        model: 'anthropic/claude-haiku-4.5',
         messages: [
           {
             role: 'user',
