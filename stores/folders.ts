@@ -80,8 +80,8 @@ export const useFoldersStore = defineStore('folders', {
         // Use provided spaceId or current space from spaces store
         const targetSpaceId = spaceId !== undefined ? spaceId : spacesStore.currentSpaceId;
 
-        // Try to load from cache first (for silent fetches like space switching)
-        if (silent && process.client && targetSpaceId) {
+        // Try to load from cache first (for both silent and non-silent fetches on refresh)
+        if (process.client && targetSpaceId) {
           const cacheStartTime = performance.now();
           const cacheKey = `folders_cache_${targetSpaceId}`;
           const cached = localStorage.getItem(cacheKey);
@@ -90,9 +90,14 @@ export const useFoldersStore = defineStore('folders', {
               const cachedData = JSON.parse(cached);
               // Check if cache is less than 5 minutes old
               if (cachedData.timestamp && Date.now() - cachedData.timestamp < 5 * 60 * 1000) {
-                this.folders = cachedData.folders;
+                // Merge cached folders: remove old folders for this space, then add cached ones
+                const cachedFolders = cachedData.folders as Folder[];
+                this.folders = [
+                  ...this.folders.filter(f => f.space_id !== targetSpaceId),
+                  ...cachedFolders
+                ];
                 const cacheDuration = performance.now() - cacheStartTime;
-                console.log(`[FoldersStore] ✅ CACHE HIT: Loaded ${this.folders.length} folders from cache for space ${targetSpaceId} in ${cacheDuration.toFixed(2)}ms`);
+                console.log(`[FoldersStore] ✅ CACHE HIT: Loaded ${cachedFolders.length} folders from cache for space ${targetSpaceId} in ${cacheDuration.toFixed(2)}ms (total: ${this.folders.length} folders)`);
                 
                 // Sync in background
                 this.syncFoldersInBackground(targetSpaceId).catch(console.error);
@@ -110,7 +115,12 @@ export const useFoldersStore = defineStore('folders', {
                   }
                 }
                 
-                return; // Return early with cached data
+                // If silent, return early. Otherwise, still use cache but sync in background
+                if (silent) {
+                  return; // Return early with cached data
+                }
+                // For non-silent fetches, use cache but still fetch fresh data
+                console.log(`[FoldersStore] ✅ Using cached folders, fetching fresh data...`);
               } else {
                 const cacheAge = Date.now() - cachedData.timestamp;
                 console.log(`[FoldersStore] ⚠️ CACHE EXPIRED: Cache is ${(cacheAge / 1000).toFixed(0)}s old (max 5min)`);
@@ -142,8 +152,16 @@ export const useFoldersStore = defineStore('folders', {
         const serverDuration = performance.now() - serverStartTime;
         console.log(`[FoldersStore] ✅ Server response: ${folders.length} folders in ${serverDuration.toFixed(2)}ms`);
 
-        // Store flat array directly (no tree structure)
-        this.folders = folders;
+        // Merge folders: remove old folders for this space, then add new ones
+        // This preserves folders from other spaces that might be in the store
+        this.folders = [
+          ...this.folders.filter(f => f.space_id !== targetSpaceId),
+          ...folders
+        ];
+        console.log(`[FoldersStore] 📝 Merged folders in store: ${folders.length} folders for space ${targetSpaceId} (total: ${this.folders.length} folders)`, {
+          folderIds: folders.map(f => f.id),
+          spaceIds: [...new Set(this.folders.map(f => f.space_id))]
+        });
 
         // Cache folders
         if (process.client && targetSpaceId) {
@@ -202,10 +220,14 @@ export const useFoldersStore = defineStore('folders', {
           }));
         }
 
-        // Update store
-        this.folders = folders;
+        // Merge folders: remove old folders for this space, then add new ones
+        // This preserves folders from other spaces
+        this.folders = [
+          ...this.folders.filter(f => f.space_id !== spaceId),
+          ...folders
+        ];
         
-        console.log('[FoldersStore] Background sync completed for space', spaceId);
+        console.log(`[FoldersStore] Background sync completed for space ${spaceId}: ${folders.length} folders (total: ${this.folders.length} folders)`);
       } catch (err) {
         console.error('[FoldersStore] Background sync error:', err);
       }

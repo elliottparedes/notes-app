@@ -260,12 +260,19 @@ async function loadData() {
       console.warn('[Dashboard] ⚠️ No spaces found after fetch');
     }
     
-    // Fetch notes with cache-first strategy
-    // This will load from cache immediately, then sync in background
+    // Fetch folders FIRST, then notes (notes need folders to filter by space)
+    // This ensures we can properly filter cached notes by current space
     const dataFetchStart = performance.now();
+    await foldersStore.fetchFolders(); // Load folders first
+    
+    // Ensure folders are loaded (even if empty) before loading notes
+    // Wait a tick to ensure reactive updates are complete
+    await nextTick();
+    
+    console.log(`[Dashboard] 📁 Folders ready: ${foldersStore.folders.length} folders for space ${spacesStore.currentSpaceId}`);
+    
     await Promise.all([
-      foldersStore.fetchFolders(),
-      notesStore.fetchNotes(true), // useCache = true
+      notesStore.fetchNotes(true), // useCache = true - now folders are available for filtering
       notesStore.loadNoteOrder(),
       sharedNotesStore.fetchSharedNotes()
     ]);
@@ -279,6 +286,7 @@ async function loadData() {
     const totalDuration = performance.now() - loadStartTime;
     console.log(`[Dashboard] ✅ Initialization complete in ${totalDuration.toFixed(2)}ms`);
     hasInitialized.value = true;
+    
     
     // Prefetch folders for all spaces in background to eliminate cache misses
     if (process.client && spacesStore.spaces.length > 1) {
@@ -377,6 +385,7 @@ watch(() => spacesStore.currentSpaceId, async (newSpaceId, oldSpaceId) => {
         notesStore.saveTabsToStorage();
       }
       
+      
       // Fetch new folders FIRST (silently) - should use cache (instant)
       // This way folders are ready before animations complete
       const folderFetchStart = performance.now();
@@ -384,9 +393,16 @@ watch(() => spacesStore.currentSpaceId, async (newSpaceId, oldSpaceId) => {
       const folderFetchDuration = performance.now() - folderFetchStart;
       console.log(`[Dashboard] 📁 Folder fetch completed in ${folderFetchDuration.toFixed(2)}ms`);
       
+      // Reload notes filtered by the new space (will use cache if available)
+      // This ensures we only show notes from the current space
+      const notesFetchStart = performance.now();
+      await notesStore.fetchNotes(true); // useCache = true - will filter by current space
+      const notesFetchDuration = performance.now() - notesFetchStart;
+      console.log(`[Dashboard] 📝 Notes reloaded for space ${newSpaceId} in ${notesFetchDuration.toFixed(2)}ms`);
+      
       await sharedNotesStore.fetchSharedNotes();
       
-      // Now start animations - faster timings
+      // Now start space switching scroll animations FIRST
       const isMobileDevice = process.client && window.innerWidth < 768;
       const tabFadeDelay = isMobileDevice ? 100 : 150;
       const scrollUpDelay = isMobileDevice ? 150 : 200;
@@ -476,7 +492,7 @@ watch(() => spacesStore.currentSpaceId, async (newSpaceId, oldSpaceId) => {
       const scrollDownDelay = isMobileDevice ? 200 : 300;
       await new Promise(resolve => setTimeout(resolve, scrollDownDelay));
       
-      // Clean up animation styles
+      // Clean up scroll animation styles
       if (foldersContainerRef.value) {
         foldersContainerRef.value.style.transition = '';
         foldersContainerRef.value.style.transform = '';
@@ -1125,7 +1141,9 @@ function handleSelectFolder(folderId: number) {
 // Computed: Get folders to display (all folders in current space)
 const displayedFolders = computed(() => {
   const currentSpaceId = spacesStore.currentSpaceId;
-  if (!currentSpaceId) return [];
+  if (!currentSpaceId) {
+    return [];
+  }
   return foldersStore.folders.filter(f => f.space_id === currentSpaceId);
 });
 
@@ -3470,7 +3488,7 @@ onMounted(() => {
               </button>
             </div>
 
-            <div v-if="foldersStore.folders.length === 0" class="px-3 py-6 text-center">
+            <div v-if="displayedFolders.length === 0" class="px-3 py-6 text-center">
               <UIcon name="i-heroicons-folder-open" class="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-2" />
               <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">No folders yet</p>
               <button
@@ -3483,34 +3501,40 @@ onMounted(() => {
 
             <!-- Folder Tree with Notes - Wrapped in overflow container to clip animation at header -->
             <div v-else class="overflow-hidden" style="min-height: 0;">
-              <div ref="foldersContainerRef" class="space-y-0.5 transition-all duration-300" id="root-folders-container">
-                <FolderTreeItem
-                  v-for="folder in foldersStore.folders"
-                  :key="folder.id"
-                  :folder="folder"
-                  :selected-id="selectedFolderId"
-                  :is-expanded="foldersStore.expandedFolderIds.has(folder.id)"
-                  :publish-status="folderPublishStatuses.get(folder.id)"
-                  @select="selectFolder"
-                  @toggle="(id) => foldersStore.toggleFolder(id)"
-                  @create-note="handleCreateNoteInFolder"
-                  @create-quick-note="handleQuickNoteInFolder"
-                  @create-list-note="handleListNoteInFolder"
-                  @create-template-note="handleTemplateNoteInFolder"
-                  @create-ai-note="handleAiGenerateInFolder"
-                  @import-recipe="handleRecipeImportInFolder"
-                  @rename="handleRenameFolder"
-                  @delete="handleDeleteFolder"
-                  @publish="handlePublishFolder"
-                  @unpublish="handleUnpublishFolder"
-                  @copy-link="handleCopyFolderLink"
-                  @check-publish-status="checkFolderPublishStatus"
-                  @move-up="handleMoveUp"
-                  @move-down="handleMoveDown"
-                  @reorder-folder="handleFolderReorder"
-                  @open-note="handleFolderNoteClick"
-                  @delete-note="(noteId) => handleDeleteNote(notesStore.notes.find(n => n.id === noteId)!)"
-                />
+              <div 
+                ref="foldersContainerRef" 
+                class="space-y-0.5 transition-all duration-300"
+                id="root-folders-container"
+              >
+                <div class="space-y-0.5">
+                  <FolderTreeItem
+                    v-for="folder in displayedFolders"
+                    :key="`folder-${folder.id}-space-${spacesStore.currentSpaceId}`"
+                    :folder="folder"
+                    :selected-id="selectedFolderId"
+                    :is-expanded="foldersStore.expandedFolderIds.has(folder.id)"
+                    :publish-status="folderPublishStatuses.get(folder.id)"
+                    @select="selectFolder"
+                    @toggle="(id) => foldersStore.toggleFolder(id)"
+                    @create-note="handleCreateNoteInFolder"
+                    @create-quick-note="handleQuickNoteInFolder"
+                    @create-list-note="handleListNoteInFolder"
+                    @create-template-note="handleTemplateNoteInFolder"
+                    @create-ai-note="handleAiGenerateInFolder"
+                    @import-recipe="handleRecipeImportInFolder"
+                    @rename="handleRenameFolder"
+                    @delete="handleDeleteFolder"
+                    @publish="handlePublishFolder"
+                    @unpublish="handleUnpublishFolder"
+                    @copy-link="handleCopyFolderLink"
+                    @check-publish-status="checkFolderPublishStatus"
+                    @move-up="handleMoveUp"
+                    @move-down="handleMoveDown"
+                    @reorder-folder="handleFolderReorder"
+                    @open-note="handleFolderNoteClick"
+                    @delete-note="(noteId) => handleDeleteNote(notesStore.notes.find(n => n.id === noteId)!)"
+                  />
+                </div>
               </div>
             </div>
           </div>
@@ -5354,6 +5378,7 @@ onMounted(() => {
   grid-template-rows: 0fr;
   opacity: 0;
 }
+
 
 /* Space switching animations - fade out tabs */
 .fade-out-enter-active {

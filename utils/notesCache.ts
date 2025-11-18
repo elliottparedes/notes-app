@@ -75,7 +75,7 @@ export async function saveNotesToCache(notes: Note[]): Promise<void> {
   }
 }
 
-export async function getNotesFromCache(): Promise<Note[]> {
+export async function getNotesFromCache(spaceId?: number | null, folderIds?: Set<number>): Promise<Note[]> {
   if (!db || !process.client) {
     console.log('[NotesCache] ⚠️ Cache read skipped (server-side or DB not initialized)');
     return [];
@@ -84,11 +84,44 @@ export async function getNotesFromCache(): Promise<Note[]> {
   const startTime = performance.now();
   try {
     const tx = db.transaction('notes', 'readonly');
-    const notes = await tx.store.getAll();
+    const allNotes = await tx.store.getAll();
     await tx.done;
     
+    // Filter notes by space if spaceId is provided
+    // folderIds can be an empty Set (meaning no folders exist for this space)
+    let notes = allNotes;
+    if (spaceId !== undefined && spaceId !== null) {
+      // If folderIds is not provided, we can't filter properly (shouldn't happen, but handle gracefully)
+      if (folderIds === undefined) {
+        console.warn(`[NotesCache] ⚠️ spaceId provided (${spaceId}) but folderIds is undefined, loading all notes`);
+      } else {
+        // Notes belong to a space if:
+        // 1. They have no folder (folder_id === null) - these belong to the current space
+        // 2. Their folder_id is in the current space's folderIds (even if folderIds is empty)
+        // 3. They are shared notes (keep shared notes visible)
+        notes = allNotes.filter(note => {
+          // Always include shared notes
+          if (note.share_permission) return true;
+          
+          // Include notes without folders (they belong to current space)
+          if (note.folder_id === null) return true;
+          
+          // Include notes whose folder belongs to the current space
+          // If folderIds is empty, this will be false for all notes with folders (correct behavior)
+          return folderIds.has(note.folder_id);
+        });
+        
+        const filteredCount = allNotes.length - notes.length;
+        if (filteredCount > 0) {
+          console.log(`[NotesCache] 🔍 Filtered ${filteredCount} notes from other spaces (space ${spaceId}, ${folderIds.size} folders)`);
+        } else if (folderIds.size === 0) {
+          console.log(`[NotesCache] ℹ️ No folders for space ${spaceId}, showing only notes without folders`);
+        }
+      }
+    }
+    
     const duration = performance.now() - startTime;
-    console.log(`[NotesCache] ✅ Loaded ${notes.length} notes from cache in ${duration.toFixed(2)}ms`);
+    console.log(`[NotesCache] ✅ Loaded ${notes.length} notes from cache${spaceId !== undefined ? ` for space ${spaceId}` : ''} in ${duration.toFixed(2)}ms`);
     return notes;
   } catch (error) {
     const duration = performance.now() - startTime;
