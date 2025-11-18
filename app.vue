@@ -16,7 +16,7 @@ useHead({
     { name: 'mobile-web-app-capable', content: 'yes' },
     { name: 'apple-mobile-web-app-capable', content: 'yes' },
     { name: 'apple-mobile-web-app-status-bar-style', content: 'default' },
-    { name: 'apple-mobile-web-app-title', content: 'Unfold' },
+    { name: 'apple-mobile-web-app-title', content: 'Unfold Notes' },
     { name: 'format-detection', content: 'telephone=no' }
   ],
   script: [

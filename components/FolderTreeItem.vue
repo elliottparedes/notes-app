@@ -813,9 +813,9 @@ onMounted(() => {
 </script>
 
 <template>
-  <!-- Folder Item -->
+  <!-- Folder Item - Premium Apple Design -->
     <div
-    class="folder-item group/folder relative flex items-center gap-2 rounded-lg transition-colors md:hover:bg-gray-100 md:dark:hover:bg-gray-700/50 active:bg-gray-100 dark:active:bg-gray-700/50 cursor-grab active:cursor-grabbing"
+    class="folder-item group/folder relative flex items-center gap-2 rounded-xl transition-all duration-200 md:hover:bg-gray-50/80 md:dark:hover:bg-gray-800/50 active:bg-gray-100/80 dark:active:bg-gray-700/50 cursor-grab active:cursor-grabbing"
     :data-folder-id="folder.id"
     >
       <!-- Expand/Collapse Button -->
@@ -823,26 +823,30 @@ onMounted(() => {
         v-if="hasContent"
         @click.stop="handleToggle"
         @mousedown.stop
-        class="no-drag flex-shrink-0 p-2 md:p-1 rounded md:hover:bg-gray-200 md:dark:hover:bg-gray-600 active:bg-gray-200 dark:active:bg-gray-600 transition-colors"
+        class="no-drag flex-shrink-0 p-1.5 rounded-lg md:hover:bg-gray-200/80 md:dark:hover:bg-gray-700/80 active:bg-gray-200/80 dark:active:bg-gray-700/80 transition-all duration-200"
         :class="{ 'rotate-90': isExpanded }"
       >
-        <UIcon name="i-heroicons-chevron-right" class="w-6 h-6 md:w-4 md:h-4 text-gray-500 transition-transform" />
+        <UIcon name="i-heroicons-chevron-right" class="w-4 h-4 text-gray-500 dark:text-gray-400 transition-transform duration-200" />
       </button>
-      <div v-else class="w-8 md:w-6" />
+      <div v-else class="w-6" />
 
       <!-- Folder Button -->
       <button
         @click.stop="handleSelect"
-        class="flex-1 flex items-center gap-3 md:gap-2 py-3 md:py-2.5 pr-2 text-lg md:text-sm font-medium transition-colors rounded-lg min-w-0 text-gray-700 dark:text-gray-300 md:hover:bg-gray-100 md:dark:hover:bg-gray-700/30 active:bg-gray-100 dark:active:bg-gray-700/30"
+        class="flex-1 flex items-center gap-2.5 py-2.5 pr-2 font-semibold transition-all duration-200 rounded-lg min-w-0 text-gray-700 dark:text-gray-300 md:hover:bg-gray-50/80 md:dark:hover:bg-gray-800/30 active:bg-gray-100/80 dark:active:bg-gray-700/30"
+        :class="selectedId === folder.id ? 'bg-primary-50/80 dark:bg-primary-900/20 text-primary-700 dark:text-primary-300' : ''"
+        :style="{ fontSize: 'clamp(0.75rem, 0.5vw + 0.5rem, 0.875rem)' }"
       >
         <UIcon 
           name="i-heroicons-folder" 
-          class="w-6 h-6 md:w-4 md:h-4 flex-shrink-0 text-blue-600 dark:text-blue-400"
+          class="w-4 h-4 flex-shrink-0 transition-colors"
+          :class="selectedId === folder.id ? 'text-primary-600 dark:text-primary-400' : 'text-blue-600 dark:text-blue-400'"
         />
         <span class="truncate flex-1 text-left">{{ folder.name }}</span>
         <span 
           v-if="noteCount > 0"
-          class="text-base md:text-xs px-2.5 md:px-1.5 py-1 md:py-0.5 rounded-full bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-300 flex-shrink-0"
+          class="px-2 py-0.5 rounded-full bg-gray-200/80 dark:bg-gray-700/80 text-gray-600 dark:text-gray-300 flex-shrink-0 font-medium"
+          :style="{ fontSize: 'clamp(0.625rem, 0.4vw + 0.4rem, 0.75rem)' }"
         >
           {{ noteCount }}
         </span>
@@ -855,10 +859,10 @@ onMounted(() => {
         type="button"
         @click.stop="toggleContextMenu"
         @mousedown.stop
-        class="no-drag flex-shrink-0 p-2 md:p-1.5 rounded-md opacity-100 md:opacity-0 md:group-hover/folder:opacity-100 md:hover:bg-gray-200 md:dark:hover:bg-gray-600 active:bg-gray-200 dark:active:bg-gray-600 transition-all"
-        :class="showContextMenu ? 'bg-gray-200 dark:bg-gray-600' : ''"
+        class="no-drag flex-shrink-0 p-1.5 rounded-lg opacity-100 md:opacity-0 md:group-hover/folder:opacity-100 md:hover:bg-gray-200/80 md:dark:hover:bg-gray-700/80 active:bg-gray-200/80 dark:active:bg-gray-700/80 transition-all duration-200"
+        :class="showContextMenu ? 'bg-gray-200/80 dark:bg-gray-700/80' : ''"
       >
-        <svg class="w-4 h-4 md:w-3.5 md:h-3.5 text-gray-600 dark:text-gray-400" fill="currentColor" viewBox="0 0 16 16">
+        <svg class="w-4 h-4 text-gray-500 dark:text-gray-400" fill="currentColor" viewBox="0 0 16 16">
           <circle cx="8" cy="2" r="1.5"/>
           <circle cx="8" cy="8" r="1.5"/>
           <circle cx="8" cy="14" r="1.5"/>
@@ -873,7 +877,7 @@ onMounted(() => {
           v-if="showContextMenu"
           data-context-menu
           @click.stop
-          class="fixed w-48 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-xl py-2 z-[9999]"
+          class="fixed w-48 bg-white/95 dark:bg-gray-800/95 backdrop-blur-xl rounded-2xl border border-gray-200/60 dark:border-gray-700/60 shadow-2xl py-1.5 z-[9999]"
           :style="{ 
             top: menuOpensUpward ? 'auto' : `${menuPosition.top}px`, 
             bottom: menuOpensUpward ? `${menuPosition.bottom}px` : 'auto',
@@ -924,7 +928,7 @@ onMounted(() => {
                 data-new-note-submenu-hover
                 @mouseenter="(e) => showNewNoteSubmenuHandler(e as MouseEvent)"
                 @mouseleave="hideNewNoteSubmenuHandler"
-                class="absolute w-56 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-xl py-2 z-[10000]"
+                class="absolute w-56 bg-white/95 dark:bg-gray-800/95 backdrop-blur-xl rounded-2xl border border-gray-200/60 dark:border-gray-700/60 shadow-2xl py-1.5 z-[10000]"
                 :class="[
                   submenuOpensLeft ? 'right-full mr-1' : 'left-full ml-1',
                   submenuOpensUpward ? 'bottom-0' : 'top-0'
@@ -1053,25 +1057,26 @@ onMounted(() => {
           v-for="note in folderNotes"
           :key="`note-${note.id}`"
             :data-note-id="note.id"
-            class="note-item group/note flex items-center gap-2 rounded-lg transition-colors md:hover:bg-gray-100 md:dark:hover:bg-gray-700/50 active:bg-gray-100 dark:active:bg-gray-700/50 cursor-grab active:cursor-grabbing"
+            class="note-item group/note flex items-center gap-2 rounded-xl transition-all duration-200 md:hover:bg-gray-50/80 md:dark:hover:bg-gray-800/50 active:bg-gray-100/80 dark:active:bg-gray-700/50 cursor-grab active:cursor-grabbing"
             style="padding-left: 20px;"
-          :class="notesStore.activeTabId === note.id ? 'bg-primary-50 dark:bg-primary-900/20' : ''"
+          :class="notesStore.activeTabId === note.id ? 'bg-primary-50/80 dark:bg-primary-900/20' : ''"
         >
           <div class="w-6 flex-shrink-0" />
           
-          <div @click.stop="handleNoteClick(note.id, $event)" class="flex items-center gap-3 md:gap-2 flex-1 min-w-0 cursor-pointer py-2.5 md:py-2">
+          <div @click.stop="handleNoteClick(note.id, $event)" class="flex items-center gap-2.5 flex-1 min-w-0 cursor-pointer py-2.5">
             <!-- Note Icon -->
             <UIcon 
               name="i-heroicons-document-text" 
-              class="w-6 h-6 md:w-4 md:h-4 flex-shrink-0"
-              :class="notesStore.activeTabId === note.id ? 'text-primary-600 dark:text-primary-400' : 'text-gray-400'"
+              class="w-4 h-4 flex-shrink-0 transition-colors"
+              :class="notesStore.activeTabId === note.id ? 'text-primary-600 dark:text-primary-400' : 'text-gray-400 dark:text-gray-500'"
             />
             
             <!-- Note Title -->
             <span 
-              class="flex-1 text-lg md:text-sm pr-2 truncate leading-normal pb-0.5"
-              :class="notesStore.activeTabId === note.id ? 'text-primary-700 dark:text-primary-300 font-medium' : 'text-gray-700 dark:text-gray-300'"
+              class="flex-1 pr-2 truncate leading-normal"
+              :class="notesStore.activeTabId === note.id ? 'text-primary-700 dark:text-primary-300 font-semibold' : 'text-gray-700 dark:text-gray-300 font-medium'"
               :title="note.title"
+              :style="{ fontSize: 'clamp(0.75rem, 0.5vw + 0.5rem, 0.875rem)' }"
             >
               {{ truncateNoteTitle(note.title) }}
             </span>
@@ -1082,7 +1087,7 @@ onMounted(() => {
             <!-- Note Duplicate Button (Desktop Only) -->
             <button
               @click.stop="$emit('duplicate-note', note.id)"
-              class="no-drag hidden md:flex flex-shrink-0 p-1.5 rounded-md opacity-0 md:group-hover/note:opacity-100 md:hover:bg-blue-100 md:dark:hover:bg-blue-900/20 active:bg-blue-100 dark:active:bg-blue-900/20 transition-all"
+              class="no-drag hidden md:flex flex-shrink-0 p-1.5 rounded-lg opacity-0 md:group-hover/note:opacity-100 md:hover:bg-blue-100/80 md:dark:hover:bg-blue-900/20 active:bg-blue-100/80 dark:active:bg-blue-900/20 transition-all duration-200"
               title="Duplicate note"
             >
               <UIcon name="i-heroicons-document-duplicate" class="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
@@ -1091,10 +1096,10 @@ onMounted(() => {
             <!-- Note Delete Button -->
             <button
               @click.stop="$emit('delete-note', note.id)"
-              class="no-drag flex-shrink-0 p-2.5 md:p-1.5 rounded-md opacity-100 md:opacity-0 md:group-hover/note:opacity-100 md:hover:bg-red-100 md:dark:hover:bg-red-900/20 active:bg-red-100 dark:active:bg-red-900/20 transition-all"
+              class="no-drag flex-shrink-0 p-1.5 rounded-lg opacity-100 md:opacity-0 md:group-hover/note:opacity-100 md:hover:bg-red-100/80 md:dark:hover:bg-red-900/20 active:bg-red-100/80 dark:active:bg-red-900/20 transition-all duration-200"
               title="Delete note"
             >
-              <UIcon name="i-heroicons-trash" class="w-5 h-5 md:w-3.5 md:h-3.5 text-red-600 dark:text-red-400" />
+              <UIcon name="i-heroicons-trash" class="w-4 h-4 text-red-600 dark:text-red-400" />
             </button>
           </div>
         </div>

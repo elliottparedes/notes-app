@@ -878,16 +878,16 @@ function goBack() {
         </form>
       </UCard>
 
-      <!-- Support Unfold -->
+      <!-- Support Unfold Notes -->
       <UCard class="mb-6">
         <template #header>
-          <h2 class="text-xl font-semibold text-gray-900 dark:text-white">Support Unfold</h2>
+          <h2 class="text-xl font-semibold text-gray-900 dark:text-white">Support Unfold Notes</h2>
         </template>
 
         <div class="space-y-4">
           <p class="text-sm text-gray-600 dark:text-gray-400">
-            Unfold is built and maintained by a small indie developer. Server costs, AI API calls, and infrastructure add up. 
-            If you find Unfold useful, consider buying me a coffee to help keep it running! ☕️
+            Unfold Notes is built and maintained by a small indie developer. Server costs, AI API calls, and infrastructure add up. 
+            If you find Unfold Notes useful, consider buying me a coffee to help keep it running! ☕️
           </p>
           
           <div class="flex items-center justify-center pt-2">

@@ -60,8 +60,8 @@ export default defineNuxtConfig({
   pwa: {
     registerType: 'autoUpdate',
     manifest: {
-      name: 'Unfold',
-      short_name: 'Unfold',
+      name: 'Unfold Notes',
+      short_name: 'Unfold Notes',
       description: 'Unfold your thinking - Modern markdown notes app',
       background_color: '#ffffff',
       theme_color: '#ffffff',

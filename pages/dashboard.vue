@@ -110,11 +110,25 @@ const showUserMenu = ref(false);
 // Desktop sidebar visibility state - persist to localStorage
 const isDesktopSidebarVisible = ref(true);
 
+// Desktop sidebar width - draggable resize (default: 256px = w-64, lg: 288px = w-72)
+const sidebarWidth = ref(256); // Default to w-64 (256px)
+const MIN_SIDEBAR_WIDTH = 200; // Minimum width in pixels
+const MAX_SIDEBAR_WIDTH = 400; // Maximum width in pixels
+const isResizing = ref(false);
+
 // Load saved state from localStorage on mount
 if (process.client) {
   const savedSidebarState = localStorage.getItem('desktopSidebarVisible');
   if (savedSidebarState !== null) {
     isDesktopSidebarVisible.value = savedSidebarState === 'true';
+  }
+  
+  const savedSidebarWidth = localStorage.getItem('desktopSidebarWidth');
+  if (savedSidebarWidth !== null) {
+    const width = parseInt(savedSidebarWidth, 10);
+    if (width >= MIN_SIDEBAR_WIDTH && width <= MAX_SIDEBAR_WIDTH) {
+      sidebarWidth.value = width;
+    }
   }
 }
 
@@ -124,6 +138,39 @@ watch(isDesktopSidebarVisible, (newValue) => {
     localStorage.setItem('desktopSidebarVisible', String(newValue));
   }
 });
+
+// Save sidebar width to localStorage when it changes
+watch(sidebarWidth, (newValue) => {
+  if (process.client) {
+    localStorage.setItem('desktopSidebarWidth', String(newValue));
+  }
+});
+
+// Handle sidebar resize drag
+function handleResizeStart(e: MouseEvent) {
+  if (!isDesktopSidebarVisible.value) return;
+  isResizing.value = true;
+  e.preventDefault();
+  
+  const startX = e.clientX;
+  const startWidth = sidebarWidth.value;
+  
+  function handleMouseMove(e: MouseEvent) {
+    if (!isResizing.value) return;
+    const diff = e.clientX - startX;
+    const newWidth = Math.max(MIN_SIDEBAR_WIDTH, Math.min(MAX_SIDEBAR_WIDTH, startWidth + diff));
+    sidebarWidth.value = newWidth;
+  }
+  
+  function handleMouseUp() {
+    isResizing.value = false;
+    document.removeEventListener('mousemove', handleMouseMove);
+    document.removeEventListener('mouseup', handleMouseUp);
+  }
+  
+  document.addEventListener('mousemove', handleMouseMove);
+  document.addEventListener('mouseup', handleMouseUp);
+}
 
 // Made with Love section visibility - persist to localStorage
 const showMadeWithLove = ref(true);
@@ -3272,36 +3319,54 @@ onMounted(() => {
       
       <!-- Desktop/Mobile Content Container -->
       <div class="flex flex-1 overflow-hidden">
-      <!-- Left Sidebar (Desktop Only) -->
+      <!-- Left Sidebar (Desktop Only) - Premium Apple Design -->
       <aside 
-        class="hidden md:flex md:flex-col bg-white dark:bg-gray-800 flex-shrink-0 transition-all duration-300 ease-in-out overflow-hidden"
-        :class="isDesktopSidebarVisible ? 'w-64 lg:w-72 border-r border-gray-200 dark:border-gray-700' : 'w-0 border-r-0'"
+        class="hidden md:flex md:flex-col bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl flex-shrink-0 overflow-hidden relative"
+        :class="isDesktopSidebarVisible ? 'border-r border-gray-200/60 dark:border-gray-800/60' : 'w-0 border-r-0'"
+        :style="isDesktopSidebarVisible ? { width: `${sidebarWidth}px`, transition: isResizing ? 'none' : 'width 0.3s ease-in-out' } : { width: '0px', transition: 'width 0.3s ease-in-out' }"
       >
+        <!-- Resize Handle -->
+        <div
+          v-if="isDesktopSidebarVisible"
+          @mousedown="handleResizeStart"
+          class="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-primary-500/30 dark:hover:bg-primary-400/30 transition-colors z-10 group"
+          :class="{ 'bg-primary-500/50 dark:bg-primary-400/50': isResizing }"
+          title="Drag to resize sidebar"
+        >
+          <div class="absolute right-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-gray-300 dark:bg-gray-600 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"></div>
+        </div>
         <!-- Sidebar Content Wrapper (smooth opacity transition) -->
         <div 
           class="flex flex-col h-full transition-opacity duration-300 ease-in-out min-w-0"
           :class="isDesktopSidebarVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'"
         >
-          <!-- Sidebar Header -->
-          <div class="flex items-center justify-between h-14 px-3 flex-shrink-0">
-            <div class="flex items-center gap-1 min-w-0">
-              <img src="/swan-unfold.png" alt="Unfold" class="w-16 h-16 flex-shrink-0" />
-              <h1 class="text-lg font-extrabold text-gray-900 dark:text-white tracking-wide truncate">Unfold</h1>
+          <!-- Sidebar Header - Premium Styling -->
+          <div class="flex items-center justify-between h-16 px-4 flex-shrink-0 border-b border-gray-100/80 dark:border-gray-800/80">
+            <div class="flex items-center gap-2.5 min-w-0 flex-1">
+              <div class="relative flex-shrink-0">
+                <img src="/swan-unfold.png" alt="Unfold Notes" class="w-10 h-10 flex-shrink-0 rounded-lg shadow-sm" />
+              </div>
+              <h1 
+                class="font-semibold text-gray-900 dark:text-white tracking-tight truncate"
+                :style="{ fontSize: sidebarWidth < 240 ? '0.875rem' : sidebarWidth < 280 ? '1rem' : '1.25rem' }"
+              >
+                Unfold Notes
+              </h1>
             </div>
-            <!-- Hide Sidebar Button (Notability-style) -->
+            <!-- Hide Sidebar Button - Refined -->
             <button
               v-if="isDesktopSidebarVisible"
               @click="isDesktopSidebarVisible = false"
-              class="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700/50 active:bg-gray-200 dark:active:bg-gray-600 transition-all duration-200 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 group flex-shrink-0"
+              class="p-2 rounded-lg hover:bg-gray-100/80 dark:hover:bg-gray-800/80 active:bg-gray-200/80 dark:active:bg-gray-700/80 transition-all duration-200 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 group flex-shrink-0"
               title="Hide sidebar"
               aria-label="Hide sidebar"
             >
-              <UIcon name="i-heroicons-chevron-left" class="w-5 h-5 group-hover:scale-110 transition-transform duration-200" />
+              <UIcon name="i-heroicons-chevron-left" class="w-4 h-4 group-hover:scale-110 transition-transform duration-200" />
             </button>
           </div>
 
-          <!-- Sidebar Content -->
-          <div class="flex-1 overflow-y-auto p-3 min-w-0">
+          <!-- Sidebar Content - Enhanced Spacing -->
+          <div class="flex-1 overflow-y-auto px-4 py-5 min-w-0">
           <!-- Space Selector -->
           <SpaceSelector />
           
@@ -3472,27 +3537,27 @@ onMounted(() => {
           </template>
           -->
 
-          <!-- Folders Section -->
-          <div class="mt-4">
-            <div class="flex items-center justify-between px-3 mb-2">
-              <h3 class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+          <!-- Folders Section - Premium Typography -->
+          <div class="mt-6">
+            <div class="flex items-center justify-between mb-3">
+              <h3 class="text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-widest">
                 Folders
               </h3>
               <button
                 @click="openCreateFolderModal"
-                class="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                class="p-1.5 rounded-lg hover:bg-gray-100/80 dark:hover:bg-gray-800/80 active:bg-gray-200/80 dark:active:bg-gray-700/80 transition-all duration-200 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
                 title="New Folder"
               >
-                <UIcon name="i-heroicons-plus" class="w-4 h-4 text-gray-600 dark:text-gray-400" />
+                <UIcon name="i-heroicons-plus" class="w-4 h-4" />
               </button>
             </div>
 
-            <div v-if="displayedFolders.length === 0" class="px-3 py-6 text-center">
-              <UIcon name="i-heroicons-folder-open" class="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-2" />
-              <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">No folders yet</p>
+            <div v-if="displayedFolders.length === 0" class="py-8 text-center">
+              <UIcon name="i-heroicons-folder-open" class="w-12 h-12 mx-auto text-gray-300 dark:text-gray-700 mb-3 opacity-50" />
+              <p class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">No folders yet</p>
               <button
                 @click="openCreateFolderModal"
-                class="text-sm text-primary-600 dark:text-primary-400 hover:underline"
+                class="text-sm font-medium text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 transition-colors"
               >
                 Create your first folder
               </button>
@@ -3541,50 +3606,56 @@ onMounted(() => {
 
         </div>
 
-        <!-- Sidebar Footer -->
-        <div class="p-3 border-t border-gray-200 dark:border-gray-700">
+        <!-- Sidebar Footer - Premium Styling -->
+        <div class="px-4 py-4 border-t border-gray-100/80 dark:border-gray-800/80 bg-gray-50/30 dark:bg-gray-900/30 backdrop-blur-sm">
           <div class="relative">
             <button 
               type="button"
               data-user-menu-button
               @click="showUserMenu = !showUserMenu"
-              class="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+              class="w-full flex items-center gap-3 p-2.5 rounded-xl hover:bg-white/80 dark:hover:bg-gray-800/80 active:bg-gray-100/80 dark:active:bg-gray-700/80 transition-all duration-200 shadow-sm hover:shadow-md border border-transparent hover:border-gray-200/60 dark:hover:border-gray-700/60"
             >
-              <div class="w-8 h-8 bg-gradient-to-br from-primary-400 to-primary-600 rounded-full flex items-center justify-center text-white text-sm font-semibold">
+              <div class="w-9 h-9 bg-gradient-to-br from-primary-500 to-primary-600 rounded-xl flex items-center justify-center text-white text-sm font-semibold shadow-sm ring-2 ring-white/20 dark:ring-gray-800/20">
                 {{ userInitial }}
               </div>
               <div class="flex-1 text-left min-w-0">
-                <p class="text-sm font-medium text-gray-900 dark:text-white truncate">
+                <p 
+                  class="font-semibold text-gray-900 dark:text-white truncate"
+                  :style="{ fontSize: 'clamp(0.75rem, 0.5vw + 0.5rem, 0.875rem)' }"
+                >
                   {{ authStore.currentUser?.name || 'User' }}
                 </p>
-                <p class="text-xs text-gray-500 dark:text-gray-400 truncate">
+                <p 
+                  class="text-gray-500 dark:text-gray-400 truncate"
+                  :style="{ fontSize: 'clamp(0.625rem, 0.4vw + 0.4rem, 0.75rem)' }"
+                >
                   {{ authStore.currentUser?.email }}
                 </p>
               </div>
-              <UIcon name="i-heroicons-ellipsis-horizontal" class="w-5 h-5 text-gray-400" />
+              <UIcon name="i-heroicons-ellipsis-horizontal" class="w-5 h-5 text-gray-400 dark:text-gray-500" />
             </button>
 
-            <!-- User Menu Dropdown -->
+            <!-- User Menu Dropdown - Refined -->
             <Transition name="fade">
               <div
                 v-if="showUserMenu"
                 data-user-menu-dropdown
-                class="absolute bottom-full left-0 right-0 mb-2 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 py-2"
+                class="absolute bottom-full left-0 right-0 mb-2 bg-white/95 dark:bg-gray-800/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-gray-200/60 dark:border-gray-700/60 py-1.5 overflow-hidden"
               >
                 <NuxtLink
                   to="/settings"
                   @click="showUserMenu = false"
-                  class="w-full text-left px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-3 block"
+                  class="w-full text-left px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50/80 dark:hover:bg-gray-700/50 flex items-center gap-3 transition-colors block"
                 >
-                  <UIcon name="i-heroicons-cog-6-tooth" class="w-5 h-5" />
+                  <UIcon name="i-heroicons-cog-6-tooth" class="w-4 h-4" />
                   <span>Settings</span>
                 </NuxtLink>
                 <button
                   type="button"
                   @click="authStore.logout()"
-                  class="w-full text-left px-4 py-2.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-3"
+                  class="w-full text-left px-4 py-2.5 text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50/80 dark:hover:bg-red-900/20 flex items-center gap-3 transition-colors"
                 >
-                  <UIcon name="i-heroicons-arrow-right-on-rectangle" class="w-5 h-5" />
+                  <UIcon name="i-heroicons-arrow-right-on-rectangle" class="w-4 h-4" />
                   <span>Logout</span>
                 </button>
               </div>
@@ -3600,10 +3671,10 @@ onMounted(() => {
             leave-from-class="opacity-100 max-h-32"
             leave-to-class="opacity-0 max-h-0"
           >
-            <div v-if="showMadeWithLove" class="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700 relative">
+            <div v-if="showMadeWithLove" class="mt-3 pt-3 border-t border-gray-200/60 dark:border-gray-800/60 relative">
               <button
                 @click="dismissMadeWithLove"
-                class="absolute top-2 right-0 p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                class="absolute top-2 right-0 p-1 rounded-full hover:bg-gray-100/80 dark:hover:bg-gray-800/80 transition-colors text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
                 aria-label="Dismiss"
               >
                 <UIcon name="i-heroicons-x-mark" class="w-3.5 h-3.5" />
