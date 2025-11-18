@@ -183,9 +183,9 @@ function truncateTitle(title: string, maxLength: number = 25): string {
 </template>
 
 <style scoped>
-/* Custom scrollbar for horizontal scrolling */
+/* Elegant scrollbar for horizontal scrolling - Apple-style */
 ::-webkit-scrollbar {
-  height: 6px;
+  height: 4px;
 }
 
 ::-webkit-scrollbar-track {
@@ -193,12 +193,22 @@ function truncateTitle(title: string, maxLength: number = 25): string {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(156, 163, 175, 0.3);
-  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 10px;
+  transition: background 0.2s ease, height 0.2s ease;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(156, 163, 175, 0.5);
+  background: rgba(0, 0, 0, 0.35);
+  height: 6px;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.35);
 }
 
 /* Tab items */
