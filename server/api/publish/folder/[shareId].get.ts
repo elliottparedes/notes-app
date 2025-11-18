@@ -27,6 +27,7 @@ interface NoteRow {
 interface UserDetailsRow {
   name: string | null;
   email: string;
+  note_order: string | null;
 }
 
 interface PublishedNoteRow {
@@ -56,19 +57,66 @@ async function getFolderDetails(
     });
   }
 
-  // Get published notes in this folder
+  // Get published notes in this folder (without ORDER BY - we'll sort by custom order)
   const notes = await executeQuery<NoteRow[]>(
     `SELECT n.id, n.title, n.content, n.updated_at, n.tags 
      FROM notes n
      INNER JOIN published_notes pn ON n.id = pn.note_id
-     WHERE n.folder_id = ? AND n.user_id = ? AND pn.is_active = TRUE
-     ORDER BY n.updated_at DESC`,
+     WHERE n.folder_id = ? AND n.user_id = ? AND pn.is_active = TRUE`,
     [folderId, ownerId]
   );
 
+  // Get user's note order preference
+  let noteOrder: Record<string, string[]> = {};
+  try {
+    const [user] = await executeQuery<UserDetailsRow[]>(
+      'SELECT note_order FROM users WHERE id = ?',
+      [ownerId]
+    );
+    if (user?.note_order) {
+      noteOrder = parseJsonField<Record<string, string[]>>(user.note_order) || {};
+    }
+  } catch (err: any) {
+    // If column doesn't exist, that's okay - we'll use default sorting
+    if (err.code !== 'ER_BAD_FIELD_ERROR' && !err.message?.includes('Unknown column')) {
+      console.error('Error fetching note_order:', err);
+    }
+  }
+
+  // Apply custom order if available
+  const folderKey = `folder_${folderId}`;
+  const customOrder = noteOrder[folderKey];
+  
+  let orderedNotes: NoteRow[] = [];
+  if (customOrder && customOrder.length > 0) {
+    // Sort by custom order
+    const noteMap = new Map(notes.map(n => [n.id, n]));
+    const ordered: NoteRow[] = [];
+    
+    // Add notes in custom order
+    for (const noteId of customOrder) {
+      const note = noteMap.get(noteId);
+      if (note) {
+        ordered.push(note);
+        noteMap.delete(noteId);
+      }
+    }
+    
+    // Add remaining notes (not in custom order) sorted by updated_at
+    const remaining = Array.from(noteMap.values()).sort((a, b) => 
+      new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+    );
+    orderedNotes = [...ordered, ...remaining];
+  } else {
+    // No custom order - sort by updated_at descending
+    orderedNotes = notes.sort((a, b) => 
+      new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+    );
+  }
+
   // Get published notes with details
   const publishedNotes: PublishedNoteWithDetails[] = [];
-  for (const note of notes) {
+  for (const note of orderedNotes) {
     const [publishedNote] = await executeQuery<PublishedNoteRow[]>(
       'SELECT * FROM published_notes WHERE note_id = ? AND is_active = TRUE',
       [note.id]

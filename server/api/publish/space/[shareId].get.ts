@@ -1,4 +1,4 @@
-import { executeQuery } from '~/server/utils/db';
+import { executeQuery, parseJsonField } from '~/server/utils/db';
 import type { PublishedSpaceWithDetails, PublishedFolderWithDetails, PublishedNoteWithDetails } from '~/models';
 
 interface PublishedSpaceRow {
@@ -32,6 +32,7 @@ interface NoteRow {
 interface UserDetailsRow {
   name: string | null;
   email: string;
+  note_order: string | null;
 }
 
 interface PublishedNoteRow {
@@ -62,14 +63,45 @@ async function buildFolderList(
   const publishedFolderMap = new Map<number, PublishedFolderRow>();
   publishedFolders.forEach(pf => publishedFolderMap.set(pf.folder_id, pf));
 
-  async function getFolderNotes(folderId: number): Promise<PublishedNoteWithDetails[]> {
+  async function getFolderNotes(folderId: number, noteOrder: Record<string, string[]>): Promise<PublishedNoteWithDetails[]> {
     const notes = await executeQuery<NoteRow[]>(
       'SELECT id, title, content, updated_at, folder_id FROM notes WHERE folder_id = ? AND user_id = ?',
       [folderId, ownerId]
     );
 
+    // Apply custom order if available
+    const folderKey = `folder_${folderId}`;
+    const customOrder = noteOrder[folderKey];
+    
+    let orderedNotes: NoteRow[] = [];
+    if (customOrder && customOrder.length > 0) {
+      // Sort by custom order
+      const noteMap = new Map(notes.map(n => [n.id, n]));
+      const ordered: NoteRow[] = [];
+      
+      // Add notes in custom order
+      for (const noteId of customOrder) {
+        const note = noteMap.get(noteId);
+        if (note) {
+          ordered.push(note);
+          noteMap.delete(noteId);
+        }
+      }
+      
+      // Add remaining notes (not in custom order) sorted by updated_at
+      const remaining = Array.from(noteMap.values()).sort((a, b) => 
+        new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+      );
+      orderedNotes = [...ordered, ...remaining];
+    } else {
+      // No custom order - sort by updated_at descending
+      orderedNotes = notes.sort((a, b) => 
+        new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+      );
+    }
+
     const publishedFolderNotes: PublishedNoteWithDetails[] = [];
-    for (const note of notes) {
+    for (const note of orderedNotes) {
       const publishedNote = publishedNotes.get(note.id);
       if (publishedNote) {
         const [owner] = await executeQuery<UserDetailsRow[]>(
@@ -97,12 +129,29 @@ async function buildFolderList(
     return publishedFolderNotes;
   }
 
+  // Get user's note order preference
+  let noteOrder: Record<string, string[]> = {};
+  try {
+    const [user] = await executeQuery<UserDetailsRow[]>(
+      'SELECT note_order FROM users WHERE id = ?',
+      [ownerId]
+    );
+    if (user?.note_order) {
+      noteOrder = parseJsonField<Record<string, string[]>>(user.note_order) || {};
+    }
+  } catch (err: any) {
+    // If column doesn't exist, that's okay - we'll use default sorting
+    if (err.code !== 'ER_BAD_FIELD_ERROR' && !err.message?.includes('Unknown column')) {
+      console.error('Error fetching note_order:', err);
+    }
+  }
+
   // All folders are root-level now, so just build them flat
   const folderList: PublishedFolderWithDetails[] = [];
   for (const folder of folders) {
     const publishedFolder = publishedFolderMap.get(folder.id);
     if (publishedFolder) {
-      const notes = await getFolderNotes(folder.id);
+      const notes = await getFolderNotes(folder.id, noteOrder);
       
       folderList.push({
         id: publishedFolder.id,
@@ -221,14 +270,62 @@ export default defineEventHandler(async (event): Promise<PublishedSpaceWithDetai
     published.owner_id
   );
 
-  // Get notes without folders (root level notes)
+  // Get user's note order preference
+  let noteOrder: Record<string, string[]> = {};
+  try {
+    const [user] = await executeQuery<UserDetailsRow[]>(
+      'SELECT note_order FROM users WHERE id = ?',
+      [published.owner_id]
+    );
+    if (user?.note_order) {
+      noteOrder = parseJsonField<Record<string, string[]>>(user.note_order) || {};
+    }
+  } catch (err: any) {
+    // If column doesn't exist, that's okay - we'll use default sorting
+    if (err.code !== 'ER_BAD_FIELD_ERROR' && !err.message?.includes('Unknown column')) {
+      console.error('Error fetching note_order:', err);
+    }
+  }
+
+  // Get notes without folders (root level notes) - without ORDER BY, we'll sort by custom order
   const rootNotes = await executeQuery<NoteRow[]>(
     'SELECT id, title, content, updated_at, folder_id FROM notes WHERE folder_id IS NULL AND user_id = ?',
     [published.owner_id]
   );
 
+  // Apply custom order for root notes if available
+  const rootKey = 'root';
+  const customRootOrder = noteOrder[rootKey];
+  
+  let orderedRootNotes: NoteRow[] = [];
+  if (customRootOrder && customRootOrder.length > 0) {
+    // Sort by custom order
+    const noteMap = new Map(rootNotes.map(n => [n.id, n]));
+    const ordered: NoteRow[] = [];
+    
+    // Add notes in custom order
+    for (const noteId of customRootOrder) {
+      const note = noteMap.get(noteId);
+      if (note) {
+        ordered.push(note);
+        noteMap.delete(noteId);
+      }
+    }
+    
+    // Add remaining notes (not in custom order) sorted by updated_at
+    const remaining = Array.from(noteMap.values()).sort((a, b) => 
+      new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+    );
+    orderedRootNotes = [...ordered, ...remaining];
+  } else {
+    // No custom order - sort by updated_at descending
+    orderedRootNotes = rootNotes.sort((a, b) => 
+      new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+    );
+  }
+
   const publishedRootNotes: PublishedNoteWithDetails[] = [];
-  for (const note of rootNotes) {
+  for (const note of orderedRootNotes) {
     const publishedNote = publishedNotesMap.get(note.id);
     if (publishedNote) {
       const [owner] = await executeQuery<UserDetailsRow[]>(

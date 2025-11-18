@@ -691,7 +691,7 @@ const filteredNotesForFolder = computed(() => {
   const selectedFolder = foldersStore.getFolderById(selectedFolderId.value);
   if (!selectedFolder || selectedFolder.space_id !== currentSpaceId) return [];
   
-  return notesStore.notes.filter(note => {
+  const notes = notesStore.notes.filter(note => {
     // Only show notes owned by user (not shared with them)
     if (note.share_permission) return false;
     
@@ -702,10 +702,39 @@ const filteredNotesForFolder = computed(() => {
     // Notes are associated with spaces through folders, so if the folder
     // belongs to the current space, the note does too
     return true;
-  }).sort((a, b) => {
-    // Sort by updated_at descending (most recent first)
-    return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
   });
+  
+  // Apply note ordering if available (respects user's manual ordering)
+  const folderKey = selectedFolderId.value === null ? 'root' : `folder_${selectedFolderId.value}`;
+  const order = notesStore.noteOrder[folderKey];
+  
+  if (order && order.length > 0) {
+    // Sort notes by order array
+    const orderedNotes: Note[] = [];
+    const noteMap = new Map(notes.map(n => [n.id, n]));
+    
+    // Add notes in order
+    for (const noteId of order) {
+      const note = noteMap.get(noteId);
+      if (note) {
+        orderedNotes.push(note);
+        noteMap.delete(noteId);
+      }
+    }
+    
+    // Add any remaining notes (not in order array) at the end, sorted by updated_at
+    const remainingNotes = Array.from(noteMap.values()).sort((a, b) => 
+      new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+    );
+    orderedNotes.push(...remainingNotes);
+    
+    return orderedNotes;
+  }
+  
+  // Default: sort by updated_at descending (most recent first)
+  return notes.sort((a, b) => 
+    new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+  );
 });
 
 // Display notes for mobile (folder selected or all notes without folders)
@@ -715,12 +744,59 @@ const displayNotes = computed(() => {
     return filteredNotesForFolder.value;
   } else {
     // Show all notes without folders (Quick Notes)
-    return notesWithoutFolder.value.sort((a, b) => {
-      // Sort by updated_at descending (most recent first)
-      return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
-    });
+    const notes = notesWithoutFolder.value;
+    
+    // Apply note ordering if available for root folder
+    const folderKey = 'root';
+    const order = notesStore.noteOrder[folderKey];
+    
+    if (order && order.length > 0) {
+      // Sort notes by order array
+      const orderedNotes: Note[] = [];
+      const noteMap = new Map(notes.map(n => [n.id, n]));
+      
+      // Add notes in order
+      for (const noteId of order) {
+        const note = noteMap.get(noteId);
+        if (note) {
+          orderedNotes.push(note);
+          noteMap.delete(noteId);
+        }
+      }
+      
+      // Add any remaining notes (not in order array) at the end, sorted by updated_at
+      const remainingNotes = Array.from(noteMap.values()).sort((a, b) => 
+        new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+      );
+      orderedNotes.push(...remainingNotes);
+      
+      return orderedNotes;
+    }
+    
+    // Default: sort by updated_at descending (most recent first)
+    return notes.sort((a, b) => 
+      new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+    );
   }
 });
+
+// Watch for note updates to refresh shared notes order (when notes are modified)
+watch(
+  () => notesStore.notes.map(n => ({ id: n.id, updated_at: n.updated_at })),
+  () => {
+    // Refresh shared notes when notes are updated to maintain correct order
+    // Only refresh if initialized to avoid unnecessary calls during initial load
+    if (process.client && hasInitialized.value) {
+      // Debounce to avoid too many refreshes
+      setTimeout(() => {
+        sharedNotesStore.fetchSharedNotes().catch(err => {
+          console.error('Error refreshing shared notes:', err);
+        });
+      }, 500);
+    }
+  },
+  { deep: true }
+);
 
 // Watch for active note folder_id changes separately to catch moves
 watch(

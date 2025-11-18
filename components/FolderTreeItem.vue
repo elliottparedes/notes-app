@@ -64,13 +64,16 @@ const folderNotes = computed(() => {
       }
     }
     
-    // Add any remaining notes (not in order array) at the end
-    orderedNotes.push(...Array.from(noteMap.values()));
+    // Add any remaining notes (not in order array) at the end, sorted by updated_at
+    const remainingNotes = Array.from(noteMap.values()).sort((a, b) => 
+      new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+    );
+    orderedNotes.push(...remainingNotes);
     
     return orderedNotes;
   }
   
-  // Default: sort by updated_at descending
+  // Default: sort by updated_at descending (most recently modified first)
   return notes.sort((a, b) => 
     new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
   );
