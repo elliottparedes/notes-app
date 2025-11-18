@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import Fuse from 'fuse.js';
 import type { PublishedFolderWithDetails, PublishedNoteWithDetails } from '~/models';
 
 const route = useRoute();
@@ -10,97 +9,21 @@ const error = ref<string | null>(null);
 const expandedFolders = ref<Set<number>>(new Set());
 const selectedNote = ref<PublishedNoteWithDetails | null>(null);
 const isLoadingNote = ref(false);
-const isSidebarCollapsed = ref(false);
-
-// Search functionality
-const searchQuery = ref('');
-const searchResults = ref<Array<{ item: PublishedNoteWithDetails; score: number; matches?: any }>>([]);
-const allNotes = ref<PublishedNoteWithDetails[]>([]);
-const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
-const searchContainerRef = ref<HTMLElement | null>(null);
 
 // Client-side checks
 const isClient = ref(false);
 const hasShareAPI = ref(false);
 
-// Collect all notes recursively
-function collectAllNotes(folder: PublishedFolderWithDetails): PublishedNoteWithDetails[] {
-  const notes: PublishedNoteWithDetails[] = [...folder.notes];
-  folder.subfolders.forEach(subfolder => {
-    notes.push(...collectAllNotes(subfolder));
-  });
-  return notes;
-}
-
-// Helper function to strip HTML tags and get plain text
-function stripHtml(html: string | null | undefined): string {
-  if (!html) return '';
-  // Create a temporary div to parse HTML and extract text
-  if (process.client) {
-    const temp = document.createElement('div');
-    temp.innerHTML = html;
-    return temp.textContent || temp.innerText || '';
-  }
-  // Fallback for SSR: basic HTML tag removal
-  return html.replace(/<[^>]*>/g, '').trim();
-}
-
-// Initialize Fuse.js for fuzzy search
-const fuse = computed(() => {
-  if (!allNotes.value.length) return null;
-  
-  return new Fuse(allNotes.value, {
-    keys: [
-      { name: 'note_title', weight: 0.8 },
-      { name: 'note_content', weight: 0.2 }
-    ],
-    threshold: 0.4,
-    includeScore: true,
-    includeMatches: true,
-    minMatchCharLength: 2,
-    ignoreLocation: true
-  });
-});
-
-// Perform fuzzy search
-watch([searchQuery, () => allNotes.value], () => {
-  if (!searchQuery.value.trim()) {
-    searchResults.value = [];
-    return;
-  }
-
-  if (!fuse.value) {
-    searchResults.value = [];
-    return;
-  }
-
-  const results = fuse.value.search(searchQuery.value.trim());
-  searchResults.value = results;
-}, { immediate: true });
-
-// Close search dropdown when clicking outside
-function handleClickOutside(event: MouseEvent) {
-  if (searchContainerRef.value && !searchContainerRef.value.contains(event.target as Node)) {
-    searchQuery.value = '';
-  }
-}
-
 onMounted(async () => {
   isClient.value = true;
   hasShareAPI.value = typeof navigator !== 'undefined' && 'share' in navigator;
-  
-  // Add click outside listener
-  document.addEventListener('click', handleClickOutside);
   
   try {
     const data = await $fetch<PublishedFolderWithDetails>(`/api/publish/folder/${shareId.value}`);
     publishedFolder.value = data;
     
-    // Collect all notes for search
+    // Expand all folders by default for better navigation
     if (publishedFolder.value) {
-      allNotes.value = collectAllNotes(publishedFolder.value);
-      
-      // Expand all folders by default
       const expandAll = (folder: PublishedFolderWithDetails) => {
         expandedFolders.value.add(folder.folder_id);
         folder.subfolders.forEach(subfolder => expandAll(subfolder));
@@ -115,10 +38,6 @@ onMounted(async () => {
   }
 });
 
-onUnmounted(() => {
-  document.removeEventListener('click', handleClickOutside);
-});
-
 function toggleFolder(folderId: number) {
   if (expandedFolders.value.has(folderId)) {
     expandedFolders.value.delete(folderId);
@@ -131,7 +50,6 @@ async function openNote(noteShareId: string) {
   if (selectedNote.value?.share_id === noteShareId) return;
   
   isLoadingNote.value = true;
-  // Add a small delay for smooth transition
   await new Promise(resolve => setTimeout(resolve, 150));
   
   try {
@@ -143,11 +61,6 @@ async function openNote(noteShareId: string) {
   } finally {
     isLoadingNote.value = false;
   }
-}
-
-function selectSearchResult(note: PublishedNoteWithDetails) {
-  openNote(note.share_id);
-  searchQuery.value = '';
 }
 
 // Copy link function
@@ -180,59 +93,48 @@ useHead({
 </script>
 
 <template>
-  <div class="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950 flex flex-col">
-    <!-- Header -->
-    <header class="border-b border-gray-200/80 dark:border-gray-800/80 bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl fixed top-0 left-0 right-0 z-50 flex-shrink-0 transition-all duration-300">
-      <div class="w-full px-6 py-4">
-        <div class="flex items-center justify-between">
-          <div class="flex items-center gap-3">
-            <!-- Sidebar Toggle - Integrated in Header -->
-            <button
-              @click="isSidebarCollapsed = !isSidebarCollapsed"
-              class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-all duration-200 flex-shrink-0"
-              :title="isSidebarCollapsed ? 'Show sidebar' : 'Hide sidebar'"
-            >
-              <UIcon 
-                :name="isSidebarCollapsed ? 'i-heroicons-bars-3' : 'i-heroicons-chevron-left'" 
-                class="w-5 h-5 text-gray-600 dark:text-gray-400" 
-              />
-            </button>
-            <div class="flex items-center gap-4">
-              <div class="relative">
-                <img src="/swan-unfold.png" alt="Unfold Notes" class="w-10 h-10 flex-shrink-0 transition-transform duration-300 hover:scale-110" />
-              </div>
-              <div>
-                <h1 class="text-xl font-bold text-gray-900 dark:text-white transition-colors duration-200">
-                  {{ publishedFolder?.folder_name || 'Published Folder' }}
-                </h1>
-                <p v-if="publishedFolder" class="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-                  {{ publishedFolder.notes.length + publishedFolder.subfolders.reduce((sum, f) => sum + f.notes.length + f.subfolders.length, 0) }} items
-                </p>
-              </div>
+  <div class="min-h-screen bg-white dark:bg-gray-950 flex flex-col">
+    <!-- Header - Premium Confluence-style -->
+    <header class="border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 fixed top-0 left-0 right-0 z-50 flex-shrink-0 shadow-sm">
+      <div class="w-full px-8 py-5">
+        <div class="flex items-center justify-between max-w-[1920px] mx-auto">
+          <div class="flex items-center gap-4">
+            <div class="relative">
+              <img src="/swan-unfold.png" alt="Unfold Notes" class="w-9 h-9 flex-shrink-0" />
+            </div>
+            <div>
+              <h1 class="text-2xl font-semibold text-gray-900 dark:text-white tracking-tight">
+                {{ publishedFolder?.folder_name || 'Published Folder' }}
+              </h1>
+              <p v-if="publishedFolder" class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                {{ publishedFolder.notes.length }} {{ publishedFolder.notes.length === 1 ? 'note' : 'notes' }}
+              </p>
             </div>
           </div>
-          <UButton
-            v-if="hasShareAPI"
-            icon="i-heroicons-share"
-            color="primary"
-            variant="soft"
-            size="sm"
-            class="transition-all duration-200 hover:scale-105"
-            @click="shareLink"
-          >
-            Share
-          </UButton>
-          <UButton
-            v-else
-            icon="i-heroicons-clipboard-document"
-            color="primary"
-            variant="soft"
-            size="sm"
-            class="transition-all duration-200 hover:scale-105"
-            @click="copyLink"
-          >
-            Copy Link
-          </UButton>
+          <div class="flex items-center gap-3">
+            <UButton
+              v-if="hasShareAPI"
+              icon="i-heroicons-share"
+              color="primary"
+              variant="soft"
+              size="md"
+              class="font-medium"
+              @click="shareLink"
+            >
+              Share
+            </UButton>
+            <UButton
+              v-else
+              icon="i-heroicons-clipboard-document"
+              color="primary"
+              variant="soft"
+              size="md"
+              class="font-medium"
+              @click="copyLink"
+            >
+              Copy Link
+            </UButton>
+          </div>
         </div>
       </div>
     </header>
@@ -257,87 +159,36 @@ useHead({
     </div>
 
     <!-- Main Content -->
-    <div v-else-if="publishedFolder" class="flex-1 flex pt-[88px]">
-      <!-- Sidebar - Folder Tree -->
+    <div v-else-if="publishedFolder" class="flex-1 flex pt-[100px]">
+      <!-- Sidebar - Always Visible, Premium Design -->
       <aside 
-        class="w-80 border-r border-gray-200/50 dark:border-gray-800/50 bg-white/50 dark:bg-gray-900/50 backdrop-blur-sm fixed top-[88px] left-0 bottom-0 overflow-y-auto flex-shrink-0 transition-all duration-300 shadow-lg"
-        :class="isSidebarCollapsed ? '-translate-x-full opacity-0 pointer-events-none' : 'translate-x-0 opacity-100'"
+        class="w-72 border-r border-gray-200 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-900/50 fixed top-[100px] left-0 bottom-0 overflow-y-auto flex-shrink-0"
       >
-        <div class="p-6 space-y-6">
-          <!-- Search Bar -->
-          <div class="relative" ref="searchContainerRef">
-            <div class="relative">
-              <UIcon name="i-heroicons-magnifying-glass" class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 dark:text-gray-500" />
-              <input
-                v-model="searchQuery"
-                type="text"
-                placeholder="Search notes..."
-                class="w-full pl-10 pr-4 py-2.5 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 transition-all duration-200"
-                @click.stop
-              />
-            </div>
-            
-            <!-- Search Results -->
-            <Transition name="fade-slide">
-              <div v-if="isSearchActive && searchResults.length > 0" class="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 max-h-96 overflow-y-auto z-50">
-                <div class="p-2">
-                  <div class="px-3 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Search Results ({{ searchResults.length }})
-                  </div>
-                  <div
-                    v-for="(result, index) in searchResults"
-                    :key="result.item.note_id"
-                    class="flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all duration-200 hover:bg-primary-50 dark:hover:bg-primary-900/20 group"
-                    :class="selectedNote?.note_id === result.item.note_id ? 'bg-primary-50 dark:bg-primary-900/20' : ''"
-                    @click="selectSearchResult(result.item)"
-                  >
-                    <UIcon name="i-heroicons-document-text" class="w-4 h-4 text-primary-600 dark:text-primary-400 flex-shrink-0 group-hover:scale-110 transition-transform" />
-                    <div class="flex-1 min-w-0">
-                      <div class="text-sm font-medium text-gray-900 dark:text-white truncate">
-                        {{ result.item.note_title }}
-                      </div>
-                      <div v-if="result.matches && result.matches[0]" class="text-xs text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-1">
-                        {{ stripHtml(result.item.note_content)?.substring(0, 60) || 'No content' }}...
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </Transition>
-
-            <!-- No Results -->
-            <Transition name="fade-slide">
-              <div v-if="isSearchActive && searchResults.length === 0 && searchQuery.trim().length >= 2" class="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 p-4 text-center z-50">
-                <UIcon name="i-heroicons-magnifying-glass" class="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                <p class="text-sm text-gray-500 dark:text-gray-400">No notes found</p>
-              </div>
-            </Transition>
-          </div>
-
+        <div class="p-6 space-y-8">
           <!-- Notes in root folder -->
-          <div v-if="!isSearchActive && publishedFolder.notes.length > 0" class="space-y-1">
-            <h3 class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3 px-2">
+          <div v-if="publishedFolder.notes.length > 0" class="space-y-2">
+            <h3 class="text-[11px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-4 px-2">
               Notes
             </h3>
-            <TransitionGroup name="list" tag="div">
+            <TransitionGroup name="list" tag="div" class="space-y-1">
               <div
                 v-for="note in publishedFolder.notes"
                 :key="note.note_id"
-                class="flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all duration-200 group"
+                class="flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-all duration-200 group"
                 :class="selectedNote?.note_id === note.note_id 
-                  ? 'bg-gradient-to-r from-primary-50 to-primary-100/50 dark:from-primary-900/30 dark:to-primary-800/20 text-primary-700 dark:text-primary-300 shadow-sm' 
-                  : 'hover:bg-gray-100 dark:hover:bg-gray-800/50 text-gray-700 dark:text-gray-300'"
+                  ? 'bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 shadow-sm border border-primary-200 dark:border-primary-800' 
+                  : 'hover:bg-white dark:hover:bg-gray-800/60 text-gray-700 dark:text-gray-300 border border-transparent'"
                 @click="openNote(note.share_id)"
               >
-                <UIcon name="i-heroicons-document-text" class="w-5 h-5 flex-shrink-0 transition-transform duration-200 group-hover:scale-110" />
-                <span class="text-sm font-medium truncate flex-1">{{ note.note_title }}</span>
+                <UIcon name="i-heroicons-document-text" class="w-4 h-4 flex-shrink-0 text-gray-400 dark:text-gray-500 group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors" />
+                <span class="text-sm font-medium truncate flex-1 leading-snug">{{ note.note_title }}</span>
               </div>
             </TransitionGroup>
           </div>
 
           <!-- Subfolders -->
-          <div v-if="!isSearchActive && publishedFolder.subfolders.length > 0" class="space-y-1">
-            <h3 class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3 px-2">
+          <div v-if="publishedFolder.subfolders.length > 0" class="space-y-2">
+            <h3 class="text-[11px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-4 px-2">
               Folders
             </h3>
             <PublishedFolderTree
@@ -352,17 +203,16 @@ useHead({
           </div>
 
           <!-- Empty State -->
-          <div v-if="!isSearchActive && publishedFolder.notes.length === 0 && publishedFolder.subfolders.length === 0" class="text-center py-12">
-            <UIcon name="i-heroicons-folder-open" class="w-16 h-16 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
+          <div v-if="publishedFolder.notes.length === 0 && publishedFolder.subfolders.length === 0" class="text-center py-16">
+            <UIcon name="i-heroicons-folder-open" class="w-12 h-12 text-gray-300 dark:text-gray-700 mx-auto mb-3" />
             <p class="text-sm text-gray-500 dark:text-gray-400">This folder is empty</p>
           </div>
         </div>
       </aside>
 
-      <!-- Main Content Area -->
+      <!-- Main Content Area - Premium Reading Experience -->
       <main 
-        class="flex-1 overflow-y-auto bg-white dark:bg-gray-900 transition-all duration-300"
-        :class="isSidebarCollapsed ? 'ml-0' : 'ml-80'"
+        class="flex-1 overflow-y-auto bg-white dark:bg-gray-950 ml-72"
       >
         <Transition name="fade-slide" mode="out-in">
           <div v-if="isLoadingNote" key="loading" class="flex items-center justify-center h-full">
@@ -373,39 +223,41 @@ useHead({
               <p class="text-gray-500 dark:text-gray-400">Loading note...</p>
             </div>
           </div>
-          <div v-else-if="selectedNote" key="note" class="max-w-4xl mx-auto px-8 py-12">
-            <!-- Note Header -->
-            <header class="mb-10 pb-8 border-b border-gray-200 dark:border-gray-800 animate-fade-in">
-              <h1 class="text-4xl font-bold text-gray-900 dark:text-white mb-4 leading-tight">
+          <div v-else-if="selectedNote" key="note" class="max-w-4xl mx-auto px-12 py-16">
+            <!-- Note Header - Premium Typography -->
+            <header class="mb-12 pb-8 border-b border-gray-200 dark:border-gray-800">
+              <h1 class="text-5xl font-bold text-gray-900 dark:text-white mb-6 leading-tight tracking-tight">
                 {{ selectedNote.note_title }}
               </h1>
-              <div class="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400">
-                <span v-if="selectedNote.owner_name" class="flex items-center gap-1.5">
-                  <UIcon name="i-heroicons-user" class="w-4 h-4" />
-                  Published by {{ selectedNote.owner_name }}
+              <div class="flex items-center gap-6 text-sm text-gray-500 dark:text-gray-400">
+                <span v-if="selectedNote.owner_name" class="flex items-center gap-2">
+                  <UIcon name="i-heroicons-user-circle" class="w-4 h-4" />
+                  <span class="font-medium">{{ selectedNote.owner_name }}</span>
                 </span>
-                <span class="flex items-center gap-1.5">
+                <span class="flex items-center gap-2">
                   <UIcon name="i-heroicons-clock" class="w-4 h-4" />
-                  Updated {{ new Date(selectedNote.note_updated_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) }}
+                  <span>Updated {{ new Date(selectedNote.note_updated_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) }}</span>
                 </span>
               </div>
             </header>
 
-            <!-- Note Content -->
-            <article class="prose prose-lg dark:prose-invert max-w-none animate-fade-in-up">
+            <!-- Note Content - Premium Reading Experience -->
+            <article class="prose prose-lg dark:prose-invert max-w-none">
               <div v-if="selectedNote.note_content" class="note-content" v-html="selectedNote.note_content"></div>
-              <div v-else class="text-gray-500 dark:text-gray-400 italic text-center py-12">
+              <div v-else class="text-gray-400 dark:text-gray-500 italic text-center py-16 border-2 border-dashed border-gray-200 dark:border-gray-800 rounded-xl">
                 This note is empty.
               </div>
             </article>
           </div>
           <div v-else key="empty" class="flex items-center justify-center h-full">
-            <div class="text-center space-y-4 animate-fade-in">
-              <div class="w-20 h-20 mx-auto bg-gradient-to-br from-primary-100 to-primary-200 dark:from-primary-900/30 dark:to-primary-800/20 rounded-2xl flex items-center justify-center">
-                <UIcon name="i-heroicons-document-text" class="w-10 h-10 text-primary-600 dark:text-primary-400" />
+            <div class="text-center space-y-5">
+              <div class="w-24 h-24 mx-auto bg-gray-100 dark:bg-gray-800 rounded-2xl flex items-center justify-center">
+                <UIcon name="i-heroicons-document-text" class="w-12 h-12 text-gray-400 dark:text-gray-600" />
               </div>
-              <p class="text-lg font-medium text-gray-700 dark:text-gray-300">Select a note to view</p>
-              <p class="text-sm text-gray-500 dark:text-gray-400">Choose from the sidebar or search for a note</p>
+              <div>
+                <p class="text-xl font-semibold text-gray-700 dark:text-gray-300 mb-2">Select a note to view</p>
+                <p class="text-sm text-gray-500 dark:text-gray-400">Choose a note from the sidebar to get started</p>
+              </div>
             </div>
           </div>
         </Transition>
@@ -490,18 +342,24 @@ useHead({
 }
 
 .note-content :deep(p) {
-  margin-bottom: 1.5rem;
-  line-height: 1.8;
-  font-size: 1.0625rem;
+  margin-bottom: 1.75rem;
+  line-height: 1.85;
+  font-size: 1.125rem;
+  color: rgb(31 41 55);
+}
+
+.dark .note-content :deep(p) {
+  color: rgb(229 231 235);
 }
 
 .note-content :deep(h1) {
-  font-size: 2.25rem;
-  line-height: 2.5rem;
+  font-size: 2.5rem;
+  line-height: 3rem;
   font-weight: 700;
   margin-bottom: 1.5rem;
-  margin-top: 2.5rem;
+  margin-top: 3rem;
   color: rgb(17 24 39);
+  letter-spacing: -0.02em;
 }
 
 .dark .note-content :deep(h1) {
@@ -509,12 +367,13 @@ useHead({
 }
 
 .note-content :deep(h2) {
-  font-size: 1.875rem;
-  line-height: 2.25rem;
+  font-size: 2rem;
+  line-height: 2.5rem;
   font-weight: 600;
-  margin-bottom: 1rem;
-  margin-top: 2rem;
+  margin-bottom: 1.25rem;
+  margin-top: 2.5rem;
   color: rgb(17 24 39);
+  letter-spacing: -0.01em;
 }
 
 .dark .note-content :deep(h2) {
@@ -525,8 +384,8 @@ useHead({
   font-size: 1.5rem;
   line-height: 2rem;
   font-weight: 600;
-  margin-bottom: 0.75rem;
-  margin-top: 1.5rem;
+  margin-bottom: 1rem;
+  margin-top: 2rem;
   color: rgb(17 24 39);
 }
 
@@ -634,9 +493,9 @@ useHead({
 .note-content :deep(img) {
   max-width: 100%;
   height: auto;
-  border-radius: 0.75rem;
-  margin: 2rem 0;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  border-radius: 0.5rem;
+  margin: 2.5rem 0;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
 }
 
 .note-content :deep(table) {

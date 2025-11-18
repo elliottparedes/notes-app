@@ -42,27 +42,27 @@ function openNote(shareId: string) {
 
 <template>
   <div class="space-y-1">
-    <!-- Folder Header -->
+    <!-- Folder Header - Premium Design -->
     <div
-      class="flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all duration-200 group"
+      class="flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-all duration-200 group border border-transparent"
       :class="isExpanded 
-        ? 'bg-gray-50 dark:bg-gray-800/50' 
-        : 'hover:bg-gray-100 dark:hover:bg-gray-800/50'"
+        ? 'bg-white dark:bg-gray-800/60 border-gray-200 dark:border-gray-700' 
+        : 'hover:bg-white dark:hover:bg-gray-800/60 border-transparent'"
       @click="toggle"
     >
       <UIcon
         :name="isExpanded ? 'i-heroicons-chevron-down' : 'i-heroicons-chevron-right'"
-        class="w-4 h-4 text-gray-400 dark:text-gray-500 flex-shrink-0 transition-transform duration-200"
+        class="w-3.5 h-3.5 text-gray-400 dark:text-gray-500 flex-shrink-0 transition-transform duration-200"
         :class="isExpanded ? 'rotate-0' : ''"
       />
       <UIcon 
         name="i-heroicons-folder" 
-        class="w-5 h-5 text-primary-500 dark:text-primary-400 flex-shrink-0 transition-transform duration-200 group-hover:scale-110" 
+        class="w-4 h-4 text-gray-500 dark:text-gray-400 flex-shrink-0 transition-colors duration-200 group-hover:text-primary-600 dark:group-hover:text-primary-400" 
       />
-      <span class="text-sm font-medium text-gray-700 dark:text-gray-300 truncate flex-1">
+      <span class="text-sm font-medium text-gray-700 dark:text-gray-300 truncate flex-1 leading-snug">
         {{ folder.folder_name }}
       </span>
-      <span class="text-xs text-gray-500 dark:text-gray-400 flex-shrink-0 bg-gray-200 dark:bg-gray-700 px-2 py-0.5 rounded-full">
+      <span class="text-xs text-gray-400 dark:text-gray-500 flex-shrink-0 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-md font-medium">
         {{ folder.notes.length }}
       </span>
     </div>
@@ -72,21 +72,21 @@ function openNote(shareId: string) {
       <div 
         v-if="isExpanded" 
         ref="expandContentRef"
-        class="ml-8 space-y-1 border-l-2 border-gray-200 dark:border-gray-700 pl-4"
+        class="ml-7 space-y-1 border-l border-gray-200 dark:border-gray-700 pl-4 mt-1"
       >
         <!-- Notes in this folder -->
-        <TransitionGroup name="list" tag="div">
+        <TransitionGroup name="list" tag="div" class="space-y-1">
           <div
             v-for="note in folder.notes"
             :key="note.note_id"
-            class="flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all duration-200 group"
+            class="flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-all duration-200 group border border-transparent"
             :class="selectedNoteId === note.note_id 
-              ? 'bg-gradient-to-r from-primary-50 to-primary-100/50 dark:from-primary-900/30 dark:to-primary-800/20 text-primary-700 dark:text-primary-300 shadow-sm' 
-              : 'hover:bg-gray-100 dark:hover:bg-gray-800/50 text-gray-700 dark:text-gray-300'"
+              ? 'bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 shadow-sm border-primary-200 dark:border-primary-800' 
+              : 'hover:bg-white dark:hover:bg-gray-800/60 text-gray-700 dark:text-gray-300'"
             @click.stop="openNote(note.share_id)"
           >
-            <UIcon name="i-heroicons-document-text" class="w-5 h-5 flex-shrink-0 transition-transform duration-200 group-hover:scale-110" />
-            <span class="text-sm font-medium truncate flex-1">{{ note.note_title }}</span>
+            <UIcon name="i-heroicons-document-text" class="w-4 h-4 flex-shrink-0 text-gray-400 dark:text-gray-500 group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors" />
+            <span class="text-sm font-medium truncate flex-1 leading-snug">{{ note.note_title }}</span>
           </div>
         </TransitionGroup>
       </div>
