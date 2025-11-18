@@ -1980,6 +1980,61 @@ async function importRecipe() {
   }
 }
 
+async function handleDuplicateNote(noteId: string) {
+  const note = notesStore.notes.find(n => n.id === noteId);
+  if (!note) return;
+
+  try {
+    // Create duplicate note with "(COPY)" prefix
+    const duplicateTitle = `(COPY) ${note.title}`;
+    const duplicateNote = await notesStore.createNote({
+      title: duplicateTitle,
+      content: note.content || undefined,
+      tags: note.tags || undefined,
+      is_favorite: false, // Don't duplicate favorite status
+      folder_id: note.folder_id
+    });
+
+    // Get the folder key
+    const folderKey = note.folder_id === null ? 'root' : `folder_${note.folder_id}`;
+    
+    // Get current order for this folder
+    const currentOrder = notesStore.noteOrder[folderKey] || [];
+    
+    // Find the index of the original note
+    let originalIndex = currentOrder.indexOf(noteId);
+    
+    // If original note isn't in order array, add it first
+    const newOrder = [...currentOrder];
+    if (originalIndex === -1) {
+      newOrder.push(noteId);
+      originalIndex = newOrder.length - 1;
+    }
+    
+    // Insert the duplicate right after the original
+    const insertIndex = originalIndex + 1;
+    newOrder.splice(insertIndex, 0, duplicateNote.id);
+    
+    // Update note order in store
+    notesStore.noteOrder[folderKey] = newOrder;
+    
+    // Save the updated order
+    await notesStore.saveNoteOrder();
+    
+    toast.add({
+      title: 'Success',
+      description: 'Note duplicated successfully',
+      color: 'success'
+    });
+  } catch (error: any) {
+    toast.add({
+      title: 'Error',
+      description: error.data?.message || error.message || 'Failed to duplicate note',
+      color: 'error'
+    });
+  }
+}
+
 async function handleDeleteNote(note: Note) {
   noteToDelete.value = note;
   noteShareCount.value = 0;
@@ -3477,6 +3532,7 @@ onMounted(() => {
                     @reorder-folder="handleFolderReorder"
                     @open-note="handleFolderNoteClick"
                     @delete-note="(noteId) => handleDeleteNote(notesStore.notes.find(n => n.id === noteId)!)"
+                    @duplicate-note="handleDuplicateNote"
                   />
                 </div>
               </div>

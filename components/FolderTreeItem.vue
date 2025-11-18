@@ -25,6 +25,7 @@ interface Emits {
   (e: 'reorder-folder', folderId: number, newIndex: number): void;
   (e: 'open-note', noteId: string): void;
   (e: 'delete-note', noteId: string): void;
+  (e: 'duplicate-note', noteId: string): void;
   (e: 'publish', folderId: number): void;
   (e: 'unpublish', folderId: number): void;
   (e: 'check-publish-status', folderId: number): void;
@@ -1076,14 +1077,26 @@ onMounted(() => {
             </span>
           </div>
           
-          <!-- Note Delete Button -->
-          <button
-            @click.stop="$emit('delete-note', note.id)"
-              class="no-drag flex-shrink-0 p-2.5 md:p-1.5 mr-2 rounded-md opacity-100 md:opacity-0 md:group-hover/note:opacity-100 md:hover:bg-red-100 md:dark:hover:bg-red-900/20 active:bg-red-100 dark:active:bg-red-900/20 transition-all"
-            title="Delete note"
-          >
-            <UIcon name="i-heroicons-trash" class="w-5 h-5 md:w-3.5 md:h-3.5 text-red-600 dark:text-red-400" />
-          </button>
+          <!-- Note Action Buttons -->
+          <div class="flex items-center gap-1 mr-2">
+            <!-- Note Duplicate Button (Desktop Only) -->
+            <button
+              @click.stop="$emit('duplicate-note', note.id)"
+              class="no-drag hidden md:flex flex-shrink-0 p-1.5 rounded-md opacity-0 md:group-hover/note:opacity-100 md:hover:bg-blue-100 md:dark:hover:bg-blue-900/20 active:bg-blue-100 dark:active:bg-blue-900/20 transition-all"
+              title="Duplicate note"
+            >
+              <UIcon name="i-heroicons-document-duplicate" class="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+            </button>
+            
+            <!-- Note Delete Button -->
+            <button
+              @click.stop="$emit('delete-note', note.id)"
+              class="no-drag flex-shrink-0 p-2.5 md:p-1.5 rounded-md opacity-100 md:opacity-0 md:group-hover/note:opacity-100 md:hover:bg-red-100 md:dark:hover:bg-red-900/20 active:bg-red-100 dark:active:bg-red-900/20 transition-all"
+              title="Delete note"
+            >
+              <UIcon name="i-heroicons-trash" class="w-5 h-5 md:w-3.5 md:h-3.5 text-red-600 dark:text-red-400" />
+            </button>
+          </div>
         </div>
         </div>
         </div>

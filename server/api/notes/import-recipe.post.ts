@@ -120,7 +120,7 @@ Extract ONLY the recipe information as valid JSON. No explanations, no markdown,
         'X-Title': 'Markdown Notes App'
       },
       body: {
-        model: 'google/gemini-2.5-flash',
+        model: 'anthropic/claude-haiku-4.5',
         messages: [
           {
             role: 'system',
@@ -148,8 +148,9 @@ CRITICAL RULES:
             content: prompt
           }
         ],
-        temperature: 0.2,
-        max_tokens: 20000
+        temperature: 0.7,
+        max_tokens: 20000,
+        response_format: { type: 'json_object' }
       }
     });
 
