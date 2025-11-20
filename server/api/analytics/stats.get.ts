@@ -62,18 +62,38 @@ export default defineEventHandler(async (event): Promise<AnalyticsStats> => {
       for (const note of notesWithTags) {
         if (!note.tags) continue;
         try {
-          const parsedTags = JSON.parse(note.tags);
-          if (Array.isArray(parsedTags)) {
-            for (const tag of parsedTags) {
-              if (typeof tag === 'string' && tag.trim().length > 0) {
-                const cleanTag = tag.trim();
-                tagCounts.set(cleanTag, (tagCounts.get(cleanTag) || 0) + 1);
-              }
+          let parsedTags: string[] = [];
+          
+          // Try to parse as JSON first
+          try {
+            const parsed = JSON.parse(note.tags);
+            if (Array.isArray(parsed)) {
+              parsedTags = parsed;
+            }
+          } catch (parseError) {
+            // If JSON parsing fails, check if it's a comma-separated string
+            if (typeof note.tags === 'string' && note.tags.includes(',')) {
+              // Convert comma-separated string to array
+              parsedTags = note.tags.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0);
+            } else {
+              // Skip if it's not a valid format
+              continue;
+            }
+          }
+          
+          // Process tags
+          for (const tag of parsedTags) {
+            if (typeof tag === 'string' && tag.trim().length > 0) {
+              const cleanTag = tag.trim();
+              tagCounts.set(cleanTag, (tagCounts.get(cleanTag) || 0) + 1);
             }
           }
         } catch (e) {
-          // Skip invalid JSON
-          console.warn('Skipping invalid tags JSON:', e);
+          // Skip invalid tags silently
+          // Only log if it's not a JSON parse error (which we already handle above)
+          if (!(e instanceof SyntaxError)) {
+            console.warn('Error processing tags:', e);
+          }
         }
       }
       
