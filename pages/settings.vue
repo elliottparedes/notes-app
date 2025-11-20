@@ -13,60 +13,6 @@ const loading = ref(false);
 
 const showTempPasswordAlert = computed(() => authStore.needsPasswordReset);
 
-// Storage quota
-interface StorageQuota {
-  used: number;
-  limit: number;
-  usedMB: string;
-  limitMB: string;
-  usedPercent: number;
-}
-
-const storageQuota = ref<StorageQuota | null>(null);
-const loadingStorage = ref(false);
-
-async function fetchStorageQuota() {
-  if (!authStore.token) return;
-  
-  loadingStorage.value = true;
-  try {
-    const data = await $fetch<StorageQuota>('/api/user/storage', {
-      headers: {
-        Authorization: `Bearer ${authStore.token}`
-      }
-    });
-    storageQuota.value = data;
-  } catch (error: any) {
-    console.error('Error fetching storage quota:', error);
-    toast.add({
-      title: 'Error',
-      description: 'Failed to load storage information',
-      color: 'error'
-    });
-  } finally {
-    loadingStorage.value = false;
-  }
-}
-
-// Format bytes to human readable
-function formatBytes(bytes: number): string {
-  if (bytes === 0) return '0 Bytes';
-  const k = 1024;
-  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
-}
-
-// Computed for remaining storage
-const remainingStorage = computed(() => {
-  if (!storageQuota.value) return null;
-  return storageQuota.value.limit - storageQuota.value.used;
-});
-
-const remainingStorageMB = computed(() => {
-  if (!remainingStorage.value) return null;
-  return (remainingStorage.value / (1024 * 1024)).toFixed(2);
-});
 
 // Published content
 interface PublishedItem {
@@ -311,7 +257,6 @@ function formatDate(date: Date) {
 // Load on mount
 onMounted(() => {
   fetchPublishedContent();
-  fetchStorageQuota();
 });
 
 // Computed for dark mode toggle state
@@ -453,146 +398,7 @@ function goBack() {
         </div>
       </UCard>
 
-      <!-- Storage Usage -->
-      <UCard class="mb-6">
-        <template #header>
-          <div class="flex items-center justify-between w-full">
-            <div>
-              <h2 class="text-xl font-semibold text-gray-900 dark:text-white">Storage Usage</h2>
-              <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                Track your file uploads and storage quota
-              </p>
-            </div>
-            <UButton
-              icon="i-heroicons-arrow-path"
-              variant="ghost"
-              size="sm"
-              :loading="loadingStorage"
-              @click="fetchStorageQuota"
-              class="flex-shrink-0"
-            >
-              Refresh
-            </UButton>
-          </div>
-        </template>
-
-        <div v-if="loadingStorage && !storageQuota" class="py-8 text-center">
-          <div class="inline-flex items-center justify-center w-12 h-12 rounded-full bg-gray-100 dark:bg-gray-800 mb-4">
-            <UIcon name="i-heroicons-arrow-path" class="w-6 h-6 text-gray-600 dark:text-gray-400 animate-spin" />
-          </div>
-          <p class="text-sm text-gray-600 dark:text-gray-400">Loading storage information...</p>
-        </div>
-
-        <div v-else-if="storageQuota" class="space-y-4">
-          <!-- Progress Bar -->
-          <div class="space-y-2">
-            <div class="flex items-center justify-between text-sm">
-              <span class="font-medium text-gray-700 dark:text-gray-300">
-                {{ storageQuota.usedMB }} MB of {{ storageQuota.limitMB }} MB used
-              </span>
-              <span 
-                class="font-semibold"
-                :class="storageQuota.usedPercent >= 90 
-                  ? 'text-red-600 dark:text-red-400' 
-                  : storageQuota.usedPercent >= 75 
-                  ? 'text-orange-600 dark:text-orange-400'
-                  : 'text-gray-600 dark:text-gray-400'"
-              >
-                {{ storageQuota.usedPercent }}%
-              </span>
-            </div>
-            
-            <!-- Progress Bar -->
-            <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3 overflow-hidden">
-              <div
-                class="h-full rounded-full transition-all duration-300"
-                :class="storageQuota.usedPercent >= 90 
-                  ? 'bg-red-500' 
-                  : storageQuota.usedPercent >= 75 
-                  ? 'bg-orange-500'
-                  : 'bg-primary-500'"
-                :style="{ width: `${Math.min(storageQuota.usedPercent, 100)}%` }"
-              />
-            </div>
-          </div>
-
-          <!-- Storage Details -->
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-            <div class="text-center p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-              <div class="text-2xl font-bold text-gray-900 dark:text-white mb-1">
-                {{ storageQuota.usedMB }}
-              </div>
-              <div class="text-xs text-gray-600 dark:text-gray-400 uppercase tracking-wide">
-                Used
-              </div>
-            </div>
-            
-            <div class="text-center p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-              <div class="text-2xl font-bold text-gray-900 dark:text-white mb-1">
-                {{ remainingStorageMB }}
-              </div>
-              <div class="text-xs text-gray-600 dark:text-gray-400 uppercase tracking-wide">
-                Remaining
-              </div>
-            </div>
-            
-            <div class="text-center p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-              <div class="text-2xl font-bold text-gray-900 dark:text-white mb-1">
-                {{ storageQuota.limitMB }}
-              </div>
-              <div class="text-xs text-gray-600 dark:text-gray-400 uppercase tracking-wide">
-                Total Limit
-              </div>
-            </div>
-          </div>
-
-          <!-- Warning Messages -->
-          <div 
-            v-if="storageQuota.usedPercent >= 90"
-            class="mt-4 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800"
-          >
-            <div class="flex items-start gap-2">
-              <UIcon name="i-heroicons-exclamation-triangle" class="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
-              <div>
-                <p class="text-sm font-medium text-red-900 dark:text-red-200">
-                  Storage Nearly Full
-                </p>
-                <p class="text-xs text-red-800 dark:text-red-300 mt-1">
-                  You're running low on storage space. Consider deleting unused files to free up space.
-                </p>
-              </div>
-            </div>
-          </div>
-          
-          <div 
-            v-else-if="storageQuota.usedPercent >= 75"
-            class="mt-4 p-3 rounded-lg bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800"
-          >
-            <div class="flex items-start gap-2">
-              <UIcon name="i-heroicons-information-circle" class="w-5 h-5 text-orange-600 dark:text-orange-400 flex-shrink-0 mt-0.5" />
-              <div>
-                <p class="text-sm font-medium text-orange-900 dark:text-orange-200">
-                  Storage Warning
-                </p>
-                <p class="text-xs text-orange-800 dark:text-orange-300 mt-1">
-                  You've used {{ storageQuota.usedPercent }}% of your storage. {{ remainingStorageMB }} MB remaining.
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div v-else class="py-8 text-center">
-          <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-800 mb-4">
-            <UIcon name="i-heroicons-server-stack" class="w-8 h-8 text-gray-400 dark:text-gray-500" />
-          </div>
-          <p class="text-sm text-gray-600 dark:text-gray-400">
-            Unable to load storage information
-          </p>
-        </div>
-      </UCard>
-
-      <!-- Analytics Dashboard -->
+<!-- Analytics Dashboard -->
       <UCard class="mb-6">
         <template #header>
           <div class="flex items-center justify-between w-full">

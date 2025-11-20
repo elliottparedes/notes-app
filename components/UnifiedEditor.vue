@@ -2985,6 +2985,47 @@ onBeforeUnmount(() => {
   border: none;
 }
 
+/* Fix whitespace rendering in code blocks - prevent spaces/tabs from having different backgrounds */
+.unified-editor :deep(.ProseMirror pre),
+.collaborative-editor :deep(.ProseMirror pre) {
+  tab-size: 2;
+  -moz-tab-size: 2;
+}
+
+/* Remove any background styling from all elements inside code blocks */
+.unified-editor :deep(.ProseMirror pre *),
+.collaborative-editor :deep(.ProseMirror pre *),
+.unified-editor :deep(.ProseMirror pre code *),
+.collaborative-editor :deep(.ProseMirror pre code *) {
+  background: transparent !important;
+  background-color: transparent !important;
+}
+
+.dark .unified-editor :deep(.ProseMirror pre *),
+.dark .collaborative-editor :deep(.ProseMirror pre *),
+.dark .unified-editor :deep(.ProseMirror pre code *),
+.dark .collaborative-editor :deep(.ProseMirror pre code *) {
+  background: transparent !important;
+  background-color: transparent !important;
+}
+
+/* Ensure spans and other inline elements don't have backgrounds */
+.unified-editor :deep(.ProseMirror pre span),
+.collaborative-editor :deep(.ProseMirror pre span),
+.unified-editor :deep(.ProseMirror pre code span),
+.collaborative-editor :deep(.ProseMirror pre code span) {
+  background: transparent !important;
+  background-color: transparent !important;
+}
+
+.dark .unified-editor :deep(.ProseMirror pre span),
+.dark .collaborative-editor :deep(.ProseMirror pre span),
+.dark .unified-editor :deep(.ProseMirror pre code span),
+.dark .collaborative-editor :deep(.ProseMirror pre code span) {
+  background: transparent !important;
+  background-color: transparent !important;
+}
+
 /* Blockquote Styles - Apply to both unified-editor and collaborative-editor */
 .unified-editor :deep(.ProseMirror blockquote),
 .collaborative-editor :deep(.ProseMirror blockquote) {

@@ -31,7 +31,7 @@ const { setPageSEO, baseUrl } = useSEO()
 
 setPageSEO({
   title: 'Features - Powerful Note-Taking Capabilities | Unfold Notes',
-  description: 'Discover all the powerful features of Unfold Notes: AI-powered writing, file attachments, and more. See what makes Unfold Notes the best free note-taking app.',
+  description: 'Discover all the powerful features of Unfold Notes: AI-powered writing, collaborative editing, and more. See what makes Unfold Notes the best free note-taking app.',
   path: '/features',
   keywords: [
     'note taking features',

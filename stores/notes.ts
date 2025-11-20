@@ -320,6 +320,45 @@ export const useNotesStore = defineStore('notes', {
       }
     },
 
+    async fetchAllNotesForSearch(): Promise<Note[]> {
+      // Fetch all notes from all spaces for search purposes
+      // This doesn't update the store, just returns all notes
+      try {
+        const authStore = useAuthStore();
+        if (!authStore.token) {
+          throw new Error('Not authenticated');
+        }
+
+        // Try cache first
+        if (process.client) {
+          const { getNotesFromCache } = await import('~/utils/notesCache');
+          // Get all notes from cache (no space filtering)
+          const cachedNotes = await getNotesFromCache();
+          if (cachedNotes.length > 0) {
+            return cachedNotes;
+          }
+        }
+
+        // If no cache, fetch from server
+        const response = await $fetch<Note[]>('/api/notes', {
+          headers: {
+            Authorization: `Bearer ${authStore.token}`
+          }
+        });
+
+        // Update cache with all notes
+        if (process.client) {
+          const { saveNotesToCache } = await import('~/utils/notesCache');
+          await saveNotesToCache(response);
+        }
+
+        return response;
+      } catch (err: unknown) {
+        console.error('[NotesStore] Failed to fetch all notes for search:', err);
+        return [];
+      }
+    },
+
     async fetchNote(id: string): Promise<void> {
       this.loading = true;
       this.error = null;

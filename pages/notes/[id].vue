@@ -27,9 +27,6 @@ const isPolishing = ref(false);
 const isPublishing = ref(false);
 const publishStatus = ref<{ is_published: boolean; share_url?: string } | null>(null);
 const showPublishModal = ref(false);
-const attachments = ref<Array<import('~/models').Attachment>>([]);
-const isLoadingAttachments = ref(false);
-const fileUploadInputRef = ref<HTMLInputElement | null>(null);
 
 const editForm = reactive<UpdateNoteDto & { content: string }>({
   title: '',
@@ -150,8 +147,6 @@ onMounted(async () => {
     router.push('/dashboard');
     // Check publish status
     checkPublishStatus();
-    // Load attachments
-    loadAttachments();
   } catch (error) {
     console.error('Error opening note:', error);
     router.push('/dashboard');
@@ -696,16 +691,6 @@ onUnmounted(() => {
             </div>
           </ClientOnly>
           
-          <!-- File Upload Button -->
-          <UButton
-            icon="i-heroicons-paper-clip"
-            color="primary"
-            variant="ghost"
-            size="sm"
-            @click="triggerFileUpload"
-            title="Upload File"
-          />
-          
           <!-- Publish/Unpublish Button -->
           <UButton
             :icon="publishStatus?.is_published ? 'i-heroicons-globe-alt' : 'i-heroicons-link'"
@@ -930,52 +915,9 @@ onUnmounted(() => {
 
       <!-- Hidden File Input for Header Button -->
       <input
-        ref="fileUploadInputRef"
-        type="file"
-        class="hidden"
-        multiple
-        @change="handleFileUpload"
-      />
-      
       <!-- WYSIWYG Editor Area -->
       <div class="pb-20" :class="isLocked ? 'bg-white dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-900'">
         <div class="max-w-5xl mx-auto py-6 px-4 md:px-6">
-          <!-- Attachments Links at Top -->
-          <div v-if="attachments.length > 0" class="mb-6 pb-4 border-b border-gray-200 dark:border-gray-700">
-            <div v-if="isLoadingAttachments" class="text-center py-2">
-              <UIcon name="i-heroicons-arrow-path" class="w-4 h-4 animate-spin mx-auto text-gray-400" />
-            </div>
-            <div v-else class="flex flex-wrap items-center gap-3">
-              <span class="text-xs font-medium text-gray-500 dark:text-gray-400 flex items-center gap-1">
-                <UIcon name="i-heroicons-paper-clip" class="w-3.5 h-3.5" />
-                Attachments:
-              </span>
-              <div
-                v-for="attachment in attachments"
-                :key="attachment.id"
-                class="flex items-center gap-2 px-3 py-1.5 bg-gray-100 dark:bg-gray-700 rounded-lg group hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-              >
-                <a
-                  :href="attachment.presigned_url || `/api/notes/${noteId}/attachments/${attachment.id}`"
-                  target="_blank"
-                  download
-                  class="text-sm text-gray-700 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400 flex items-center gap-1.5"
-                  :title="`Download ${attachment.file_name}`"
-                >
-                  <UIcon name="i-heroicons-arrow-down-tray" class="w-3.5 h-3.5" />
-                  <span>{{ attachment.file_name }}</span>
-                </a>
-                <button
-                  v-if="!isLocked"
-                  @click="deleteAttachment(attachment.id)"
-                  class="opacity-0 group-hover:opacity-100 transition-opacity text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300"
-                  :title="`Delete ${attachment.file_name}`"
-                >
-                  <UIcon name="i-heroicons-x-mark" class="w-3.5 h-3.5" />
-                </button>
-              </div>
-            </div>
-          </div>
           <ClientOnly>
             <template #default>
               <UnifiedEditor
@@ -986,9 +928,6 @@ onUnmounted(() => {
                 :show-toolbar="showEditorToolbar"
                 :note-id="noteId"
                 :is-collaborative="false"
-                :on-attachment-upload="handleAttachmentUploadedFromEditor"
-                @attachment-uploaded="handleAttachmentUploadedFromEditor"
-                @attachmentUploaded="handleAttachmentUploadedFromEditor"
               />
             </template>
           </ClientOnly>

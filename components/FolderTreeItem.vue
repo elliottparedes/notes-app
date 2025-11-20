@@ -837,13 +837,11 @@ onMounted(() => {
       <button
         @click.stop="handleSelect"
         class="flex-1 flex items-center gap-2.5 py-2.5 pr-2 font-semibold transition-all duration-200 rounded-lg min-w-0 text-gray-700 dark:text-gray-300 md:hover:bg-gray-50/80 md:dark:hover:bg-gray-800/30 active:bg-gray-100/80 dark:active:bg-gray-700/30"
-        :class="selectedId === folder.id ? 'bg-primary-50/80 dark:bg-primary-900/20 text-primary-700 dark:text-primary-300' : ''"
         :style="{ fontSize: 'clamp(0.75rem, 0.5vw + 0.5rem, 0.875rem)' }"
       >
         <UIcon 
           name="i-heroicons-folder" 
-          class="w-4 h-4 flex-shrink-0 transition-colors"
-          :class="selectedId === folder.id ? 'text-primary-600 dark:text-primary-400' : 'text-blue-600 dark:text-blue-400'"
+          class="w-4 h-4 flex-shrink-0 transition-colors text-blue-600 dark:text-blue-400"
         />
         <span class="truncate flex-1 text-left">{{ folder.name }}</span>
         <span 

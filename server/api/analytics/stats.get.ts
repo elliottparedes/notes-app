@@ -48,24 +48,45 @@ export default defineEventHandler(async (event): Promise<AnalyticsStats> => {
     );
     const notesThisMonth = notesThisMonthResult[0]?.count || 0;
 
-    // Most used tags
-    const tags = await executeQuery<Array<{ tag: string; count: number }>>(
-      `SELECT 
-        JSON_UNQUOTE(JSON_EXTRACT(tags, CONCAT('$[', numbers.n, ']'))) as tag,
-        COUNT(*) as count
-       FROM notes
-       CROSS JOIN (
-         SELECT 0 as n UNION SELECT 1 UNION SELECT 2 UNION SELECT 3 UNION SELECT 4
-         UNION SELECT 5 UNION SELECT 6 UNION SELECT 7 UNION SELECT 8 UNION SELECT 9
-       ) as numbers
-       WHERE user_id = ? 
-         AND tags IS NOT NULL 
-         AND JSON_EXTRACT(tags, CONCAT('$[', numbers.n, ']')) IS NOT NULL
-       GROUP BY tag
-       ORDER BY count DESC
-       LIMIT 10`,
-      [userId]
-    );
+    // Most used tags - use a safer approach that handles invalid JSON
+    let tags: Array<{ tag: string; count: number }> = [];
+    try {
+      // First, get all notes with tags and parse them in Node.js to avoid MySQL JSON parsing issues
+      const notesWithTags = await executeQuery<Array<{ tags: string | null }>>(
+        'SELECT tags FROM notes WHERE user_id = ? AND tags IS NOT NULL',
+        [userId]
+      );
+      
+      // Parse tags and count them
+      const tagCounts = new Map<string, number>();
+      for (const note of notesWithTags) {
+        if (!note.tags) continue;
+        try {
+          const parsedTags = JSON.parse(note.tags);
+          if (Array.isArray(parsedTags)) {
+            for (const tag of parsedTags) {
+              if (typeof tag === 'string' && tag.trim().length > 0) {
+                const cleanTag = tag.trim();
+                tagCounts.set(cleanTag, (tagCounts.get(cleanTag) || 0) + 1);
+              }
+            }
+          }
+        } catch (e) {
+          // Skip invalid JSON
+          console.warn('Skipping invalid tags JSON:', e);
+        }
+      }
+      
+      // Convert to array and sort
+      tags = Array.from(tagCounts.entries())
+        .map(([tag, count]) => ({ tag, count }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 10);
+    } catch (error) {
+      console.error('Error processing tags:', error);
+      // Return empty array if there's an error
+      tags = [];
+    }
 
     // Notes by day (last period days)
     const notesByDay = await executeQuery<Array<{ date: string; count: number }>>(

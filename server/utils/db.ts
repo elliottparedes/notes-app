@@ -44,8 +44,18 @@ export async function getConnection(): Promise<Connection> {
 export function parseJsonField<T>(field: string | null): T | null {
   if (!field) return null;
   try {
-    return typeof field === 'string' ? JSON.parse(field) : field;
-  } catch {
+    if (typeof field === 'string') {
+      // Handle case where field might be the string "null"
+      if (field.trim().toLowerCase() === 'null') {
+        return null;
+      }
+      return JSON.parse(field);
+    }
+    // If it's already parsed (object/array), return as is
+    return field as T;
+  } catch (error) {
+    // Log the error for debugging but don't throw
+    console.warn('Failed to parse JSON field:', error, 'Field value:', field);
     return null;
   }
 }

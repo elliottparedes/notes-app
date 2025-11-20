@@ -6,8 +6,6 @@ const shareId = computed(() => route.params.shareId as string);
 const publishedNote = ref<PublishedNoteWithDetails | null>(null);
 const isLoading = ref(true);
 const error = ref<string | null>(null);
-const attachments = ref<Array<import('~/models').Attachment>>([]);
-const isLoadingAttachments = ref(false);
 
 // Client-side checks
 const isClient = ref(false);
@@ -20,9 +18,6 @@ onMounted(async () => {
   try {
     const data = await $fetch<PublishedNoteWithDetails>(`/api/publish/note/${shareId.value}`);
     publishedNote.value = data;
-    
-    // Load attachments for published note
-    await loadAttachments();
   } catch (err: any) {
     error.value = err.data?.message || 'Failed to load published note';
     console.error('Error loading published note:', err);
@@ -31,21 +26,6 @@ onMounted(async () => {
   }
 });
 
-// Load attachments for published note
-async function loadAttachments() {
-  try {
-    isLoadingAttachments.value = true;
-    const atts = await $fetch<Array<import('~/models').Attachment>>(
-      `/api/publish/note/${shareId.value}/attachments`
-    );
-    attachments.value = atts;
-  } catch (err: any) {
-    console.error('Error loading attachments:', err);
-    attachments.value = [];
-  } finally {
-    isLoadingAttachments.value = false;
-  }
-}
 
 // Copy link function
 function copyLink() {
@@ -146,47 +126,6 @@ useHead({
     <!-- Note Content -->
     <main v-else-if="publishedNote" class="flex-1 overflow-y-auto pt-[88px]">
       <div class="max-w-4xl mx-auto px-6 py-12">
-        <!-- Attachments Section -->
-        <Transition name="fade-slide">
-          <div v-if="attachments.length > 0" class="mb-10 pb-8 border-b border-gray-200 dark:border-gray-800 animate-fade-in">
-            <div v-if="isLoadingAttachments" class="text-center py-4">
-              <div class="w-6 h-6 border-2 border-primary-200 dark:border-primary-800 border-t-primary-600 dark:border-t-primary-400 rounded-full animate-spin mx-auto"></div>
-            </div>
-            <div v-else class="space-y-3">
-              <div class="flex items-center gap-2 mb-4">
-                <UIcon name="i-heroicons-paper-clip" class="w-5 h-5 text-gray-500 dark:text-gray-400" />
-                <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                  Attachments ({{ attachments.length }})
-                </h3>
-              </div>
-              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <TransitionGroup name="list">
-                  <a
-                    v-for="attachment in attachments"
-                    :key="attachment.id"
-                    :href="attachment.presigned_url || `/api/publish/note/${shareId}/attachments/${attachment.id}`"
-                    target="_blank"
-                    download
-                    class="group flex items-center gap-3 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-200 dark:border-gray-700 hover:border-primary-300 dark:hover:border-primary-700 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-all duration-200"
-                  >
-                    <div class="w-10 h-10 bg-primary-100 dark:bg-primary-900/30 rounded-lg flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform">
-                      <UIcon name="i-heroicons-arrow-down-tray" class="w-5 h-5 text-primary-600 dark:text-primary-400" />
-                    </div>
-                    <div class="flex-1 min-w-0">
-                      <div class="text-sm font-medium text-gray-900 dark:text-white truncate group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors">
-                        {{ attachment.file_name }}
-                      </div>
-                      <div v-if="attachment.file_size" class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                        {{ (attachment.file_size / 1024 / 1024).toFixed(2) }} MB
-                      </div>
-                    </div>
-                  </a>
-                </TransitionGroup>
-              </div>
-            </div>
-          </div>
-        </Transition>
-        
         <!-- Note Header -->
         <header class="mb-10 pb-8 border-b border-gray-200 dark:border-gray-800 animate-fade-in">
           <h1 class="text-4xl md:text-5xl font-bold text-gray-900 dark:text-white mb-4 leading-tight">

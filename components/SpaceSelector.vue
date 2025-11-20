@@ -183,56 +183,54 @@ const currentSpace = computed(() => {
       />
     </button>
 
-    <!-- Dropdown Menu - Premium Styling -->
+    <!-- Dropdown Menu - Simple Design -->
     <Transition
       enter-active-class="transition-all duration-200 ease-out"
-      enter-from-class="opacity-0 scale-95 translate-y-1"
-      enter-to-class="opacity-100 scale-100 translate-y-0"
+      enter-from-class="opacity-0 translate-y-1"
+      enter-to-class="opacity-100 translate-y-0"
       leave-active-class="transition-all duration-150 ease-in"
-      leave-from-class="opacity-100 scale-100 translate-y-0"
-      leave-to-class="opacity-0 scale-95 translate-y-1"
+      leave-from-class="opacity-100 translate-y-0"
+      leave-to-class="opacity-0 translate-y-1"
     >
       <div
         v-if="isDropdownOpen"
-        class="absolute top-full left-0 right-0 mt-2 bg-white/95 dark:bg-gray-800/95 backdrop-blur-xl border border-gray-200/60 dark:border-gray-700/60 rounded-2xl shadow-2xl z-50 max-h-80 overflow-y-auto overflow-x-hidden"
+        class="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50 max-h-80 overflow-y-auto"
       >
         <!-- Spaces List -->
-        <div class="py-1.5">
+        <div class="py-1">
           <div
             v-for="space in spacesStore.spaces"
             :key="space.id"
-            class="group flex items-center justify-between gap-2 px-3.5 py-2.5 md:hover:bg-gray-50/80 md:dark:hover:bg-gray-700/50 active:bg-gray-100/80 dark:active:bg-gray-700/50 cursor-pointer transition-all duration-200 rounded-lg mx-1 min-w-0"
-            :class="space.id === spacesStore.currentSpaceId ? 'bg-primary-50/80 dark:bg-primary-900/20' : ''"
+            class="group flex items-center justify-between gap-3 px-4 py-2.5 cursor-pointer transition-colors"
+            :class="space.id === spacesStore.currentSpaceId 
+              ? 'bg-primary-50 dark:bg-primary-900/20' 
+              : 'md:hover:bg-gray-50 dark:md:hover:bg-gray-700/50'"
             @click="handleSelectSpace(space.id)"
           >
-            <div class="flex items-center gap-2.5 flex-1 min-w-0 overflow-hidden">
-              <div class="relative flex-shrink-0 w-5 h-5">
-                <!-- Icon container with fixed size to prevent layout shift -->
-                <div class="absolute inset-0 flex items-center justify-center">
-                  <UIcon 
-                    :name="(space.icon && space.icon.trim() !== '') ? `i-lucide-${space.icon}` : 'i-heroicons-building-office-2'" 
-                    class="w-5 h-5 transition-opacity duration-150"
-                    :class="[
-                      space.id === spacesStore.currentSpaceId ? 'text-primary-600 dark:text-primary-400' : 'text-gray-500 dark:text-gray-400',
-                      'icon-loading'
-                    ]"
-                  />
-                </div>
-              </div>
+            <div class="flex items-center gap-3 flex-1 min-w-0">
+              <UIcon 
+                :name="(space.icon && space.icon.trim() !== '') ? `i-lucide-${space.icon}` : 'i-heroicons-building-office-2'" 
+                class="w-5 h-5 flex-shrink-0 icon-loading"
+                :class="space.id === spacesStore.currentSpaceId 
+                  ? 'text-primary-600 dark:text-primary-400' 
+                  : 'text-gray-500 dark:text-gray-400'"
+              />
               <span 
-                class="text-sm truncate min-w-0 font-medium"
-                :class="space.id === spacesStore.currentSpaceId ? 'text-primary-700 dark:text-primary-300 font-semibold' : 'text-gray-700 dark:text-gray-300'"
+                class="text-sm truncate"
+                :class="space.id === spacesStore.currentSpaceId 
+                  ? 'font-semibold text-primary-900 dark:text-primary-100' 
+                  : 'text-gray-700 dark:text-gray-300'"
                 :title="space.name"
               >
                 {{ space.name }}
               </span>
             </div>
             
-            <!-- Action Buttons (on hover) -->
+            <!-- Action Buttons -->
             <div class="flex items-center gap-1 flex-shrink-0 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
               <button
                 @click="handleEditSpace({ id: space.id, name: space.name }, $event)"
-                class="p-1.5 rounded-lg md:hover:bg-gray-200/80 md:dark:hover:bg-gray-600/80 active:bg-gray-200/80 dark:active:bg-gray-600/80 transition-colors flex-shrink-0"
+                class="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
                 title="Edit space"
               >
                 <UIcon name="i-heroicons-pencil" class="w-4 h-4 text-gray-600 dark:text-gray-400" />
@@ -240,7 +238,7 @@ const currentSpace = computed(() => {
               <button
                 v-if="spacesStore.spaces.length > 1"
                 @click="handleDeleteSpace(space.id, $event)"
-                class="p-1.5 rounded-lg md:hover:bg-red-100/80 md:dark:hover:bg-red-900/20 active:bg-red-100/80 dark:active:bg-red-900/20 transition-colors flex-shrink-0"
+                class="p-1.5 rounded hover:bg-red-100 dark:hover:bg-red-900/20 transition-colors"
                 title="Delete space"
               >
                 <UIcon name="i-heroicons-trash" class="w-4 h-4 text-red-600 dark:text-red-400" />
@@ -250,14 +248,14 @@ const currentSpace = computed(() => {
         </div>
 
         <!-- Divider -->
-        <div class="border-t border-gray-200/60 dark:border-gray-700/60 my-1.5"></div>
+        <div class="border-t border-gray-200 dark:border-gray-700 my-1"></div>
 
         <!-- New Space Button -->
         <button
           @click="handleNewSpace"
-          class="w-full flex items-center gap-3 px-3.5 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 md:hover:bg-gray-50/80 md:dark:hover:bg-gray-700/50 active:bg-gray-100/80 dark:active:bg-gray-700/50 transition-all duration-200 rounded-lg mx-1 mb-1"
+          class="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
         >
-          <UIcon name="i-heroicons-plus" class="w-4 h-4 text-gray-500 dark:text-gray-400" />
+          <UIcon name="i-heroicons-plus" class="w-4 h-4" />
           <span>New Space</span>
         </button>
       </div>

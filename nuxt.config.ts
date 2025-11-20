@@ -176,11 +176,6 @@ export default defineNuxtConfig({
     jwtSecret: process.env.JWT_SECRET || '',
     openRouterApiKey: process.env.OPENROUTER_API_KEY || '',
     brevoApiKey: process.env.BREVO_API_KEY || '',
-    minioEndpoint: process.env.MINIO_ENDPOINT || '',
-    minioAccessKey: process.env.MINIO_ACCESS_KEY || '',
-    minioSecretKey: process.env.MINIO_SECRET_KEY || '',
-    minioBucket: process.env.MINIO_BUCKET || '',
-    minioUseSSL: process.env.MINIO_USE_SSL !== 'false',
     
     // Public keys exposed to client (non-sensitive only)
     public: {

@@ -80,9 +80,6 @@ const isPolishing = ref(false);
 const isPublishing = ref(false);
 const publishStatus = ref<{ is_published: boolean; share_url?: string } | null>(null);
 const showPublishModal = ref(false);
-const attachments = ref<Array<import('~/models').Attachment>>([]);
-const isLoadingAttachments = ref(false);
-const fileUploadInputRef = ref<HTMLInputElement | null>(null);
 
 // Folder publish status
 const folderPublishStatuses = ref<Map<number, { is_published: boolean; share_url?: string }>>(new Map());
@@ -318,6 +315,20 @@ async function loadData() {
     
     console.log(`[Dashboard] 📁 Folders ready: ${foldersStore.folders.length} folders for space ${spacesStore.currentSpaceId}`);
     
+    // Validate selectedFolderId after folders are loaded
+    // Check if the selected folder exists and belongs to the current space
+    if (selectedFolderId.value !== null && process.client) {
+      const selectedFolder = foldersStore.getFolderById(selectedFolderId.value);
+      const currentSpaceId = spacesStore.currentSpaceId;
+      
+      if (!selectedFolder || selectedFolder.space_id !== currentSpaceId) {
+        // Selected folder doesn't exist or belongs to a different space
+        console.log(`[Dashboard] Invalid selectedFolderId ${selectedFolderId.value}, clearing selection`);
+        selectedFolderId.value = null;
+        sessionStorage.removeItem('selected_folder_id');
+      }
+    }
+    
     await Promise.all([
       notesStore.fetchNotes(true), // useCache = true - now folders are available for filtering
       notesStore.loadNoteOrder(),
@@ -445,6 +456,19 @@ watch(() => spacesStore.currentSpaceId, async (newSpaceId, oldSpaceId) => {
       console.log(`[Dashboard] 📝 Notes reloaded for space ${newSpaceId} in ${notesFetchDuration.toFixed(2)}ms`);
       
       await sharedNotesStore.fetchSharedNotes();
+      
+      // Validate selectedFolderId after folders are loaded for new space
+      if (selectedFolderId.value !== null && process.client) {
+        const selectedFolder = foldersStore.getFolderById(selectedFolderId.value);
+        const currentSpaceId = spacesStore.currentSpaceId;
+        
+        if (!selectedFolder || selectedFolder.space_id !== currentSpaceId) {
+          // Selected folder doesn't exist or belongs to a different space
+          console.log(`[Dashboard] Invalid selectedFolderId ${selectedFolderId.value} for space ${currentSpaceId}, clearing selection`);
+          selectedFolderId.value = null;
+          sessionStorage.removeItem('selected_folder_id');
+        }
+      }
       
       // Wait for DOM to update
       await nextTick();
@@ -830,11 +854,10 @@ watch(
   { immediate: false }
 );
 
-// Clear attachments when active note becomes null
+// Clear when active note becomes null
 watch(() => activeNote.value?.id, (newId, oldId) => {
   if (!newId && oldId) {
-    // Note was closed, clear attachments
-    attachments.value = [];
+    // Note was closed
   }
 });
 
@@ -887,9 +910,7 @@ watch(activeNote, (note, oldNote) => {
     // Check publish status
     checkPublishStatus();
     
-    // Clear and load attachments for the active note
-    attachments.value = [];
-    loadAttachments(note.id);
+    // Note opened
     
     // If note doesn't have content or seems incomplete, try to fetch it
     if ((!note.content || note.content === '') && process.client) {
@@ -1204,6 +1225,21 @@ function handleSelectFolder(folderId: number) {
   selectFolder(folderId);
   showMobileFoldersSheet.value = false;
 }
+
+// Watch folders to validate selectedFolderId when folders change
+watch(() => foldersStore.folders, () => {
+  if (selectedFolderId.value !== null && process.client && hasInitialized.value) {
+    const selectedFolder = foldersStore.getFolderById(selectedFolderId.value);
+    const currentSpaceId = spacesStore.currentSpaceId;
+    
+    if (!selectedFolder || (currentSpaceId !== null && selectedFolder.space_id !== currentSpaceId)) {
+      // Selected folder doesn't exist or belongs to a different space
+      console.log(`[Dashboard] Invalid selectedFolderId ${selectedFolderId.value}, clearing selection`);
+      selectedFolderId.value = null;
+      sessionStorage.removeItem('selected_folder_id');
+    }
+  }
+}, { deep: false });
 
 // Computed: Get folders to display (all folders in current space)
 const displayedFolders = computed(() => {
@@ -2782,147 +2818,6 @@ async function checkPublishStatus() {
   }
 }
 
-// Load attachments for a note
-async function loadAttachments(noteId: string) {
-  try {
-    isLoadingAttachments.value = true;
-    if (!authStore.token) {
-      console.log('[Dashboard] No auth token for loading attachments');
-      return;
-    }
-    
-    console.log('[Dashboard] Loading attachments for note:', noteId);
-    const atts = await $fetch<Array<import('~/models').Attachment>>(
-      `/api/notes/${noteId}/attachments`,
-      {
-        headers: {
-          Authorization: `Bearer ${authStore.token}`,
-        },
-      }
-    );
-    
-    console.log('[Dashboard] Loaded attachments:', atts.length, atts);
-    attachments.value = atts;
-  } catch (error: any) {
-    console.error('[Dashboard] Failed to load attachments:', error);
-    attachments.value = [];
-  } finally {
-    isLoadingAttachments.value = false;
-  }
-}
-
-// Handle attachment upload
-function handleAttachmentUploaded(attachment: import('~/models').Attachment) {
-  attachments.value = [attachment, ...attachments.value];
-}
-
-// Handle attachment deletion
-function handleAttachmentDeleted(attachmentId: number) {
-  attachments.value = attachments.value.filter((a) => a.id !== attachmentId);
-}
-
-// Delete attachment
-async function deleteAttachment(attachmentId: number) {
-  if (!activeNote.value) return;
-  
-  try {
-    const authStore = useAuthStore();
-    if (!authStore.token) {
-      toast.add({
-        title: 'Error',
-        description: 'Not authenticated',
-        color: 'error',
-      });
-      return;
-    }
-    
-    await $fetch(`/api/notes/${activeNote.value.id}/attachments/${attachmentId}`, {
-      method: 'DELETE',
-      headers: {
-        Authorization: `Bearer ${authStore.token}`,
-      },
-    });
-    
-    handleAttachmentDeleted(attachmentId);
-    toast.add({
-      title: 'Success',
-      description: 'File deleted successfully',
-      color: 'success',
-    });
-  } catch (error: any) {
-    console.error('Delete error:', error);
-    toast.add({
-      title: 'Error',
-      description: error.data?.message || 'Failed to delete file',
-      color: 'error',
-    });
-  }
-}
-
-// Trigger file upload from header button
-function triggerFileUpload() {
-  fileUploadInputRef.value?.click();
-}
-
-// Handle file selection from header button
-async function handleFileUpload(event: Event) {
-  if (!activeNote.value) return;
-  
-  const target = event.target as HTMLInputElement;
-  const files = target.files;
-  
-  if (!files || files.length === 0) return;
-  
-  const authStore = useAuthStore();
-  if (!authStore.token) {
-    toast.add({
-      title: 'Error',
-      description: 'Not authenticated',
-      color: 'error',
-    });
-    return;
-  }
-  
-  try {
-    for (const file of files) {
-      const formData = new FormData();
-      formData.append('file', file);
-      
-      const attachment = await $fetch<import('~/models').Attachment>(
-        `/api/notes/${activeNote.value.id}/attachments`,
-        {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${authStore.token}`,
-          },
-          body: formData,
-        }
-      );
-      
-      handleAttachmentUploaded(attachment);
-      toast.add({
-        title: 'File Uploaded',
-        description: `${file.name} uploaded successfully`,
-        color: 'success',
-      });
-    }
-    
-    // Reload attachments list to get fresh presigned URLs
-    await loadAttachments(activeNote.value.id);
-    
-    // Reset input
-    if (fileUploadInputRef.value) {
-      fileUploadInputRef.value.value = '';
-    }
-  } catch (error: any) {
-    console.error('Upload error:', error);
-    toast.add({
-      title: 'Upload Failed',
-      description: error.data?.message || 'Failed to upload file',
-      color: 'error',
-    });
-  }
-}
 
 // Handle publish button click
 async function handlePublishButtonClick() {
@@ -3303,6 +3198,7 @@ onMounted(() => {
           <!-- Settings Button (when no note active) -->
           <button
             v-if="!activeNote"
+            @click="router.push('/settings')"
             class="p-2 rounded-lg transition-colors active:bg-gray-100 dark:active:bg-gray-700 text-gray-600 dark:text-gray-400"
             aria-label="Settings"
           >
@@ -3363,16 +3259,6 @@ onMounted(() => {
                 :class="isPublishing ? 'animate-spin' : ''"
                 class="w-5 h-5" 
               />
-            </button>
-            
-            <!-- File Upload Button -->
-            <button
-              v-if="!isLocked && (activeNote.user_id === authStore.currentUser?.id || activeNote.share_permission === 'editor')"
-              @click="triggerFileUpload"
-              class="p-2 rounded-lg transition-colors active:bg-gray-100 dark:active:bg-gray-700 text-gray-500 dark:text-gray-400 active:text-primary-600 dark:active:text-primary-400"
-              title="Upload File"
-            >
-              <UIcon name="i-heroicons-paper-clip" class="w-5 h-5" />
             </button>
             
             <!-- Delete Button (Mobile) -->
@@ -3913,46 +3799,18 @@ onMounted(() => {
                 >
                   <button
                     @click="handleFolderClick(folder)"
-                    :class="[
-                      'flex-1 flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 active:scale-[0.98] min-w-0',
-                      selectedFolderId === folder.id
-                        ? 'bg-primary-50 dark:bg-primary-900/30 border border-primary-500 dark:border-primary-400'
-                        : 'bg-transparent border border-transparent active:bg-gray-100 dark:active:bg-gray-700'
-                    ]"
+                    class="flex-1 flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 active:scale-[0.98] min-w-0 bg-transparent border border-transparent active:bg-gray-100 dark:active:bg-gray-700"
                   >
                     <!-- Folder Icon -->
-                    <div 
-                      :class="[
-                        'w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0',
-                        selectedFolderId === folder.id
-                          ? 'bg-primary-500 dark:bg-primary-600 text-white'
-                          : 'bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-300'
-                      ]"
-                    >
+                    <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-300">
                       <UIcon name="i-heroicons-folder" class="w-4 h-4" />
                     </div>
                     
                     <!-- Folder Name -->
                     <div class="flex-1 text-left min-w-0">
-                      <div 
-                        :class="[
-                          'text-base font-semibold truncate',
-                          selectedFolderId === folder.id
-                            ? 'text-primary-700 dark:text-primary-300'
-                            : 'text-gray-900 dark:text-white'
-                        ]"
-                      >
+                      <div class="text-base font-semibold truncate text-gray-900 dark:text-white">
                         {{ folder.name }}
                       </div>
-                    </div>
-                    
-                    <!-- Subfolder Indicator or Active Indicator -->
-                    <div class="flex items-center gap-2 flex-shrink-0">
-                      <UIcon 
-                        v-if="selectedFolderId === folder.id" 
-                        name="i-heroicons-check-circle" 
-                        class="w-5 h-5 text-primary-600 dark:text-primary-400" 
-                      />
                     </div>
                   </button>
                   
@@ -4081,16 +3939,6 @@ onMounted(() => {
                   :class="isPublishing ? 'animate-spin' : ''"
                   class="w-4 h-4" 
                 />
-              </button>
-              
-              <!-- File Upload Button (show for owners or editors with permission) -->
-              <button
-                v-if="!isLocked && (activeNote.user_id === authStore.currentUser?.id || activeNote.share_permission === 'editor')"
-                @click="triggerFileUpload"
-                class="p-2 rounded-lg transition-colors hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400"
-                title="Upload File"
-              >
-                <UIcon name="i-heroicons-paper-clip" class="w-4 h-4" />
               </button>
               
               <!-- Keyboard Shortcuts Info -->
@@ -4441,52 +4289,6 @@ onMounted(() => {
 
             <!-- Editor Section - Editable Content -->
             <div class="max-w-5xl xl:max-w-7xl 2xl:max-w-[1600px] mx-auto px-4 md:px-6 py-6 pb-16">
-              <!-- Attachments Links at Top -->
-              <div v-if="attachments.length > 0" class="mb-6 pb-4 border-b border-gray-200 dark:border-gray-700">
-                <div v-if="isLoadingAttachments" class="text-center py-2">
-                  <UIcon name="i-heroicons-arrow-path" class="w-4 h-4 animate-spin mx-auto text-gray-400" />
-                </div>
-                <div v-else class="flex flex-wrap items-center gap-3">
-                  <span class="text-xs font-medium text-gray-500 dark:text-gray-400 flex items-center gap-1">
-                    <UIcon name="i-heroicons-paper-clip" class="w-3.5 h-3.5" />
-                    Attachments:
-                  </span>
-                  <div
-                    v-for="attachment in attachments"
-                    :key="attachment.id"
-                    class="flex items-center gap-2 px-3 py-1.5 bg-gray-100 dark:bg-gray-700 rounded-lg group hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-                  >
-                    <a
-                      :href="attachment.presigned_url || `/api/notes/${activeNote.id}/attachments/${attachment.id}`"
-                      target="_blank"
-                      download
-                      class="text-sm text-gray-700 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400 flex items-center gap-1.5"
-                      :title="`Download ${attachment.file_name}`"
-                    >
-                      <UIcon name="i-heroicons-arrow-down-tray" class="w-3.5 h-3.5" />
-                      <span>{{ attachment.file_name }}</span>
-                    </a>
-                    <button
-                      v-if="activeNote && !isLocked && (activeNote.user_id === authStore.currentUser?.id || activeNote.share_permission === 'editor')"
-                      @click="deleteAttachment(attachment.id)"
-                      class="opacity-0 group-hover:opacity-100 transition-opacity text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300"
-                      :title="`Delete ${attachment.file_name}`"
-                    >
-                      <UIcon name="i-heroicons-x-mark" class="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-              
-              <!-- Hidden file input for header button -->
-              <input
-                ref="fileUploadInputRef"
-                type="file"
-                multiple
-                class="hidden"
-                @change="handleFileUpload"
-              />
-              
               <!-- Use UnifiedEditor for all notes (collaborative or regular) -->
               <ClientOnly>
                 <UnifiedEditor
@@ -4619,6 +4421,32 @@ onMounted(() => {
         -->
       </div>
     </div>
+
+    <!-- Floating Action Button for Creating Notes in Folder (Mobile Only) -->
+    <Teleport to="body">
+      <Transition
+        enter-active-class="transition-all duration-300 ease-out"
+        enter-from-class="opacity-0 scale-90 translate-y-4"
+        enter-to-class="opacity-100 scale-100 translate-y-0"
+        leave-active-class="transition-all duration-200 ease-in"
+        leave-from-class="opacity-100 scale-100 translate-y-0"
+        leave-to-class="opacity-0 scale-90 translate-y-4"
+      >
+        <button
+          v-if="selectedFolderId !== null && !activeNote"
+          @click="handleCreateNoteInFolder(selectedFolderId)"
+          :disabled="isCreating"
+          class="fixed bottom-[100px] left-[300px] z-40 md:hidden w-14 h-14 bg-primary-600 dark:bg-primary-500 text-white rounded-full shadow-lg hover:shadow-xl active:scale-95 transition-all duration-200 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+          aria-label="Create new note"
+        >
+          <UIcon 
+            name="i-heroicons-plus" 
+            class="w-7 h-7"
+            :class="{ 'animate-spin': isCreating }"
+          />
+        </button>
+      </Transition>
+    </Teleport>
 
     <!-- Delete Confirmation Modal -->
     <Teleport to="body">

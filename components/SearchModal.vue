@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import Fuse from 'fuse.js';
-import type { Note } from '~/models';
+import type { Note, Folder } from '~/models';
 import { useNotesStore } from '~/stores/notes';
+import { useSpacesStore } from '~/stores/spaces';
+import { useFoldersStore } from '~/stores/folders';
+import { useAuthStore } from '~/stores/auth';
 
 const props = defineProps<{
   isOpen: boolean;
@@ -14,16 +17,58 @@ const emit = defineEmits<{
 }>();
 
 const notesStore = useNotesStore();
+const spacesStore = useSpacesStore();
+const foldersStore = useFoldersStore();
+const authStore = useAuthStore();
 const searchQuery = ref('');
 const selectedIndex = ref(0);
 const searchResults = ref<Array<{ item: Note; score: number; matches?: any }>>([]);
 const searchInputRef = ref<HTMLInputElement | null>(null);
+const allNotes = ref<Note[]>([]);
+const isLoadingNotes = ref(false);
 
-// Initialize Fuse.js with notes
-const fuse = computed(() => {
-  if (!notesStore.notes.length) return null;
+// Fetch all notes from all spaces when modal opens
+async function loadAllNotes() {
+  if (isLoadingNotes.value) return;
   
-  return new Fuse(notesStore.notes, {
+  isLoadingNotes.value = true;
+  try {
+    // Load folders for all spaces to enable space name lookup
+    // Fetch folders without space_id filter to get all folders
+    if (authStore.token && process.client) {
+      try {
+        const allFolders = await $fetch<Folder[]>('/api/folders', {
+          headers: {
+            Authorization: `Bearer ${authStore.token}`
+          }
+        });
+        // Merge all folders into the store (they're already there from different spaces, but ensure we have all)
+        const existingFolderIds = new Set(foldersStore.folders.map(f => f.id));
+        const newFolders = allFolders.filter(f => !existingFolderIds.has(f.id));
+        if (newFolders.length > 0) {
+          foldersStore.folders.push(...newFolders);
+        }
+      } catch (err) {
+        console.warn('[SearchModal] Failed to load all folders, continuing with existing folders:', err);
+      }
+    }
+    
+    const notes = await notesStore.fetchAllNotesForSearch();
+    allNotes.value = notes;
+  } catch (error) {
+    console.error('[SearchModal] Failed to load all notes:', error);
+    // Fallback to current space notes
+    allNotes.value = notesStore.notes;
+  } finally {
+    isLoadingNotes.value = false;
+  }
+}
+
+// Initialize Fuse.js with all notes
+const fuse = computed(() => {
+  if (!allNotes.value.length) return null;
+  
+  return new Fuse(allNotes.value, {
     keys: [
       { name: 'title', weight: 0.7 },
       { name: 'content', weight: 0.3 },
@@ -38,7 +83,7 @@ const fuse = computed(() => {
 });
 
 // Perform fuzzy search when query changes
-watch([searchQuery, () => notesStore.notes], () => {
+watch([searchQuery, allNotes], () => {
   if (!searchQuery.value.trim()) {
     searchResults.value = [];
     selectedIndex.value = 0;
@@ -55,19 +100,13 @@ watch([searchQuery, () => notesStore.notes], () => {
   selectedIndex.value = 0;
 }, { immediate: true });
 
-// Watch for notes changes to update search
-watch(() => notesStore.notes.length, () => {
-  if (searchQuery.value.trim() && fuse.value) {
-    const results = fuse.value.search(searchQuery.value.trim());
-    searchResults.value = results;
-  }
-});
-
 // Reset when modal opens/closes
-watch(() => props.isOpen, (isOpen) => {
+watch(() => props.isOpen, async (isOpen) => {
   if (isOpen) {
     searchQuery.value = '';
     selectedIndex.value = 0;
+    // Load all notes from all spaces when modal opens
+    await loadAllNotes();
     nextTick(() => {
       searchInputRef.value?.focus();
     });
@@ -76,6 +115,40 @@ watch(() => props.isOpen, (isOpen) => {
     searchResults.value = [];
   }
 });
+
+// Get space name for a note
+function getSpaceName(note: Note): string {
+  if (!note.folder_id) {
+    // Note without folder - try to determine space
+    // For now, show current space or "Unknown"
+    return spacesStore.currentSpace?.name || 'Unknown Space';
+  }
+  
+  // Find folder and get its space
+  const folder = foldersStore.getFolderById(note.folder_id);
+  if (folder) {
+    const space = spacesStore.spaces.find(s => s.id === folder.space_id);
+    return space?.name || 'Unknown Space';
+  }
+  
+  return 'Unknown Space';
+}
+
+// Get space ID for a note (to switch spaces when selecting)
+function getSpaceId(note: Note): number | null {
+  if (!note.folder_id) {
+    // Note without folder - return current space
+    return spacesStore.currentSpaceId;
+  }
+  
+  // Find folder and get its space
+  const folder = foldersStore.getFolderById(note.folder_id);
+  if (folder) {
+    return folder.space_id;
+  }
+  
+  return spacesStore.currentSpaceId;
+}
 
 function closeModal() {
   emit('update:isOpen', false);
@@ -88,21 +161,16 @@ function selectNote(note: Note) {
   });
   
   // CRITICAL: Set loading state BEFORE closing modal to prevent flash
-  // Use a small delay to ensure state is set before modal closes and triggers re-render
   console.log('[SearchModal] Emitting loading-start...');
   emit('loading-start');
   
-  // Use requestAnimationFrame to ensure state is set before next render
-  requestAnimationFrame(() => {
-    console.log('[SearchModal] requestAnimationFrame callback, emitting selected...');
-    // Then emit the selected event
-    emit('selected', note, true);
-    // Close modal after state is set
-    setTimeout(() => {
-      console.log('[SearchModal] Closing modal...');
-      closeModal();
-    }, 0);
-  });
+  // Emit the selected event immediately - let parent handle space switching
+  console.log('[SearchModal] Emitting selected event...');
+  emit('selected', note, true);
+  
+  // Close modal immediately
+  console.log('[SearchModal] Closing modal...');
+  closeModal();
 }
 
 function handleKeydown(event: KeyboardEvent) {
@@ -287,6 +355,12 @@ function highlightText(text: string, query: string): string {
                             ></h3>
                             <span class="text-xs text-gray-400 dark:text-gray-500 flex-shrink-0">
                               {{ formatDate(result.item.updated_at) }}
+                            </span>
+                          </div>
+                          <div class="flex items-center gap-2 mb-1">
+                            <span class="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
+                              <UIcon name="i-heroicons-folder" class="w-3 h-3" />
+                              {{ getSpaceName(result.item) }}
                             </span>
                           </div>
                           <p class="text-sm text-gray-600 dark:text-gray-400 line-clamp-2">
