@@ -7,6 +7,7 @@
   },
   "scripts": {
     "build": "nuxt build",
+    "start": "node .output/server/index.mjs",
     "dev": "cross-env NODE_ENV=development nuxt dev",
     "dev:quiet": "cross-env VITE_PLUGIN_PWA_LOG_LEVEL=silent nuxt dev",
     "typecheck": "vue-tsc --noEmit",
