@@ -3,6 +3,7 @@ import type { UserSignupDto } from '~/models';
 
 const authStore = useAuthStore();
 const toast = useToast();
+const router = useRouter();
 
 const form = reactive<UserSignupDto>({
   email: '',
@@ -11,6 +12,41 @@ const form = reactive<UserSignupDto>({
 });
 
 const loading = ref(false);
+
+// Initialize checkingAuth based on token presence to prevent flash
+// This runs synchronously during component setup, before first render
+let initialCheckingAuth = false;
+if (process.client) {
+  const token = localStorage.getItem('auth_token');
+  initialCheckingAuth = !!token; // Set to true if token exists
+  
+  if (token) {
+    // Token exists - redirect immediately to prevent flash
+    router.replace('/dashboard');
+  }
+}
+
+const checkingAuth = ref(initialCheckingAuth);
+
+// Check after mount
+onMounted(async () => {
+  if (!process.client) return;
+  
+  const token = localStorage.getItem('auth_token');
+  
+  // No token - show signup page
+  if (!token) {
+    checkingAuth.value = false;
+    return;
+  }
+
+  // Token exists - redirect if authenticated
+  if (authStore.isAuthenticated) {
+    await router.replace('/dashboard');
+  } else {
+    checkingAuth.value = false;
+  }
+});
 
 async function handleSignup() {
   if (!form.email || !form.password) {
@@ -56,7 +92,17 @@ async function handleSignup() {
 </script>
 
 <template>
-  <div class="min-h-screen flex">
+  <div>
+    <!-- Show loading state while checking auth (only if token exists) -->
+    <div v-if="checkingAuth" class="min-h-screen flex items-center justify-center bg-white dark:bg-gray-900">
+      <div class="text-center">
+        <UIcon name="i-heroicons-arrow-path" class="w-8 h-8 animate-spin mx-auto text-primary-600 mb-4" />
+        <p class="text-sm text-gray-600 dark:text-gray-400">Checking authentication...</p>
+      </div>
+    </div>
+    
+    <!-- Show signup form only when not checking auth -->
+    <div v-else class="min-h-screen flex">
     <!-- Left Side - Marketing -->
     <div class="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-slate-800 via-slate-900 to-slate-950 relative overflow-hidden">
       <!-- Background Pattern -->
@@ -201,6 +247,7 @@ async function handleSignup() {
           </p>
         </div>
       </div>
+    </div>
     </div>
   </div>
 </template>

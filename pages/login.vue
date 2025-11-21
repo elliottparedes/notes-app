@@ -25,47 +25,45 @@ const form = reactive<UserLoginDto>({
 const loading = ref(false);
 const showForgotPasswordModal = ref(false);
 
-// Default to false - only show loading if we actually have a token to check
-// On Netlify, this prevents hanging on the loading screen
-const checkingAuth = ref(false);
-
-// Immediate synchronous check for token (runs before first render)
-// On Netlify, this must be synchronous to prevent hanging
+// Initialize checkingAuth based on token presence to prevent flash
+// This runs synchronously during component setup, before first render
+let initialCheckingAuth = false;
 if (process.client) {
   const token = localStorage.getItem('auth_token');
+  initialCheckingAuth = !!token; // Set to true if token exists
+  
   if (token) {
-    // Token exists - redirect immediately, keep showing loading
-    checkingAuth.value = true;
-    // Use nextTick to ensure router is ready
-    nextTick(() => {
-      router.replace('/dashboard');
-    });
+    // Token exists - redirect immediately without waiting for nextTick
+    // Use router.replace() immediately to prevent any rendering
+    router.replace('/dashboard');
   } else {
-    // No token found, allow page to render immediately
-    // This handles the case after logout where we want to show the login page right away
-    checkingAuth.value = false;
-    // Immediately mark auth as initialized to prevent any waiting
+    // No token found, immediately mark auth as initialized
     authStore.initialized = true;
   }
-} else {
-  // On server, default to false - will be determined on client hydration
-  // This prevents showing loading spinner on server render
-  checkingAuth.value = false;
 }
 
+const checkingAuth = ref(initialCheckingAuth);
+
 // Also check after mount to handle async auth initialization
+// Only runs if we didn't already redirect in setup
 onMounted(async () => {
-  // Quick check - if no token in localStorage, skip initialization and show page immediately
-  if (process.client && !localStorage.getItem('auth_token')) {
+  // If we already set checkingAuth to true and redirected, this won't run
+  // or the component will be unmounted before this completes
+  if (!process.client) return;
+  
+  const token = localStorage.getItem('auth_token');
+  
+  // No token - ensure auth is initialized and show page
+  if (!token) {
     checkingAuth.value = false;
-    // Ensure auth store is marked as initialized if no token
     if (!authStore.initialized) {
       authStore.initialized = true;
     }
     return;
   }
 
-  // Wait for auth store to initialize if it hasn't already, but with timeout
+  // Token exists - should have already redirected in setup
+  // but double-check in case of race condition
   if (!authStore.initialized) {
     try {
       // Race the initialization with a timeout to prevent hanging
@@ -75,20 +73,18 @@ onMounted(async () => {
       ]);
     } catch (error) {
       console.warn('Auth initialization error:', error);
-      // Mark as initialized anyway to show login page
+      // Mark as initialized anyway
       authStore.initialized = true;
     }
   }
   
-  // Check if user is already authenticated
+  // Final check - redirect if authenticated
   if (authStore.isAuthenticated) {
-    // Redirect immediately without showing the login page
     await router.replace('/dashboard');
-    return;
+  } else {
+    // Not authenticated despite having token (invalid/expired)
+    checkingAuth.value = false;
   }
-  
-  // Allow page to render if not authenticated
-  checkingAuth.value = false;
 });
 
 function openForgotPassword() {
