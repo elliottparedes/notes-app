@@ -348,7 +348,9 @@ const TaskItemWithStrike = TaskItem.extend({
           newState.doc.descendants((node, pos) => {
             if (node.type.name === 'taskItem') {
               const isChecked = node.attrs.checked
-              const oldNode = oldState.doc.nodeAt(pos)
+              // Check if position exists in old document before accessing it
+              // (pasted content may have positions that didn't exist before)
+              const oldNode = pos < oldState.doc.content.size ? oldState.doc.nodeAt(pos) : null
               const wasChecked = oldNode?.attrs?.checked || false
 
               // If checked state changed, apply or remove strike formatting
