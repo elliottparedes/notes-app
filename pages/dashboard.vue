@@ -863,6 +863,22 @@ watch(() => activeNote.value?.id, (newId, oldId) => {
 
 // Watch for active note changes and load it
 watch(activeNote, (note, oldNote) => {
+  // If both are null/undefined, skip entirely
+  if (!note && !oldNote) {
+    return;
+  }
+  
+  // If transitioning from a note to null (closing), just clear and return
+  if (!note && oldNote) {
+    console.log('[Dashboard] Note closed:', oldNote.id);
+    return;
+  }
+  
+  // If note is null at this point, something is wrong - skip
+  if (!note) {
+    return;
+  }
+  
   // Close mobile sidebar when a note becomes active
   if (note && (!oldNote || oldNote.id !== note.id)) {
     isMobileSidebarOpen.value = false;
@@ -897,137 +913,143 @@ watch(activeNote, (note, oldNote) => {
     return;
   }
   
-    if (note) {
-    console.log('[Dashboard] Active note changed:', {
-      id: note.id.substring(0, 20),
-      is_shared: note.is_shared,
-      share_permission: note.share_permission,
-      willUseCollabEditor: !!(note.is_shared || note.share_permission),
-      hasContent: !!note.content,
-      contentLength: note.content ? note.content.length : 0
+  // Verify the note actually exists in the notes array (might be stale reference during deletion)
+  const noteExistsInStore = notesStore.notes.find(n => n.id === note.id);
+  if (!noteExistsInStore) {
+    console.log('[Dashboard] Note no longer exists in store, skipping all operations');
+    return;
+  }
+  
+  console.log('[Dashboard] Active note changed:', {
+    id: note.id.substring(0, 20),
+    is_shared: note.is_shared,
+    share_permission: note.share_permission,
+    willUseCollabEditor: !!(note.is_shared || note.share_permission),
+    hasContent: !!note.content,
+    contentLength: note.content ? note.content.length : 0
+  });
+  
+  // Check publish status
+  checkPublishStatus();
+  
+  // Note opened
+  
+  // If note doesn't have content or seems incomplete, try to fetch it
+  if ((!note.content || note.content === '') && process.client) {
+    console.log('[Dashboard] Note missing content, fetching full note:', note.id);
+    notesStore.fetchNote(note.id).catch(err => {
+      console.error('[Dashboard] Failed to fetch note:', err);
     });
+  }
+  
+  // For collaborative notes, don't update editForm.content (CollaborativeEditor handles it)
+  // Only update title and metadata for the UI
+  // BUT if transitioning FROM collaborative TO regular (unsharing), update content
+  const wasCollaborative = oldNote && (oldNote.is_shared || oldNote.share_permission);
+  const isNowCollaborative = note.is_shared || note.share_permission;
+  const transitioningToRegular = wasCollaborative && !isNowCollaborative;
+  
+  if (isNowCollaborative && !transitioningToRegular) {
+    console.log('[Dashboard] Loading collaborative note');
     
-    // Check publish status
-    checkPublishStatus();
+    // Set flag to prevent auto-save during programmatic update
+    isProgrammaticUpdate.value = true;
     
-    // Note opened
-    
-    // If note doesn't have content or seems incomplete, try to fetch it
-    if ((!note.content || note.content === '') && process.client) {
-      console.log('[Dashboard] Note missing content, fetching full note:', note.id);
-      notesStore.fetchNote(note.id).catch(err => {
-        console.error('[Dashboard] Failed to fetch note:', err);
+    try {
+      editForm.title = note.title;
+      editForm.tags = note.tags || [];
+      editForm.folder = note.folder || '';
+      editForm.folder_id = note.folder_id || null;
+      // CRITICAL: Update editForm.content with note.content so UnifiedEditor gets it as initialContent
+      // This is especially important when sharing a note - the content must be available
+      if (note.content) {
+        editForm.content = note.content;
+        console.log('[Dashboard] Updated editForm.content for collaborative note', {
+          contentLength: note.content.length,
+          preview: note.content.substring(0, 100)
+        });
+      }
+      
+      // Initialize previous values for change detection
+      prevTitle.value = note.title;
+      prevContent.value = editForm.content || note.content || ''; // Use note content if editForm is empty
+      prevFolderId.value = note.folder_id || null;
+    } finally {
+      // Clear flag after update
+      nextTick(() => {
+        isProgrammaticUpdate.value = false;
       });
     }
+  } else {
+    // For regular notes, ALWAYS update if it's a different note
+    // OR if content/folder changed (even if same note)
+    const isDifferentNote = !oldNote || oldNote.id !== note.id;
+    const contentChanged = note.content !== editForm.content;
+    const folderChanged = folderIdChanged || note.folder_id !== editForm.folder_id;
     
-    // For collaborative notes, don't update editForm.content (CollaborativeEditor handles it)
-    // Only update title and metadata for the UI
-    // BUT if transitioning FROM collaborative TO regular (unsharing), update content
-    const wasCollaborative = oldNote && (oldNote.is_shared || oldNote.share_permission);
-    const isNowCollaborative = note.is_shared || note.share_permission;
-    const transitioningToRegular = wasCollaborative && !isNowCollaborative;
+    console.log('[Dashboard] Regular note update check', {
+      isDifferentNote,
+      contentChanged,
+      folderChanged,
+      folderIdChanged,
+      noteFolderId: note.folder_id,
+      editFormFolderId: editForm.folder_id,
+      noteContent: note.content ? note.content.substring(0, 50) : 'null/undefined',
+      editFormContent: editForm.content ? editForm.content.substring(0, 50) : 'null/undefined'
+    });
     
-    if (isNowCollaborative && !transitioningToRegular) {
-      console.log('[Dashboard] Loading collaborative note');
+    // Always update editForm when switching to a different note
+    // OR when content/folder changed (for same note)
+    if (isDifferentNote || contentChanged || folderChanged) {
+      console.log('[Dashboard] Updating editForm with note data', {
+        folder_id: note.folder_id,
+        folder: note.folder,
+        isShared: note.is_shared || note.share_permission
+      });
       
-      // Set flag to prevent auto-save during programmatic update
+      // Set flag to prevent auto-save from triggering during programmatic update
+      // This is critical for shared notes to prevent overwriting collaborative edits
       isProgrammaticUpdate.value = true;
       
       try {
-        editForm.title = note.title;
-        editForm.tags = note.tags || [];
-        editForm.folder = note.folder || '';
-        editForm.folder_id = note.folder_id || null;
-        // CRITICAL: Update editForm.content with note.content so UnifiedEditor gets it as initialContent
-        // This is especially important when sharing a note - the content must be available
-        if (note.content) {
-          editForm.content = note.content;
-          console.log('[Dashboard] Updated editForm.content for collaborative note', {
-            contentLength: note.content.length,
-            preview: note.content.substring(0, 100)
-          });
-        }
+        // Update editForm - use folder name from foldersStore if available
+        const folderName = note.folder_id 
+          ? foldersStore.getFolderById(note.folder_id)?.name || note.folder || null
+          : null;
+        
+        Object.assign(editForm, {
+          title: note.title,
+          content: note.content || '',
+          tags: note.tags || [],
+          folder: folderName || '',
+          folder_id: note.folder_id || null
+        });
         
         // Initialize previous values for change detection
         prevTitle.value = note.title;
-        prevContent.value = editForm.content || note.content || ''; // Use note content if editForm is empty
+        prevContent.value = note.content || '';
         prevFolderId.value = note.folder_id || null;
+        
+        console.log('[Dashboard] editForm updated', {
+          folder_id: editForm.folder_id,
+          folder: editForm.folder,
+          folderName
+        });
       } finally {
-        // Clear flag after update
+        // Clear flag after a tick to allow user-initiated edits to trigger saves
         nextTick(() => {
           isProgrammaticUpdate.value = false;
         });
       }
-    } else {
-      // For regular notes, ALWAYS update if it's a different note
-      // OR if content/folder changed (even if same note)
-      const isDifferentNote = !oldNote || oldNote.id !== note.id;
-      const contentChanged = note.content !== editForm.content;
-      const folderChanged = folderIdChanged || note.folder_id !== editForm.folder_id;
-      
-      console.log('[Dashboard] Regular note update check', {
-        isDifferentNote,
-        contentChanged,
-        folderChanged,
-        folderIdChanged,
-        noteFolderId: note.folder_id,
-        editFormFolderId: editForm.folder_id,
-        noteContent: note.content ? note.content.substring(0, 50) : 'null/undefined',
-        editFormContent: editForm.content ? editForm.content.substring(0, 50) : 'null/undefined'
-      });
-      
-      // Always update editForm when switching to a different note
-      // OR when content/folder changed (for same note)
-      if (isDifferentNote || contentChanged || folderChanged) {
-        console.log('[Dashboard] Updating editForm with note data', {
-          folder_id: note.folder_id,
-          folder: note.folder,
-          isShared: note.is_shared || note.share_permission
-        });
-        
-        // Set flag to prevent auto-save from triggering during programmatic update
-        // This is critical for shared notes to prevent overwriting collaborative edits
-        isProgrammaticUpdate.value = true;
-        
-        try {
-          // Update editForm - use folder name from foldersStore if available
-          const folderName = note.folder_id 
-            ? foldersStore.getFolderById(note.folder_id)?.name || note.folder || null
-            : null;
-          
-          Object.assign(editForm, {
-            title: note.title,
-            content: note.content || '',
-            tags: note.tags || [],
-            folder: folderName || '',
-            folder_id: note.folder_id || null
-          });
-          
-          // Initialize previous values for change detection
-          prevTitle.value = note.title;
-          prevContent.value = note.content || '';
-          prevFolderId.value = note.folder_id || null;
-          
-          console.log('[Dashboard] editForm updated', {
-            folder_id: editForm.folder_id,
-            folder: editForm.folder,
-            folderName
-          });
-        } finally {
-          // Clear flag after a tick to allow user-initiated edits to trigger saves
-          nextTick(() => {
-            isProgrammaticUpdate.value = false;
-          });
-        }
-      }
-    }
-    
-    // Load lock state
-    if (process.client && note.id) {
-      const savedLockState = localStorage.getItem(`note-${note.id}-locked`);
-      isLocked.value = savedLockState === 'true';
     }
   }
+  
+  // Load lock state
+  if (process.client && note.id) {
+    const savedLockState = localStorage.getItem(`note-${note.id}-locked`);
+    isLocked.value = savedLockState === 'true';
+  }
+
 }, { immediate: true });
 
 // Auto-save on content change (only when not locked)
@@ -2225,14 +2247,18 @@ async function confirmDeleteMobile() {
   const wasActiveNote = notesStore.activeTabId === deletedNoteId;
 
   try {
-    // Close the tab if it's open
-    if (notesStore.openTabs.includes(deletedNoteId)) {
-      notesStore.closeTab(deletedNoteId);
-    }
-    
-    // If this was the active note, close it gracefully
+    // IMPORTANT: Set activeTabId to null FIRST to prevent watchers from triggering
+    // This must happen before closing the tab or deleting the note
     if (wasActiveNote) {
       notesStore.activeTabId = null;
+    }
+    
+    // Wait a moment for watchers to settle
+    await nextTick();
+    
+    // Close the tab if it's open (won't change activeTabId since it's already null)
+    if (notesStore.openTabs.includes(deletedNoteId)) {
+      notesStore.closeTab(deletedNoteId);
     }
     
     // Delete the note - shared_notes entries will be automatically deleted via CASCADE
@@ -2276,14 +2302,25 @@ async function confirmDelete() {
   isDeleting.value = true;
   const deletedNoteId = noteToDelete.value.id;
   const wasShared = noteToDelete.value.is_shared || noteToDelete.value.share_permission;
+  const wasActiveNote = notesStore.activeTabId === deletedNoteId;
 
   try {
-    // Close the tab if it's open
+    // IMPORTANT: Set activeTabId to null FIRST to prevent watchers from triggering
+    // This must happen before closing the tab or deleting the note
+    if (wasActiveNote) {
+      notesStore.activeTabId = null;
+    }
+    
+    // Wait a moment for watchers to settle
+    await nextTick();
+    
+    // Close the tab if it's open (won't change activeTabId since it's already null)
     if (notesStore.openTabs.includes(deletedNoteId)) {
       notesStore.closeTab(deletedNoteId);
     }
     
     // Delete the note - shared_notes entries will be automatically deleted via CASCADE
+    // If the note doesn't exist (404), it will be cleaned up locally anyway
     await notesStore.deleteNote(deletedNoteId);
     
     // Refresh shared notes list if this was a shared note
@@ -2304,6 +2341,7 @@ async function confirmDelete() {
     noteToDelete.value = null;
     noteShareCount.value = 0;
   } catch (error) {
+    console.error('[Dashboard] Delete failed:', error);
     toast.add({
       title: 'Error',
       description: 'Failed to delete note',
@@ -2804,6 +2842,14 @@ const selectedFolderName = computed(() => {
 // Check publish status for active note
 async function checkPublishStatus() {
   if (!activeNote.value) return;
+  
+  // Verify the note still exists in the store (might be deleted)
+  const noteExists = notesStore.notes.find(n => n.id === activeNote.value?.id);
+  if (!noteExists) {
+    console.log('[Dashboard] Skipping publish status check - note no longer exists');
+    publishStatus.value = { is_published: false };
+    return;
+  }
   
   try {
     const status = await $fetch<{ is_published: boolean; share_url?: string }>(`/api/notes/${activeNote.value.id}/publish-status`, {

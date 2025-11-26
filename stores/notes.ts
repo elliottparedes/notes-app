@@ -509,12 +509,69 @@ export const useNotesStore = defineStore('notes', {
         if (process.client) {
           await deleteCachedNote(id);
         }
-      } catch (err: unknown) {
+      } catch (err: any) {
+        // If it's a 404, the note doesn't exist in the database
+        // Remove it from the local store and cache anyway (ghost note cleanup)
+        if (err.statusCode === 404 || err.status === 404) {
+          this.notes = this.notes.filter(n => n.id !== id);
+          
+          if (this.currentNote?.id === id) {
+            this.currentNote = null;
+          }
+          
+          if (process.client) {
+            await deleteCachedNote(id);
+          }
+          
+          // Don't throw error for 404 - deletion is successful from user's perspective
+          return;
+        }
+        
         this.error = err instanceof Error ? err.message : 'Failed to delete note';
         throw err;
       } finally {
         this.loading = false;
       }
+    },
+
+    // Clean up invalid notes (notes that don't exist in the database)
+    async cleanupInvalidNotes(): Promise<number> {
+      const authStore = useAuthStore();
+      if (!authStore.token) {
+        return 0;
+      }
+
+      const invalidNoteIds: string[] = [];
+
+      // Check each note to see if it exists in the database
+      for (const note of this.notes) {
+        try {
+          await $fetch(`/api/notes/${note.id}`, {
+            method: 'HEAD',
+            headers: {
+              Authorization: `Bearer ${authStore.token}`
+            }
+          });
+        } catch (err: any) {
+          if (err.statusCode === 404 || err.status === 404) {
+            invalidNoteIds.push(note.id);
+          }
+        }
+      }
+
+      // Remove invalid notes
+      if (invalidNoteIds.length > 0) {
+        this.notes = this.notes.filter(n => !invalidNoteIds.includes(n.id));
+
+        // Clean up cache
+        if (process.client) {
+          for (const id of invalidNoteIds) {
+            await deleteCachedNote(id);
+          }
+        }
+      }
+
+      return invalidNoteIds.length;
     },
 
 
