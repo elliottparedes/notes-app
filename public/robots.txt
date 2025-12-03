@@ -6,4 +6,4 @@ Disallow: /settings/
 Disallow: /notes/
 
 # Sitemap location
-Sitemap: https://unfold-notes.com/sitemap.xml
+Sitemap: http://iok8gcgswosgo00kk4888g0s.155.117.44.112.sslip.io/sitemap.xml

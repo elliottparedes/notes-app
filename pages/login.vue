@@ -24,6 +24,7 @@ const form = reactive<UserLoginDto>({
 
 const loading = ref(false);
 const showForgotPasswordModal = ref(false);
+const logoError = ref(false);
 
 // Initialize checkingAuth based on token presence to prevent flash
 // This runs synchronously during component setup, before first render
@@ -44,6 +45,10 @@ if (process.client) {
 
 const checkingAuth = ref(initialCheckingAuth);
 
+// Safety timeout to ensure checkingAuth is always reset, even if auth initialization hangs
+// This prevents the loading indicator from getting stuck in production
+let safetyTimeout: ReturnType<typeof setTimeout> | null = null;
+
 // Also check after mount to handle async auth initialization
 // Only runs if we didn't already redirect in setup
 onMounted(async () => {
@@ -62,6 +67,16 @@ onMounted(async () => {
     return;
   }
 
+  // Set a safety timeout to always show the login form after max 5 seconds
+  // This prevents the loading indicator from getting stuck in production
+  safetyTimeout = setTimeout(() => {
+    console.warn('Auth check timeout - showing login form');
+    checkingAuth.value = false;
+    if (!authStore.initialized) {
+      authStore.initialized = true;
+    }
+  }, 5000);
+
   // Token exists - should have already redirected in setup
   // but double-check in case of race condition
   if (!authStore.initialized) {
@@ -78,12 +93,26 @@ onMounted(async () => {
     }
   }
   
+  // Clear safety timeout since we completed the check
+  if (safetyTimeout) {
+    clearTimeout(safetyTimeout);
+    safetyTimeout = null;
+  }
+  
   // Final check - redirect if authenticated
   if (authStore.isAuthenticated) {
     await router.replace('/dashboard');
   } else {
     // Not authenticated despite having token (invalid/expired)
     checkingAuth.value = false;
+  }
+});
+
+// Cleanup timeout on unmount
+onUnmounted(() => {
+  if (safetyTimeout) {
+    clearTimeout(safetyTimeout);
+    safetyTimeout = null;
   }
 });
 
@@ -214,13 +243,21 @@ async function handleLogin() {
           <div class="relative">
             <div class="absolute inset-0 bg-gradient-to-br from-primary-400 via-emerald-500 to-teal-600 rounded-3xl blur-xl opacity-30"></div>
             <img 
+              v-if="!logoError"
               src="/swan-unfold.png" 
               alt="Unfold Notes" 
               class="relative w-20 h-20 drop-shadow-lg" 
               loading="eager"
               fetchpriority="high"
               decoding="async"
+              @error="logoError = true"
             />
+            <div 
+              v-else
+              class="relative w-20 h-20 rounded-3xl bg-gradient-to-br from-primary-400 via-emerald-500 to-teal-600 flex items-center justify-center text-white font-bold text-2xl"
+            >
+              UN
+            </div>
           </div>
         </div>
 

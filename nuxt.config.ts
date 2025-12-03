@@ -68,7 +68,9 @@ export default defineNuxtConfig({
       display: 'standalone',
       orientation: 'portrait',
       scope: '/',
-      start_url: '/dashboard',
+      start_url: '/',
+      categories: ['productivity', 'utilities'],
+      prefer_related_applications: false,
       icons: [
         {
           src: '/swan-unfold-white.png',
