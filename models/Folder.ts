@@ -17,5 +17,6 @@ export interface CreateFolderDto {
 export interface UpdateFolderDto {
   name?: string;
   parent_id?: number | null;
+  space_id?: number;
 }
 

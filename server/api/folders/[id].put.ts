@@ -62,6 +62,23 @@ export default defineEventHandler(async (event) => {
       values.push(body.name.trim());
     }
 
+    if (body.space_id !== undefined) {
+      // Check if space exists and belongs to user
+      const spaces = await executeQuery<any[]>(`
+        SELECT id FROM spaces WHERE id = ? AND user_id = ?
+      `, [body.space_id, userId]);
+
+      if (spaces.length === 0) {
+        throw createError({
+          statusCode: 400,
+          statusMessage: 'Space not found'
+        });
+      }
+
+      updates.push('space_id = ?');
+      values.push(body.space_id);
+    }
+
     if (updates.length === 0) {
       // No updates, just return current folder
       return folder;

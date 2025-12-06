@@ -26,8 +26,8 @@ const navItems = [
   },
   {
     id: 'spaces',
-    label: 'Spaces',
-    icon: 'i-heroicons-building-office-2',
+    label: 'Notebooks',
+    icon: 'i-heroicons-book-open',
     route: null, // Opens space selector
     badge: spacesStore.spaces.length > 0 ? null : null
   },

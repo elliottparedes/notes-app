@@ -138,7 +138,7 @@ useHead({
             </span>
             <span class="flex items-center gap-1.5">
               <UIcon name="i-heroicons-clock" class="w-4 h-4" />
-              Updated {{ new Date(publishedNote.note_updated_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) }}
+              Updated {{ new Date(publishedNote.note_updated_at).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) }}
             </span>
           </div>
         </header>

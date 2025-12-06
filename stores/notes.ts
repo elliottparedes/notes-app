@@ -22,6 +22,7 @@ interface NotesState {
   // Tab management
   openTabs: string[]; // Array of note IDs (UUIDs) that are open in tabs
   activeTabId: string | null; // Currently active tab
+  isSyncing: boolean; // Background sync status
 }
 
 export const useNotesStore = defineStore('notes', {
@@ -34,7 +35,8 @@ export const useNotesStore = defineStore('notes', {
     folderOrder: [],
     noteOrder: {},
     openTabs: [],
-    activeTabId: null
+    activeTabId: null,
+    isSyncing: false
   }),
 
   getters: {
@@ -135,30 +137,11 @@ export const useNotesStore = defineStore('notes', {
         if (useCache && process.client) {
           const cacheStartTime = performance.now();
           
-          // Get current space and folders to filter notes by space
-          const spacesStore = useSpacesStore();
-          const foldersStore = useFoldersStore();
-          const currentSpaceId = spacesStore.currentSpaceId;
-          
-          // Get folder IDs for the current space to filter notes
-          // Always filter by space if we have a currentSpaceId, even if folders array is empty
-          // (empty folders array just means no folders exist for this space, but notes without folders should still show)
-          let folderIds: Set<number> | undefined;
-          if (currentSpaceId !== null) {
-            // Get folder IDs for current space (might be empty if no folders exist)
-            folderIds = new Set(
-              foldersStore.folders
-                .filter(f => f.space_id === currentSpaceId)
-                .map(f => f.id)
-            );
-            console.log(`[NotesStore] Filtering cache by space ${currentSpaceId} with ${folderIds.size} folders`);
-          }
-          
-          const cachedNotes = await getNotesFromCache(currentSpaceId, folderIds);
+          const cachedNotes = await getNotesFromCache();
           const cacheDuration = performance.now() - cacheStartTime;
           
           if (cachedNotes.length > 0) {
-            console.log(`[NotesStore] ✅ CACHE HIT: Loaded ${cachedNotes.length} notes from cache${currentSpaceId !== null ? ` for space ${currentSpaceId}` : ''} in ${cacheDuration.toFixed(2)}ms`);
+            console.log(`[NotesStore] ✅ CACHE HIT: Loaded ${cachedNotes.length} notes from cache in ${cacheDuration.toFixed(2)}ms`);
             this.notes = cachedNotes;
             this.loading = false; // Show cached data immediately
             
@@ -169,7 +152,7 @@ export const useNotesStore = defineStore('notes', {
             
             return; // Return early with cached data
           } else {
-            console.log(`[NotesStore] ⚠️ CACHE MISS: No cached notes found${currentSpaceId !== null ? ` for space ${currentSpaceId}` : ''} (checked in ${cacheDuration.toFixed(2)}ms)`);
+            console.log(`[NotesStore] ⚠️ CACHE MISS: No cached notes found (checked in ${cacheDuration.toFixed(2)}ms)`);
           }
         }
 
@@ -189,36 +172,9 @@ export const useNotesStore = defineStore('notes', {
           await saveNotesToCache(response);
         }
         
-        // Filter notes by current space before setting in store
-        // Always filter if we have a currentSpaceId, even if folders array is empty
-        const spacesStore = useSpacesStore();
-        const foldersStore = useFoldersStore();
-        const currentSpaceId = spacesStore.currentSpaceId;
-        
-        if (currentSpaceId !== null) {
-          // Get folder IDs for current space (might be empty if no folders exist)
-          const folderIds = new Set(
-            foldersStore.folders
-              .filter(f => f.space_id === currentSpaceId)
-              .map(f => f.id)
-          );
-          
-          this.notes = response.filter(note => {
-            // Always include shared notes
-            if (note.share_permission) return true;
-            
-            // Include notes without folders (they belong to current space)
-            if (note.folder_id === null) return true;
-            
-            // Include notes whose folder belongs to the current space
-            return folderIds.has(note.folder_id);
-          });
-          
-          console.log(`[NotesStore] Filtered ${response.length} notes to ${this.notes.length} for space ${currentSpaceId} (${folderIds.size} folders)`);
-        } else {
-          // If we can't filter, use all notes (will be filtered by UI)
-          this.notes = response;
-        }
+        // Load all notes into the store
+        this.notes = response;
+        console.log(`[NotesStore] Loaded ${this.notes.length} notes`);
       } catch (err: unknown) {
         this.error = err instanceof Error ? err.message : 'Failed to fetch notes';
         throw err;
@@ -252,24 +208,8 @@ export const useNotesStore = defineStore('notes', {
         }
         
         // Merge server data with local (server wins on conflicts)
-        // But filter by current space to maintain space-specific view
         const serverNotesMap = new Map(response.map(n => [n.id, n]));
         const beforeCount = this.notes.length;
-        
-        // Get current space and folders to filter merged notes
-        const spacesStore = useSpacesStore();
-        const foldersStore = useFoldersStore();
-        const currentSpaceId = spacesStore.currentSpaceId;
-        
-        // Get folder IDs for the current space (always filter if we have a spaceId)
-        let folderIds: Set<number> | undefined;
-        if (currentSpaceId !== null) {
-          folderIds = new Set(
-            foldersStore.folders
-              .filter(f => f.space_id === currentSpaceId)
-              .map(f => f.id)
-          );
-        }
         
         // Merge notes: update existing and add new ones
         const mergedNotes: Note[] = [];
@@ -294,25 +234,10 @@ export const useNotesStore = defineStore('notes', {
           }
         });
         
-        // Filter by current space if we have a spaceId
-        if (currentSpaceId !== null) {
-          this.notes = mergedNotes.filter(note => {
-            // Always include shared notes
-            if (note.share_permission) return true;
-            
-            // Include notes without folders (they belong to current space)
-            if (note.folder_id === null) return true;
-            
-            // Include notes whose folder belongs to the current space
-            return folderIds!.has(note.folder_id);
-          });
-        } else {
-          // If we can't filter, use all merged notes (will be filtered by UI)
-          this.notes = mergedNotes;
-        }
+        this.notes = mergedNotes;
         
         const totalDuration = performance.now() - syncStartTime;
-        console.log(`[NotesStore] ✅ Background sync completed: ${beforeCount} → ${this.notes.length} notes${currentSpaceId !== null ? ` (filtered for space ${currentSpaceId})` : ''} (fetch: ${fetchDuration.toFixed(2)}ms, total: ${totalDuration.toFixed(2)}ms)`);
+        console.log(`[NotesStore] ✅ Background sync completed: ${beforeCount} → ${this.notes.length} notes (fetch: ${fetchDuration.toFixed(2)}ms, total: ${totalDuration.toFixed(2)}ms)`);
       } catch (err) {
         const duration = performance.now() - syncStartTime;
         console.error(`[NotesStore] ❌ Background sync error after ${duration.toFixed(2)}ms:`, err);
@@ -715,7 +640,8 @@ export const useNotesStore = defineStore('notes', {
     },
 
     async reorderNote(noteId: string, folderId: number | null, newIndex: number): Promise<void> {
-      this.loading = true;
+      // Don't set full loading state to prevent UI flicker
+      this.isSyncing = true;
       this.error = null;
 
       try {
@@ -741,12 +667,13 @@ export const useNotesStore = defineStore('notes', {
         await this.saveNoteOrder();
 
         // Refresh notes to get updated state
-        await this.fetchNotes();
+        // We can do this in background without triggering main loading state
+        await this.fetchNotes(false); 
       } catch (err: unknown) {
         this.error = err instanceof Error ? err.message : 'Failed to reorder note';
         throw err;
       } finally {
-        this.loading = false;
+        this.isSyncing = false;
       }
     },
 

@@ -24,9 +24,6 @@ const showFolderDropdown = ref(false);
 const folderDropdownPos = ref({ top: 0, left: 0 });
 const folderButtonRef = ref<HTMLButtonElement | null>(null);
 const isPolishing = ref(false);
-const isPublishing = ref(false);
-const publishStatus = ref<{ is_published: boolean; share_url?: string } | null>(null);
-const showPublishModal = ref(false);
 
 const editForm = reactive<UpdateNoteDto & { content: string }>({
   title: '',
@@ -145,8 +142,6 @@ onMounted(async () => {
   try {
     await notesStore.openTab(noteId.value);
     router.push('/dashboard');
-    // Check publish status
-    checkPublishStatus();
   } catch (error) {
     console.error('Error opening note:', error);
     router.push('/dashboard');
@@ -312,113 +307,6 @@ async function handleFileUpload(event: Event) {
   }
 }
 
-// Check publish status
-async function checkPublishStatus() {
-  try {
-    const authStore = useAuthStore();
-    if (!authStore.token) return;
-    
-    const status = await $fetch<{ is_published: boolean; share_url?: string }>(`/api/notes/${noteId.value}/publish-status`, {
-      headers: {
-        Authorization: `Bearer ${authStore.token}`
-      }
-    });
-    publishStatus.value = status;
-  } catch (error) {
-    console.error('Error checking publish status:', error);
-    publishStatus.value = { is_published: false };
-  }
-}
-
-// Publish note
-async function publishNote() {
-  if (isPublishing.value) return;
-  
-  try {
-    isPublishing.value = true;
-    const authStore = useAuthStore();
-    if (!authStore.token) {
-      toast.add({ title: 'Error', description: 'Not authenticated', color: 'error' });
-      return;
-    }
-    
-    const response = await $fetch<{ share_id: string; share_url: string }>(`/api/notes/${noteId.value}/publish`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${authStore.token}`
-      }
-    });
-    
-    publishStatus.value = { is_published: true, share_url: response.share_url };
-    showPublishModal.value = true;
-    toast.add({
-      title: 'Note Published',
-      description: 'Your note is now publicly accessible',
-      color: 'success'
-    });
-  } catch (error: any) {
-    console.error('Error publishing note:', error);
-    toast.add({
-      title: 'Error',
-      description: error.data?.message || 'Failed to publish note',
-      color: 'error'
-    });
-  } finally {
-    isPublishing.value = false;
-  }
-}
-
-// Unpublish note
-async function unpublishNote() {
-  if (isPublishing.value) return;
-  
-  try {
-    isPublishing.value = true;
-    const authStore = useAuthStore();
-    if (!authStore.token) {
-      toast.add({ title: 'Error', description: 'Not authenticated', color: 'error' });
-      return;
-    }
-    
-    await $fetch(`/api/notes/${noteId.value}/unpublish`, {
-      method: 'DELETE',
-      headers: {
-        Authorization: `Bearer ${authStore.token}`
-      }
-    });
-    
-    publishStatus.value = { is_published: false };
-    showPublishModal.value = false;
-    toast.add({
-      title: 'Note Unpublished',
-      description: 'Your note is no longer publicly accessible',
-      color: 'success'
-    });
-  } catch (error: any) {
-    console.error('Error unpublishing note:', error);
-    toast.add({
-      title: 'Error',
-      description: error.data?.message || 'Failed to unpublish note',
-      color: 'error'
-    });
-  } finally {
-    isPublishing.value = false;
-  }
-}
-
-// Copy share URL
-function copyShareUrl() {
-  if (!publishStatus.value?.share_url) return;
-  
-  if (process.client && navigator.clipboard) {
-    navigator.clipboard.writeText(publishStatus.value.share_url);
-    toast.add({
-      title: 'Link Copied',
-      description: 'Share link copied to clipboard',
-      color: 'success'
-    });
-  }
-}
 
 // Auto-save on content change (only when not locked)
 watch([() => editForm.title, () => editForm.content, () => editForm.folder_id], () => {
@@ -537,12 +425,36 @@ function cancelDelete() {
 }
 
 function formatDate(date: Date): string {
-  return new Date(date).toLocaleString('en-US', {
-    month: 'short',
-    day: 'numeric',
+  return new Date(date).toLocaleDateString('en-US', {
+    weekday: 'long',
     year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
+    month: 'long',
+    day: 'numeric'
+  });
+}
+
+function formatTime(date: string | Date): string {
+  if (!date) return '';
+  
+  let d = new Date(date);
+  
+  if (typeof date === 'string') {
+    // Check if it looks like "YYYY-MM-DD HH:MM:SS" (MySQL default)
+    if (date.match(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/)) {
+      d = new Date(date.replace(' ', 'T') + 'Z');
+    } 
+    // Check if it looks like "YYYY-MM-DDTHH:MM:SS" but missing Z/offset
+    else if (date.indexOf('T') !== -1 && !date.endsWith('Z') && !date.includes('+') && !date.match(/-\d{2}:\d{2}$/)) {
+      d = new Date(date + 'Z');
+    }
+  }
+
+  if (isNaN(d.getTime())) return '';
+  
+  return d.toLocaleTimeString(undefined, {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true
   });
 }
 
@@ -582,7 +494,10 @@ function removeTag(tag: string) {
 
 // Polish note with AI
 async function polishNote() {
+  console.log('[Page] Polish note requested via event');
+  
   if (!editForm.title?.trim() && !editForm.content?.trim()) {
+    console.log('No content to polish');
     toast.add({
       title: 'Nothing to Polish',
       description: 'Add some content to your note first',
@@ -664,43 +579,32 @@ onUnmounted(() => {
         <div class="flex items-center gap-1">
           <!-- Save Status (Client-only to prevent hydration mismatch) -->
           <ClientOnly>
-            <div class="flex items-center gap-1.5 text-xs flex-shrink-0" style="width: 95px; min-width: 95px;">
-              <!-- Invisible placeholder to reserve space for longest text "Saving..." -->
+            <div class="flex items-center gap-1.5 text-xs flex-shrink-0 relative">
+              <!-- Invisible placeholder to reserve space for longest text -->
               <div class="invisible flex items-center gap-2" aria-hidden="true">
-                <UIcon name="i-heroicons-arrow-path" class="w-4 h-4" />
-                <span class="hidden sm:inline whitespace-nowrap">Saving...</span>
+                <UIcon name="i-heroicons-check-circle" class="w-4 h-4" />
+                <span class="whitespace-nowrap">Saved</span>
               </div>
               <!-- Visible content -->
-              <div class="absolute flex items-center gap-2">
+              <div class="absolute left-0 top-1/2 -translate-y-1/2 flex items-center gap-2">
                 <!-- Offline state -->
                 <div v-if="!isOnline" class="flex items-center gap-2 text-yellow-600 dark:text-yellow-400">
                   <UIcon name="i-heroicons-wifi" class="w-4 h-4 flex-shrink-0" />
-                  <span class="hidden sm:inline whitespace-nowrap">Offline</span>
+                  <span class="whitespace-nowrap">Offline</span>
                 </div>
                 <!-- Saving state -->
                 <div v-else-if="isSaving" class="flex items-center gap-2 text-gray-500 dark:text-gray-400">
                   <UIcon name="i-heroicons-arrow-path" class="w-4 h-4 animate-spin flex-shrink-0" />
-                  <span class="hidden sm:inline whitespace-nowrap">Saving...</span>
+                  <span class="whitespace-nowrap">Saving...</span>
                 </div>
                 <!-- Saved state -->
-                <div v-else class="flex items-center gap-2 text-green-600 dark:text-green-400">
+                <div v-else class="flex items-center gap-2 text-green-600 dark:text-green-400 transition-all duration-500">
                   <UIcon name="i-heroicons-check-circle" class="w-4 h-4 flex-shrink-0" />
-                  <span class="hidden sm:inline whitespace-nowrap">Saved</span>
+                  <span class="whitespace-nowrap">Saved</span>
                 </div>
               </div>
             </div>
           </ClientOnly>
-          
-          <!-- Publish/Unpublish Button -->
-          <UButton
-            :icon="publishStatus?.is_published ? 'i-heroicons-globe-alt' : 'i-heroicons-link'"
-            :color="publishStatus?.is_published ? 'primary' : 'neutral'"
-            variant="ghost"
-            size="sm"
-            :loading="isPublishing"
-            @click="publishStatus?.is_published ? unpublishNote() : publishNote()"
-            :title="publishStatus?.is_published ? 'Unpublish Note' : 'Publish Note'"
-          />
           
           <!-- Lock/Unlock Button -->
           <UButton
@@ -751,7 +655,7 @@ onUnmounted(() => {
           <!-- Locked State: Read-only title -->
           <h1
             v-if="isLocked"
-            class="w-full bg-transparent border-none outline-none text-3xl md:text-4xl font-bold text-gray-900 dark:text-white mb-3"
+            class="w-full bg-transparent border-none outline-none text-3xl md:text-4xl font-bold text-gray-900 dark:text-white mb-4 pb-2"
           >
             {{ editForm.title || 'Untitled Note' }}
           </h1>
@@ -760,7 +664,7 @@ onUnmounted(() => {
             v-else
             v-model="editForm.title"
             type="text"
-            class="w-full bg-transparent border-none outline-none text-3xl md:text-4xl font-bold text-gray-900 dark:text-white placeholder-gray-400 mb-3"
+            class="w-full bg-transparent border-none outline-none text-3xl md:text-4xl font-bold text-gray-900 dark:text-white placeholder-gray-400 mb-4 py-3 leading-normal"
             placeholder="Untitled Note"
           />
           <div class="flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400 flex-wrap">
@@ -791,21 +695,6 @@ onUnmounted(() => {
             >
               <UIcon :name="showEditorToolbar ? 'i-heroicons-eye-slash' : 'i-heroicons-eye'" class="w-3.5 h-3.5" />
               <span class="hidden sm:inline">{{ showEditorToolbar ? 'Hide' : 'Show' }} Toolbar</span>
-            </button>
-            <!-- Polish with AI Button -->
-            <button
-              v-if="!isLocked"
-              @click="polishNote"
-              :disabled="isPolishing"
-              class="polish-ai-button-small group relative inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-white rounded-md transition-all duration-300 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
-              :title="isPolishing ? 'Polishing with AI...' : 'Polish with AI'"
-            >
-              <UIcon 
-                name="i-heroicons-sparkles" 
-                :class="isPolishing ? 'animate-pulse opacity-70' : 'group-hover:animate-pulse'" 
-                class="w-3.5 h-3.5 transition-opacity" 
-              />
-              <span class="hidden sm:inline">{{ isPolishing ? 'Polishing...' : 'Polish' }}</span>
             </button>
           </div>
         </div>
@@ -928,6 +817,8 @@ onUnmounted(() => {
                 :show-toolbar="showEditorToolbar"
                 :note-id="noteId"
                 :is-collaborative="false"
+                :is-polishing="isPolishing"
+                @request-polish="polishNote"
               />
             </template>
           </ClientOnly>
@@ -1102,114 +993,10 @@ onUnmounted(() => {
         </div>
       </Transition>
     </Teleport>
-
-    <!-- Publish Modal -->
-    <div
-      v-if="showPublishModal && publishStatus?.is_published"
-      class="fixed inset-0 z-50 flex items-center justify-center p-4"
-    >
-      <!-- Backdrop -->
-      <div
-        class="absolute inset-0 bg-black/50 backdrop-blur-sm"
-        @click="showPublishModal = false"
-      />
-      
-      <!-- Modal -->
-      <div class="relative bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-md w-full p-6 border border-gray-200 dark:border-gray-700">
-        <!-- Header -->
-        <div class="flex items-center justify-between mb-4">
-          <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
-            Note Published
-          </h3>
-          <button
-            @click="showPublishModal = false"
-            class="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-          >
-            <UIcon name="i-heroicons-x-mark" class="w-5 h-5 text-gray-500" />
-          </button>
-        </div>
-
-        <!-- Description -->
-        <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
-          Your note is now publicly accessible. Anyone with the link can view it.
-        </p>
-
-        <!-- Share URL -->
-        <div class="mb-4">
-          <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Share Link
-          </label>
-          <div class="flex gap-2">
-            <input
-              :value="publishStatus.share_url"
-              readonly
-              class="flex-1 px-3 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-gray-900 dark:text-white"
-            />
-            <UButton
-              icon="i-heroicons-clipboard-document"
-              color="primary"
-              @click="copyShareUrl"
-            >
-              Copy
-            </UButton>
-          </div>
-        </div>
-
-        <!-- Actions -->
-        <div class="flex gap-3">
-          <UButton
-            color="neutral"
-            variant="soft"
-            block
-            @click="showPublishModal = false"
-          >
-            Close
-          </UButton>
-          <UButton
-            color="error"
-            variant="soft"
-            block
-            @click="unpublishNote"
-          >
-            Unpublish
-          </UButton>
-        </div>
-      </div>
-    </div>
   </div>
 </template>
 
 <style scoped>
-/* Polish AI Button - Stunning Purple Gradient (Small Version) */
-.polish-ai-button-small {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
-  background-size: 200% 200%;
-  animation: gradient-shift 3s ease infinite;
-  box-shadow: 0 2px 8px 0 rgba(102, 126, 234, 0.3);
-}
-
-.polish-ai-button-small:hover:not(:disabled) {
-  background: linear-gradient(135deg, #5568d3 0%, #6a3f92 50%, #e082ea 100%);
-  background-size: 200% 200%;
-  box-shadow: 0 3px 12px 0 rgba(102, 126, 234, 0.5);
-}
-
-.polish-ai-button-small:active:not(:disabled) {
-  transform: scale(0.95);
-}
-
-@keyframes gradient-shift {
-  0% {
-    background-position: 0% 50%;
-  }
-  50% {
-    background-position: 100% 50%;
-  }
-  100% {
-    background-position: 0% 50%;
-  }
-}
-
 /* Elegant Apple-style scrollbar */
 ::-webkit-scrollbar {
   width: 4px;

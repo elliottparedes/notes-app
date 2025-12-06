@@ -201,7 +201,7 @@ const currentSpace = computed(() => {
           <div
             v-for="space in spacesStore.spaces"
             :key="space.id"
-            class="group flex items-center justify-between gap-3 px-4 py-2.5 cursor-pointer transition-colors"
+            class="group flex items-center justify-between gap-3 px-4 py-2.5 transition-colors"
             :class="space.id === spacesStore.currentSpaceId 
               ? 'bg-primary-50 dark:bg-primary-900/20' 
               : 'md:hover:bg-gray-50 dark:md:hover:bg-gray-700/50'"

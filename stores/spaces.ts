@@ -62,6 +62,12 @@ export const useSpacesStore = defineStore('spaces', {
         // Remove spaces that no longer exist
         this.spaces = this.spaces.filter(s => spaces.some(ns => ns.id === s.id));
 
+        // Sort local spaces to match server order if they differ
+        // (Server returns sorted, so we can just replace if we trust full replace, 
+        // but we did merge logic above. Let's assume server returns correct order and re-sort local array based on that)
+        const orderMap = new Map(spaces.map((s, i) => [s.id, i]));
+        this.spaces.sort((a, b) => (orderMap.get(a.id) ?? 0) - (orderMap.get(b.id) ?? 0));
+
         // Load current space from localStorage or set to first space
         if (process.client) {
           const savedSpaceId = localStorage.getItem('current_space_id');
@@ -208,7 +214,50 @@ export const useSpacesStore = defineStore('spaces', {
       }
     },
 
-    setCurrentSpace(spaceId: number): void {
+    async reorderSpace(spaceId: number, newIndex: number): Promise<void> {
+      this.loading = false; // Optimistic update
+      this.error = null;
+
+      try {
+        const authStore = useAuthStore();
+        if (!authStore.token) {
+          throw new Error('Not authenticated');
+        }
+
+        // Optimistic update locally
+        const currentIndex = this.spaces.findIndex(s => s.id === spaceId);
+        if (currentIndex !== -1 && currentIndex !== newIndex) {
+          const [movedSpace] = this.spaces.splice(currentIndex, 1);
+          this.spaces.splice(newIndex, 0, movedSpace);
+        }
+
+        // API call
+        await $fetch(`/api/spaces/${spaceId}/reorder`, {
+          method: 'PUT',
+          headers: {
+            Authorization: `Bearer ${authStore.token}`
+          },
+          body: {
+            newIndex
+          }
+        });
+      } catch (err: unknown) {
+        this.error = err instanceof Error ? err.message : 'Failed to reorder space';
+        // Revert by refetching
+        await this.fetchSpaces();
+        throw err;
+      }
+    },
+
+    setCurrentSpace(spaceId: number | null): void {
+      if (spaceId === null) {
+        this.currentSpaceId = null;
+        if (process.client) {
+          localStorage.removeItem('current_space_id');
+        }
+        return;
+      }
+
       // Verify space exists
       if (!this.spaces.find(s => s.id === spaceId)) {
         throw new Error('Space not found');
@@ -223,4 +272,3 @@ export const useSpacesStore = defineStore('spaces', {
     }
   }
 });
-

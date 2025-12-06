@@ -78,9 +78,19 @@ export const useFoldersStore = defineStore('folders', {
         }
 
         // Use provided spaceId or current space from spaces store
-        const targetSpaceId = spaceId !== undefined ? spaceId : spacesStore.currentSpaceId;
+        // If spaceId is null, it means fetch ALL folders (ignore current space)
+        let targetSpaceId: number | null = null;
+        
+        if (spaceId === null) {
+          targetSpaceId = null;
+        } else if (spaceId !== undefined) {
+          targetSpaceId = spaceId;
+        } else {
+          targetSpaceId = spacesStore.currentSpaceId;
+        }
 
         // Try to load from cache first (for both silent and non-silent fetches on refresh)
+        // Only use cache if we're fetching for a specific space, not all folders
         if (process.client && targetSpaceId) {
           const cacheStartTime = performance.now();
           const cacheKey = `folders_cache_${targetSpaceId}`;
@@ -152,18 +162,24 @@ export const useFoldersStore = defineStore('folders', {
         const serverDuration = performance.now() - serverStartTime;
         console.log(`[FoldersStore] ✅ Server response: ${folders.length} folders in ${serverDuration.toFixed(2)}ms`);
 
-        // Merge folders: remove old folders for this space, then add new ones
-        // This preserves folders from other spaces that might be in the store
-        this.folders = [
-          ...this.folders.filter(f => f.space_id !== targetSpaceId),
-          ...folders
-        ];
-        console.log(`[FoldersStore] 📝 Merged folders in store: ${folders.length} folders for space ${targetSpaceId} (total: ${this.folders.length} folders)`, {
+        // Merge folders logic
+        if (targetSpaceId) {
+          // If fetching for specific space: remove old folders for this space, then add new ones
+          this.folders = [
+            ...this.folders.filter(f => f.space_id !== targetSpaceId),
+            ...folders
+          ];
+        } else {
+          // If fetching ALL folders, replace entire list
+          this.folders = folders;
+        }
+        
+        console.log(`[FoldersStore] 📝 Merged folders in store: ${folders.length} folders for space ${targetSpaceId || 'all'} (total: ${this.folders.length} folders)`, {
           folderIds: folders.map(f => f.id),
           spaceIds: [...new Set(this.folders.map(f => f.space_id))]
         });
 
-        // Cache folders
+        // Cache folders (only if specific space)
         if (process.client && targetSpaceId) {
           const cacheKey = `folders_cache_${targetSpaceId}`;
           localStorage.setItem(cacheKey, JSON.stringify({
@@ -258,8 +274,17 @@ export const useFoldersStore = defineStore('folders', {
           body: data
         });
 
-        // Refresh folders to get updated structure
-        await this.fetchFolders();
+        // Add to local state immediately for instant feedback
+        this.folders.push(folder);
+
+        // Invalidate cache for this space so the subsequent fetch gets fresh data
+        if (process.client && folder.space_id) {
+          const cacheKey = `folders_cache_${folder.space_id}`;
+          localStorage.removeItem(cacheKey);
+        }
+
+        // Refresh folders to get updated structure (pass space_id to ensure we refresh the right space)
+        await this.fetchFolders(folder.space_id);
 
         return folder;
       } catch (err: unknown) {
@@ -312,12 +337,22 @@ export const useFoldersStore = defineStore('folders', {
           throw new Error('Not authenticated');
         }
 
+        // Get folder to find its space before deleting
+        const folder = this.getFolderById(id);
+        const spaceId = folder?.space_id;
+
         await $fetch(`/api/folders/${id}`, {
           method: 'DELETE',
           headers: {
             Authorization: `Bearer ${authStore.token}`
           }
         });
+
+        // Invalidate cache for the space
+        if (process.client && spaceId) {
+          const cacheKey = `folders_cache_${spaceId}`;
+          localStorage.removeItem(cacheKey);
+        }
 
         // Refresh folders
         await this.fetchFolders();
@@ -326,6 +361,56 @@ export const useFoldersStore = defineStore('folders', {
         throw err;
       } finally {
         this.loading = false;
+      }
+    },
+
+    async moveFolder(folderId: number, targetSpaceId: number): Promise<void> {
+      this.isReordering = true;
+      this.loading = false;
+      this.error = null;
+
+      try {
+        const authStore = useAuthStore();
+        if (!authStore.token) {
+          throw new Error('Not authenticated');
+        }
+
+        const folder = this.getFolderById(folderId);
+        if (!folder) throw new Error('Folder not found');
+        
+        const oldSpaceId = folder.space_id;
+        
+        // Optimistic update
+        folder.space_id = targetSpaceId;
+        
+        // Move in local array: Ensure it moves to the end of the new space's list initially
+        // This prevents "jumpiness" before reorder is called
+        // However, reorder will fix it shortly.
+        
+        // Make the API call
+        await $fetch<Folder>(`/api/folders/${folderId}`, {
+          method: 'PUT',
+          headers: {
+            Authorization: `Bearer ${authStore.token}`
+          },
+          body: {
+            space_id: targetSpaceId
+          }
+        });
+
+        // Invalidate caches for both spaces
+        if (process.client) {
+          localStorage.removeItem(`folders_cache_${oldSpaceId}`);
+          localStorage.removeItem(`folders_cache_${targetSpaceId}`);
+        }
+        
+      } catch (err: unknown) {
+        this.error = err instanceof Error ? err.message : 'Failed to move folder';
+        // Revert by fetching
+        this.fetchFolders(undefined, true).catch(console.error);
+        throw err;
+      } finally {
+        this.isReordering = false;
       }
     },
 
@@ -413,4 +498,3 @@ export const useFoldersStore = defineStore('folders', {
     }
   }
 });
-

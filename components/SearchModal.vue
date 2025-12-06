@@ -1,120 +1,156 @@
 <script setup lang="ts">
-import Fuse from 'fuse.js';
 import type { Note, Folder } from '~/models';
-import { useNotesStore } from '~/stores/notes';
 import { useSpacesStore } from '~/stores/spaces';
 import { useFoldersStore } from '~/stores/folders';
 import { useAuthStore } from '~/stores/auth';
 
+interface SearchResult {
+  item: Note;
+  score: number;
+  searchQuery?: string;
+  match_context?: string;
+}
+
 const props = defineProps<{
-  isOpen: boolean;
+  modelValue: boolean;
 }>();
 
 const emit = defineEmits<{
-  (e: 'update:isOpen', value: boolean): void;
-  (e: 'selected', note: Note, isLoading?: boolean): void;
+  (e: 'update:modelValue', value: boolean): void;
+  (e: 'selected', note: Note, isLoading?: boolean, searchQuery?: string): void;
   (e: 'loading-start'): void; // Emit before selection to set loading state immediately
 }>();
 
-const notesStore = useNotesStore();
 const spacesStore = useSpacesStore();
 const foldersStore = useFoldersStore();
 const authStore = useAuthStore();
 const searchQuery = ref('');
 const selectedIndex = ref(0);
-const searchResults = ref<Array<{ item: Note; score: number; matches?: any }>>([]);
+const searchResults = ref<SearchResult[]>([]);
 const searchInputRef = ref<HTMLInputElement | null>(null);
-const allNotes = ref<Note[]>([]);
-const isLoadingNotes = ref(false);
+const isSearching = ref(false);
+let searchTimeout: ReturnType<typeof setTimeout> | null = null;
 
-// Fetch all notes from all spaces when modal opens
-async function loadAllNotes() {
-  if (isLoadingNotes.value) return;
-  
-  isLoadingNotes.value = true;
-  try {
-    // Load folders for all spaces to enable space name lookup
-    // Fetch folders without space_id filter to get all folders
-    if (authStore.token && process.client) {
-      try {
-        const allFolders = await $fetch<Folder[]>('/api/folders', {
-          headers: {
-            Authorization: `Bearer ${authStore.token}`
-          }
-        });
-        // Merge all folders into the store (they're already there from different spaces, but ensure we have all)
-        const existingFolderIds = new Set(foldersStore.folders.map(f => f.id));
-        const newFolders = allFolders.filter(f => !existingFolderIds.has(f.id));
-        if (newFolders.length > 0) {
-          foldersStore.folders.push(...newFolders);
+// Load folders for space name lookup when modal opens
+async function loadFolders() {
+  if (authStore.token && process.client) {
+    try {
+      const allFolders = await $fetch<Folder[]>('/api/folders', {
+        headers: {
+          Authorization: `Bearer ${authStore.token}`
         }
-      } catch (err) {
-        console.warn('[SearchModal] Failed to load all folders, continuing with existing folders:', err);
+      });
+      // Merge all folders into the store
+      const existingFolderIds = new Set(foldersStore.folders.map(f => f.id));
+      const newFolders = allFolders.filter(f => !existingFolderIds.has(f.id));
+      if (newFolders.length > 0) {
+        foldersStore.folders.push(...newFolders);
       }
+    } catch (err) {
+      console.warn('[SearchModal] Failed to load folders:', err);
     }
-    
-    const notes = await notesStore.fetchAllNotesForSearch();
-    allNotes.value = notes;
-  } catch (error) {
-    console.error('[SearchModal] Failed to load all notes:', error);
-    // Fallback to current space notes
-    allNotes.value = notesStore.notes;
-  } finally {
-    isLoadingNotes.value = false;
   }
 }
 
-// Initialize Fuse.js with all notes
-const fuse = computed(() => {
-  if (!allNotes.value.length) return null;
-  
-  return new Fuse(allNotes.value, {
-    keys: [
-      { name: 'title', weight: 0.7 },
-      { name: 'content', weight: 0.3 },
-      { name: 'tags', weight: 0.2 }
-    ],
-    threshold: 0.4, // Lower = stricter matching (0.0 = exact match, 1.0 = match anything)
-    includeScore: true,
-    includeMatches: true,
-    minMatchCharLength: 1,
-    ignoreLocation: true
-  });
-});
-
-// Perform fuzzy search when query changes
-watch([searchQuery, allNotes], () => {
-  if (!searchQuery.value.trim()) {
+// Perform server-side search with debouncing
+async function performSearch(query: string) {
+  if (!query.trim()) {
     searchResults.value = [];
     selectedIndex.value = 0;
+    isSearching.value = false;
     return;
   }
 
-  if (!fuse.value) {
+  isSearching.value = true;
+  
+  try {
+    const results = await $fetch<Array<Note & { relevance_score: number; match_context?: string }>>('/api/notes/search', {
+      params: { q: query.trim() },
+      headers: {
+        Authorization: `Bearer ${authStore.token}`
+      }
+    });
+
+    // Transform results to match expected format
+    searchResults.value = results.map(note => ({
+      item: {
+        id: note.id,
+        user_id: note.user_id,
+        title: note.title,
+        content: note.content,
+        tags: note.tags,
+        is_favorite: note.is_favorite,
+        folder: note.folder,
+        folder_id: note.folder_id,
+        created_at: note.created_at,
+        updated_at: note.updated_at,
+        is_shared: note.is_shared,
+        share_permission: note.share_permission
+      },
+      score: note.relevance_score || 0,
+      searchQuery: query.trim(),
+      match_context: note.match_context
+    }));
+    
+    selectedIndex.value = 0;
+  } catch (error) {
+    console.error('[SearchModal] Search failed:', error);
     searchResults.value = [];
+  } finally {
+    isSearching.value = false;
+  }
+}
+
+// Debounced search watcher
+watch(searchQuery, (newQuery) => {
+  // Clear existing timeout
+  if (searchTimeout) {
+    clearTimeout(searchTimeout);
+  }
+
+  if (!newQuery.trim()) {
+    searchResults.value = [];
+    selectedIndex.value = 0;
+    isSearching.value = false;
     return;
   }
 
-  const results = fuse.value.search(searchQuery.value.trim());
-  searchResults.value = results;
-  selectedIndex.value = 0;
-}, { immediate: true });
+  // Debounce search by 300ms
+  searchTimeout = setTimeout(() => {
+    performSearch(newQuery);
+  }, 300);
+});
 
 // Reset when modal opens/closes
-watch(() => props.isOpen, async (isOpen) => {
+watch(() => props.modelValue, async (isOpen) => {
   if (isOpen) {
     searchQuery.value = '';
     selectedIndex.value = 0;
-    // Load all notes from all spaces when modal opens
-    await loadAllNotes();
+    searchResults.value = [];
+    // Load folders for space name lookup
+    await loadFolders();
     nextTick(() => {
       searchInputRef.value?.focus();
     });
   } else {
     searchQuery.value = '';
     searchResults.value = [];
+    if (searchTimeout) {
+      clearTimeout(searchTimeout);
+      searchTimeout = null;
+    }
   }
 });
+
+// Get folder name for a note
+function getFolderName(note: Note): string {
+  if (!note.folder_id) {
+    return '';
+  }
+  
+  const folder = foldersStore.getFolderById(note.folder_id);
+  return folder?.name || '';
+}
 
 // Get space name for a note
 function getSpaceName(note: Note): string {
@@ -151,7 +187,7 @@ function getSpaceId(note: Note): number | null {
 }
 
 function closeModal() {
-  emit('update:isOpen', false);
+  emit('update:modelValue', false);
 }
 
 function selectNote(note: Note) {
@@ -165,8 +201,9 @@ function selectNote(note: Note) {
   emit('loading-start');
   
   // Emit the selected event immediately - let parent handle space switching
+  // Include the search query so we can highlight matches
   console.log('[SearchModal] Emitting selected event...');
-  emit('selected', note, true);
+  emit('selected', note, true, searchQuery.value.trim());
   
   // Close modal immediately
   console.log('[SearchModal] Closing modal...');
@@ -174,7 +211,7 @@ function selectNote(note: Note) {
 }
 
 function handleKeydown(event: KeyboardEvent) {
-  if (!props.isOpen) return;
+  if (!props.modelValue) return;
 
   if (event.key === 'Escape') {
     closeModal();
@@ -220,6 +257,9 @@ onMounted(() => {
 
 onUnmounted(() => {
   window.removeEventListener('keydown', handleKeydown);
+  if (searchTimeout) {
+    clearTimeout(searchTimeout);
+  }
 });
 
 // Format date helper
@@ -239,27 +279,91 @@ function formatDate(date: Date | string): string {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: d.getFullYear() !== now.getFullYear() ? 'numeric' : undefined });
 }
 
-// Get preview text from note content
-function getPreview(note: Note, maxLength: number = 150): string {
+
+// Get preview text - use match_context from server if available, otherwise show first lines
+function getPreview(note: Note, result: SearchResult): string {
+  // Use server-provided match context if available
+  if (result.match_context) {
+    return result.match_context;
+  }
+  
+  // Fallback: show first few lines of content
   if (!note.content) return 'No content';
   
-  // Strip markdown and HTML for preview
-  const text = note.content
-    .replace(/[#*`_~\[\]]/g, '') // Remove markdown formatting
-    .replace(/<[^>]*>/g, '') // Remove HTML tags
-    .replace(/\n+/g, ' ') // Replace newlines with spaces
-    .trim();
+  // Strip HTML tags
+  let text = note.content.replace(/<[^>]*>/g, '');
   
-  if (text.length <= maxLength) return text;
-  return text.substring(0, maxLength) + '...';
+  // Decode HTML entities
+  if (process.client) {
+    const textarea = document.createElement('textarea');
+    textarea.innerHTML = text;
+    text = textarea.value;
+  } else {
+    text = text
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/&#x27;/g, "'");
+  }
+  
+  // Show first 200 characters
+  return text.substring(0, 200).trim();
 }
 
-// Highlight search matches
+// Highlight search matches and convert newlines to <br> tags
 function highlightText(text: string, query: string): string {
-  if (!query.trim()) return text;
+  if (!query.trim()) {
+    // Even without query, convert newlines to <br> for proper display
+    return text.replace(/\n/g, '<br>');
+  }
   
-  const regex = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
-  return text.replace(regex, '<mark class="bg-yellow-200 dark:bg-yellow-900/50 px-0.5 rounded">$1</mark>');
+  // Convert newlines to <br> tags first
+  let htmlText = text.replace(/\n/g, '<br>');
+  
+  // Extract phrases in quotes
+  const phraseRegex = /"([^"]+)"/g;
+  const phrases: string[] = [];
+  let match;
+  let remainingQuery = query;
+  
+  while ((match = phraseRegex.exec(query)) !== null) {
+    phrases.push(match[1].trim());
+    remainingQuery = remainingQuery.replace(match[0], '');
+  }
+  
+  // Highlight exact phrases first
+  for (const phrase of phrases) {
+    const escapedPhrase = phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const phraseRegex = new RegExp(`(${escapedPhrase})`, 'gi');
+    htmlText = htmlText.replace(phraseRegex, '<mark class="bg-yellow-200 dark:bg-yellow-900/50 px-0.5 rounded">$1</mark>');
+  }
+  
+  // Then highlight individual words (words with 2+ characters)
+  const words = remainingQuery
+    .split(/\s+/)
+    .filter(w => w.length >= 2);
+  
+  for (const word of words) {
+    // Skip if word is part of a phrase we already highlighted
+    const isInPhrase = phrases.some(phrase => phrase.toLowerCase().includes(word.toLowerCase()));
+    if (isInPhrase) continue;
+    
+    const escapedWord = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const wordRegex = new RegExp(`(${escapedWord})`, 'gi');
+    htmlText = htmlText.replace(wordRegex, '<mark class="bg-yellow-200 dark:bg-yellow-900/50 px-0.5 rounded">$1</mark>');
+  }
+  
+  // If no phrases and no words, highlight the whole query
+  if (phrases.length === 0 && words.length === 0 && query.trim().length >= 1) {
+    const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`(${escapedQuery})`, 'gi');
+    htmlText = htmlText.replace(regex, '<mark class="bg-yellow-200 dark:bg-yellow-900/50 px-0.5 rounded">$1</mark>');
+  }
+  
+  return htmlText;
 }
 </script>
 
@@ -275,7 +379,7 @@ function highlightText(text: string, query: string): string {
         leave-to-class="opacity-0"
       >
         <div 
-          v-if="isOpen" 
+          v-if="modelValue" 
           class="fixed inset-0 z-50 overflow-y-auto"
           @click.self="closeModal"
         >
@@ -293,7 +397,7 @@ function highlightText(text: string, query: string): string {
               leave-to-class="opacity-0 scale-95 translate-y-4"
             >
               <div 
-                v-if="isOpen"
+                v-if="modelValue"
                 class="relative bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-2xl w-full overflow-hidden"
                 @click.stop
               >
@@ -323,11 +427,18 @@ function highlightText(text: string, query: string): string {
                   <div v-if="!searchQuery.trim()" class="p-8 text-center">
                     <UIcon name="i-heroicons-magnifying-glass" class="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-3" />
                     <p class="text-gray-500 dark:text-gray-400 text-sm">Start typing to search your notes</p>
+                    <p class="text-gray-400 dark:text-gray-500 text-xs mt-2">Use quotes for exact phrases: "exact phrase"</p>
+                  </div>
+
+                  <!-- Loading state -->
+                  <div v-else-if="isSearching" class="p-8 text-center">
+                    <UIcon name="i-heroicons-arrow-path" class="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-3 animate-spin" />
+                    <p class="text-gray-500 dark:text-gray-400 text-sm">Searching...</p>
                   </div>
 
                   <!-- No results -->
                   <div v-else-if="searchQuery.trim() && searchResults.length === 0" class="p-8 text-center">
-                    <UIcon name="i-heroicons-document-x-mark" class="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-3" />
+                    <UIcon name="i-heroicons-document-minus" class="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-3" />
                     <p class="text-gray-500 dark:text-gray-400 text-sm">No notes found matching "{{ searchQuery }}"</p>
                   </div>
 
@@ -349,10 +460,13 @@ function highlightText(text: string, query: string): string {
                         </div>
                         <div class="flex-1 min-w-0">
                           <div class="flex items-center gap-2 mb-1">
-                            <h3 
-                              class="font-semibold text-gray-900 dark:text-white truncate"
-                              v-html="highlightText(result.item.title || 'Untitled', searchQuery)"
-                            ></h3>
+                            <h3 class="font-semibold text-gray-900 dark:text-white truncate">
+                              <span v-html="highlightText(result.item.title || 'Untitled', searchQuery)"></span>
+                              <span v-if="getFolderName(result.item)" class="text-gray-500 dark:text-gray-400 font-normal">
+                                <span class="mx-1">-</span>
+                                <span v-html="highlightText(getFolderName(result.item), searchQuery)"></span>
+                              </span>
+                            </h3>
                             <span class="text-xs text-gray-400 dark:text-gray-500 flex-shrink-0">
                               {{ formatDate(result.item.updated_at) }}
                             </span>
@@ -363,8 +477,8 @@ function highlightText(text: string, query: string): string {
                               {{ getSpaceName(result.item) }}
                             </span>
                           </div>
-                          <p class="text-sm text-gray-600 dark:text-gray-400 line-clamp-2">
-                            <span v-html="highlightText(getPreview(result.item), searchQuery)"></span>
+                          <p class="text-sm text-gray-600 dark:text-gray-400 line-clamp-5">
+                            <span v-html="highlightText(getPreview(result.item, result), searchQuery)"></span>
                           </p>
                           <div v-if="result.item.tags && result.item.tags.length > 0" class="flex items-center gap-1 mt-2 flex-wrap">
                             <UIcon name="i-heroicons-tag" class="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
@@ -424,6 +538,13 @@ mark {
 .line-clamp-2 {
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.line-clamp-5 {
+  display: -webkit-box;
+  -webkit-line-clamp: 5;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }

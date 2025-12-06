@@ -47,6 +47,7 @@ Please:
 6. Preserve important information but make it more readable and professional
 7. Use appropriate HTML tags: <h1>, <h2>, <h3> for headings, <p> for paragraphs, <ul>/<ol> for lists, <strong> and <em> for emphasis
 8. Keep the tone professional but approachable, similar to Notion's style
+9. If there is a direct command be sure to execute it and return the result.
 
 Respond ONLY with a JSON object in this exact format:
 {

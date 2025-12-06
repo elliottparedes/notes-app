@@ -23,11 +23,9 @@ export default defineEventHandler(async (event): Promise<Note> => {
   const body = await readBody<CreateNoteDto>(event);
 
   // Validate input
-  if (!body.title || body.title.trim() === '') {
-    throw createError({
-      statusCode: 400,
-      message: 'Title is required'
-    });
+  let title = body.title;
+  if (!title || title.trim() === '') {
+    title = 'Untitled';
   }
 
   try {
@@ -45,7 +43,7 @@ export default defineEventHandler(async (event): Promise<Note> => {
       [
         noteId,
         userId,
-        body.title,
+        title,
         body.content || null,
         tagsJson,
         body.is_favorite || false,

@@ -46,8 +46,28 @@ export const useToast = () => {
     })
   }
   
+  const error = (msg: string, description?: string) => {
+    add({ title: msg, description, color: 'error' })
+  }
+
+  const success = (msg: string, description?: string) => {
+    add({ title: msg, description, color: 'success' })
+  }
+
+  const warning = (msg: string, description?: string) => {
+    add({ title: msg, description, color: 'warning' })
+  }
+
+  const info = (msg: string, description?: string) => {
+    add({ title: msg, description, color: 'info' })
+  }
+  
   return {
-    add
+    add,
+    error,
+    success,
+    warning,
+    info
   }
 }
 
