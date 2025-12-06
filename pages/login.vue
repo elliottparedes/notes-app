@@ -295,7 +295,7 @@ async function handleLogin() {
                   @click.stop.prevent="openForgotPassword"
                   class="text-sm font-medium text-primary-600 hover:text-primary-500 dark:text-primary-400 dark:hover:text-primary-300 transition-colors cursor-pointer relative z-10 hover:underline"
                   :disabled="loading"
-                  tabindex="0"
+                  tabindex="-1"
                 >
                   Forgot password?
                 </button>

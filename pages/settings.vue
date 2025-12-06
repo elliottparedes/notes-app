@@ -13,251 +13,22 @@ const loading = ref(false);
 
 const showTempPasswordAlert = computed(() => authStore.needsPasswordReset);
 
+const isLoggingOut = ref(false);
 
-// Published content
-interface PublishedItem {
-  id: number;
-  share_id: string;
-  share_url: string;
-  published_at: Date;
-  updated_at: Date;
-  title?: string;
-  name?: string;
-  note_id?: string;
-  folder_id?: number;
-  space_id?: number;
-}
-
-interface PublishedContent {
-  notes: PublishedItem[];
-  folders: PublishedItem[];
-  spaces: PublishedItem[];
-}
-
-const publishedContent = ref<PublishedContent>({ notes: [], folders: [], spaces: [] });
-const loadingPublished = ref(false);
-const activeTab = ref<'notes' | 'folders' | 'spaces'>('notes');
-const searchQuery = ref('');
-
-// Unpublish modal state
-const showUnpublishModal = ref(false);
-const itemToUnpublish = ref<{ item: PublishedItem; type: 'note' | 'folder' | 'space' } | null>(null);
-const isUnpublishing = ref(false);
-
-// Filter published items based on search
-const filteredNotes = computed(() => {
-  if (!searchQuery.value.trim()) return publishedContent.value.notes;
-  const query = searchQuery.value.toLowerCase();
-  return publishedContent.value.notes.filter(item => 
-    item.title?.toLowerCase().includes(query)
-  );
-});
-
-const filteredFolders = computed(() => {
-  if (!searchQuery.value.trim()) return publishedContent.value.folders;
-  const query = searchQuery.value.toLowerCase();
-  return publishedContent.value.folders.filter(item => 
-    item.name?.toLowerCase().includes(query)
-  );
-});
-
-const filteredSpaces = computed(() => {
-  if (!searchQuery.value.trim()) return publishedContent.value.spaces;
-  const query = searchQuery.value.toLowerCase();
-  return publishedContent.value.spaces.filter(item => 
-    item.name?.toLowerCase().includes(query)
-  );
-});
-
-const currentItems = computed(() => {
-  let items: PublishedItem[] = [];
-  switch (activeTab.value) {
-    case 'notes': 
-      items = filteredNotes.value;
-      break;
-    case 'folders': 
-      items = filteredFolders.value;
-      break;
-    case 'spaces': 
-      items = filteredSpaces.value;
-      break;
-    default: 
-      items = [];
-  }
-  
-  // Debug: Log first item structure when switching tabs
-  if (items.length > 0) {
-    console.log(`Current ${activeTab.value} items:`, {
-      count: items.length,
-      firstItem: items[0],
-      firstItemKeys: Object.keys(items[0]),
-      hasFolderId: items[0].folder_id !== undefined,
-      hasSpaceId: items[0].space_id !== undefined,
-      hasNoteId: items[0].note_id !== undefined
-    });
-  }
-  
-  return items;
-});
-
-const totalPublished = computed(() => {
-  return publishedContent.value.notes.length + 
-         publishedContent.value.folders.length + 
-         publishedContent.value.spaces.length;
-});
-
-// Fetch published content
-async function fetchPublishedContent() {
-  if (!authStore.token) return;
-  
-  loadingPublished.value = true;
+async function handleLogout() {
+  isLoggingOut.value = true;
   try {
-    const data = await $fetch<PublishedContent>('/api/publish/list', {
-      headers: {
-        Authorization: `Bearer ${authStore.token}`
-      }
-    });
-    
-    // Debug: Log the response to verify structure
-    console.log('Published content fetched:', {
-      notesCount: data.notes?.length || 0,
-      foldersCount: data.folders?.length || 0,
-      spacesCount: data.spaces?.length || 0,
-      firstFolder: data.folders?.[0],
-      firstSpace: data.spaces?.[0]
-    });
-    
-    publishedContent.value = data;
-  } catch (error: any) {
-    console.error('Error fetching published content:', error);
+    await authStore.logout();
+  } catch (error) {
+    console.error('Error logging out:', error);
     toast.add({
       title: 'Error',
-      description: 'Failed to load published content',
+      description: 'Failed to log out',
       color: 'error'
     });
-  } finally {
-    loadingPublished.value = false;
+    isLoggingOut.value = false;
   }
 }
-
-// Copy link
-async function copyLink(url: string) {
-  if (process.client && navigator.clipboard) {
-    await navigator.clipboard.writeText(url);
-    toast.add({
-      title: 'Link Copied',
-      description: 'Share link copied to clipboard',
-      color: 'success'
-    });
-  }
-}
-
-// Show unpublish confirmation modal
-function showUnpublishConfirmation(item: PublishedItem, tabType: 'notes' | 'folders' | 'spaces') {
-  // Convert tab type to item type
-  let type: 'note' | 'folder' | 'space' = 'note';
-  if (tabType === 'folders') type = 'folder';
-  else if (tabType === 'spaces') type = 'space';
-  
-  itemToUnpublish.value = { item, type };
-  showUnpublishModal.value = true;
-}
-
-// Confirm unpublish
-async function confirmUnpublish() {
-  if (!itemToUnpublish.value || !authStore.token) return;
-  
-  const { item, type } = itemToUnpublish.value;
-  isUnpublishing.value = true;
-  
-  try {
-    let endpoint = '';
-    let id: string | number | undefined;
-    
-    if (type === 'note') {
-      id = item.note_id;
-      if (id) {
-        endpoint = `/api/notes/${id}/unpublish`;
-      }
-    } else if (type === 'folder') {
-      id = item.folder_id;
-      if (id) {
-        endpoint = `/api/folders/${id}/unpublish`;
-      }
-    } else if (type === 'space') {
-      id = item.space_id;
-      if (id) {
-        endpoint = `/api/spaces/${id}/unpublish`;
-      }
-    }
-    
-    if (!endpoint || !id) {
-      console.error('Missing ID for unpublish:', { 
-        item, 
-        type, 
-        note_id: item.note_id,
-        folder_id: item.folder_id,
-        space_id: item.space_id,
-        allKeys: Object.keys(item)
-      });
-      toast.add({
-        title: 'Error',
-        description: `Missing required information to unpublish. ${type === 'folder' ? 'Folder ID' : type === 'space' ? 'Space ID' : 'Note ID'} not found.`,
-        color: 'error'
-      });
-      showUnpublishModal.value = false;
-      itemToUnpublish.value = null;
-      return;
-    }
-
-    await $fetch(endpoint, {
-      method: 'DELETE',
-      headers: {
-        Authorization: `Bearer ${authStore.token}`
-      }
-    });
-
-    toast.add({
-      title: 'Unpublished',
-      description: `${type === 'note' ? 'Note' : type === 'folder' ? 'Folder and all its contents' : 'Space and all its contents'} have been unpublished`,
-      color: 'success'
-    });
-
-    // Close modal and refresh the list
-    showUnpublishModal.value = false;
-    itemToUnpublish.value = null;
-    await fetchPublishedContent();
-  } catch (error: any) {
-    console.error('Error unpublishing:', error);
-    toast.add({
-      title: 'Error',
-      description: error.data?.message || error.message || 'Failed to unpublish',
-      color: 'error'
-    });
-  } finally {
-    isUnpublishing.value = false;
-  }
-}
-
-// Cancel unpublish
-function cancelUnpublish() {
-  showUnpublishModal.value = false;
-  itemToUnpublish.value = null;
-}
-
-// Format date
-function formatDate(date: Date) {
-  return new Date(date).toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric'
-  });
-}
-
-// Load on mount
-onMounted(() => {
-  fetchPublishedContent();
-});
 
 // Computed for dark mode toggle state
 const isDark = computed({
@@ -414,173 +185,6 @@ function goBack() {
         <AnalyticsDashboard />
       </UCard>
 
-      <!-- Published Content -->
-      <UCard class="mb-6">
-        <template #header>
-          <div class="flex items-center justify-between w-full">
-            <div>
-              <h2 class="text-xl font-semibold text-gray-900 dark:text-white">Published Content</h2>
-              <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                Manage your publicly shared notes, folders, and spaces
-              </p>
-            </div>
-            <UButton
-              v-if="totalPublished > 0"
-              icon="i-heroicons-arrow-path"
-              variant="ghost"
-              size="sm"
-              :loading="loadingPublished"
-              @click="fetchPublishedContent"
-              class="flex-shrink-0"
-            >
-              Refresh
-            </UButton>
-          </div>
-        </template>
-
-        <div v-if="loadingPublished && totalPublished === 0" class="py-12 text-center">
-          <div class="inline-flex items-center justify-center w-12 h-12 rounded-full bg-gray-100 dark:bg-gray-800 mb-4">
-            <UIcon name="i-heroicons-arrow-path" class="w-6 h-6 text-gray-600 dark:text-gray-400 animate-spin" />
-          </div>
-          <p class="text-sm text-gray-600 dark:text-gray-400">Loading published content...</p>
-        </div>
-
-        <div v-else-if="totalPublished === 0" class="py-12 text-center">
-          <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-800 mb-4">
-            <UIcon name="i-heroicons-globe-alt" class="w-8 h-8 text-gray-400 dark:text-gray-500" />
-          </div>
-          <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">No published content yet</h3>
-          <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
-            Share your notes, folders, or spaces to make them publicly accessible
-          </p>
-          <UButton
-            to="/dashboard"
-            color="primary"
-            variant="soft"
-          >
-            Go to Dashboard
-          </UButton>
-        </div>
-
-        <div v-else class="space-y-4">
-          <!-- Tabs -->
-          <div class="flex items-center gap-1 border-b border-gray-200 dark:border-gray-700 -mx-6 px-6">
-            <button
-              @click="activeTab = 'notes'"
-              class="px-4 py-2.5 text-sm font-medium transition-colors relative"
-              :class="activeTab === 'notes' 
-                ? 'text-primary-600 dark:text-primary-400 border-b-2 border-primary-600 dark:border-primary-400' 
-                : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'"
-            >
-              Notes
-              <span class="ml-2 px-1.5 py-0.5 text-xs rounded-full bg-gray-100 dark:bg-gray-800"
-                    :class="activeTab === 'notes' ? 'bg-primary-50 dark:bg-primary-900/30' : ''">
-                {{ publishedContent.notes.length }}
-              </span>
-            </button>
-            <button
-              @click="activeTab = 'folders'"
-              class="px-4 py-2.5 text-sm font-medium transition-colors relative"
-              :class="activeTab === 'folders' 
-                ? 'text-primary-600 dark:text-primary-400 border-b-2 border-primary-600 dark:border-primary-400' 
-                : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'"
-            >
-              Folders
-              <span class="ml-2 px-1.5 py-0.5 text-xs rounded-full bg-gray-100 dark:bg-gray-800"
-                    :class="activeTab === 'folders' ? 'bg-primary-50 dark:bg-primary-900/30' : ''">
-                {{ publishedContent.folders.length }}
-              </span>
-            </button>
-            <button
-              @click="activeTab = 'spaces'"
-              class="px-4 py-2.5 text-sm font-medium transition-colors relative"
-              :class="activeTab === 'spaces' 
-                ? 'text-primary-600 dark:text-primary-400 border-b-2 border-primary-600 dark:border-primary-400' 
-                : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'"
-            >
-              Spaces
-              <span class="ml-2 px-1.5 py-0.5 text-xs rounded-full bg-gray-100 dark:bg-gray-800"
-                    :class="activeTab === 'spaces' ? 'bg-primary-50 dark:bg-primary-900/30' : ''">
-                {{ publishedContent.spaces.length }}
-              </span>
-            </button>
-          </div>
-
-          <!-- Search -->
-          <div class="relative">
-            <UIcon name="i-heroicons-magnifying-glass" class="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-            <UInput
-              v-model="searchQuery"
-              placeholder="Search published content..."
-              class="pl-10"
-              size="lg"
-            />
-          </div>
-
-          <!-- Empty State for Active Tab -->
-          <div v-if="currentItems.length === 0" class="py-8 text-center">
-            <p class="text-sm text-gray-500 dark:text-gray-400">
-              No {{ activeTab }} match your search
-            </p>
-          </div>
-
-          <!-- Items List -->
-          <div v-else class="space-y-2">
-            <div
-              v-for="item in currentItems"
-              :key="item.share_id"
-              class="group flex items-center gap-4 p-4 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-primary-300 dark:hover:border-primary-700 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-all"
-            >
-              <!-- Icon -->
-              <div class="flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center"
-                   :class="activeTab === 'notes' 
-                     ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400'
-                     : activeTab === 'folders'
-                     ? 'bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400'
-                     : 'bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400'">
-                <UIcon 
-                  :name="activeTab === 'notes' 
-                    ? 'i-heroicons-document-text' 
-                    : activeTab === 'folders'
-                    ? 'i-heroicons-folder'
-                    : 'i-heroicons-building-office-2'" 
-                  class="w-5 h-5" 
-                />
-              </div>
-
-              <!-- Content -->
-              <div class="flex-1 min-w-0">
-                <h3 class="text-sm font-semibold text-gray-900 dark:text-white truncate">
-                  {{ item.title || item.name }}
-                </h3>
-                <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                  Published {{ formatDate(item.published_at) }}
-                </p>
-              </div>
-
-              <!-- Actions -->
-              <div class="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                <UButton
-                  icon="i-heroicons-clipboard-document"
-                  variant="ghost"
-                  size="sm"
-                  @click="copyLink(item.share_url)"
-                  title="Copy link"
-                />
-                <UButton
-                  icon="i-heroicons-x-circle"
-                  variant="ghost"
-                  size="sm"
-                  color="error"
-                  @click="showUnpublishConfirmation(item, activeTab)"
-                  title="Unpublish"
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-      </UCard>
-
       <!-- Appearance Settings -->
       <UCard class="mb-6">
         <template #header>
@@ -684,6 +288,30 @@ function goBack() {
         </form>
       </UCard>
 
+      <!-- Account Actions -->
+      <UCard class="mb-6">
+        <template #header>
+          <h2 class="text-xl font-semibold text-gray-900 dark:text-white">Account Actions</h2>
+        </template>
+
+        <div class="space-y-4">
+          <UButton
+            color="error"
+            variant="soft"
+            icon="i-heroicons-arrow-right-on-rectangle"
+            size="xl"
+            :loading="isLoggingOut"
+            :disabled="isLoggingOut"
+            block
+            @click="handleLogout"
+            class="justify-center font-semibold"
+          >
+            <span v-if="!isLoggingOut">Sign Out</span>
+            <span v-else>Signing Out...</span>
+          </UButton>
+        </div>
+      </UCard>
+
       <!-- Support Unfold Notes -->
       <UCard class="mb-6">
         <template #header>
@@ -707,110 +335,6 @@ function goBack() {
           </div>
         </div>
       </UCard>
-
-      <!-- Unpublish Confirmation Modal -->
-      <Teleport to="body">
-        <Transition
-          enter-active-class="transition-opacity duration-200"
-          enter-from-class="opacity-0"
-          enter-to-class="opacity-100"
-          leave-active-class="transition-opacity duration-200"
-          leave-from-class="opacity-100"
-          leave-to-class="opacity-0"
-        >
-          <div
-            v-if="showUnpublishModal && itemToUnpublish"
-            class="fixed inset-0 z-[60] flex items-center justify-center p-4"
-          >
-            <!-- Backdrop -->
-            <div
-              class="absolute inset-0 bg-black/50 backdrop-blur-sm"
-              @click="cancelUnpublish"
-            />
-            
-            <!-- Modal -->
-            <Transition
-              enter-active-class="transition-all duration-200"
-              enter-from-class="opacity-0 scale-95 translate-y-4"
-              enter-to-class="opacity-100 scale-100 translate-y-0"
-              leave-active-class="transition-all duration-200"
-              leave-from-class="opacity-100 scale-100 translate-y-0"
-              leave-to-class="opacity-0 scale-95 translate-y-4"
-            >
-              <div
-                v-if="showUnpublishModal"
-                class="relative bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-md w-full p-6 border border-gray-200 dark:border-gray-700"
-                @click.stop
-              >
-                <!-- Header -->
-                <div class="flex items-center justify-between mb-4">
-                  <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
-                    Unpublish {{ itemToUnpublish?.type === 'note' ? 'Note' : itemToUnpublish?.type === 'folder' ? 'Folder' : 'Space' }}
-                  </h3>
-                  <button
-                    @click="cancelUnpublish"
-                    class="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                    :disabled="isUnpublishing"
-                  >
-                    <UIcon name="i-heroicons-x-mark" class="w-5 h-5 text-gray-500" />
-                  </button>
-                </div>
-
-                <!-- Warning Icon -->
-                <div class="flex items-center gap-3 mb-4 p-3 bg-orange-50 dark:bg-orange-900/20 rounded-lg">
-                  <UIcon name="i-heroicons-exclamation-triangle" class="w-6 h-6 text-orange-600 dark:text-orange-400 flex-shrink-0" />
-                  <p class="text-sm text-orange-800 dark:text-orange-200">
-                    <template v-if="itemToUnpublish?.type === 'folder'">
-                      This will make <strong>"{{ itemToUnpublish.item.name }}"</strong> and all its contents (notes and subfolders) no longer publicly accessible.
-                    </template>
-                    <template v-else-if="itemToUnpublish?.type === 'space'">
-                      This will make <strong>"{{ itemToUnpublish.item.name }}"</strong> and all its contents (folders, notes, and subfolders) no longer publicly accessible.
-                    </template>
-                    <template v-else>
-                      This will make <strong>"{{ itemToUnpublish?.item.title }}"</strong> no longer publicly accessible.
-                    </template>
-                  </p>
-                </div>
-
-                <!-- Description -->
-                <p class="text-sm text-gray-600 dark:text-gray-400 mb-6">
-                  <template v-if="itemToUnpublish?.type === 'folder'">
-                    Anyone with the share link will no longer be able to view this folder or any of its contents. This action cannot be undone.
-                  </template>
-                  <template v-else-if="itemToUnpublish?.type === 'space'">
-                    Anyone with the share link will no longer be able to view this space or any of its contents. This action cannot be undone.
-                  </template>
-                  <template v-else>
-                    Anyone with the share link will no longer be able to view this note. This action cannot be undone.
-                  </template>
-                </p>
-
-                <!-- Actions -->
-                <div class="flex gap-3">
-                  <UButton
-                    color="neutral"
-                    variant="soft"
-                    block
-                    @click="cancelUnpublish"
-                    :disabled="isUnpublishing"
-                  >
-                    Cancel
-                  </UButton>
-                  <UButton
-                    color="error"
-                    variant="solid"
-                    block
-                    @click="confirmUnpublish"
-                    :loading="isUnpublishing"
-                  >
-                    Unpublish
-                  </UButton>
-                </div>
-              </div>
-            </Transition>
-          </div>
-        </Transition>
-      </Teleport>
     </div>
   </div>
 </template>

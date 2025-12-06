@@ -236,8 +236,9 @@ function initNoteSortable() {
       animation: 200, // Smooth animation
       ghostClass: 'bg-primary-50', // Class for the drag placeholder
       draggable: '.note-item',
-      delay: 100,
-      delayOnTouchOnly: true,
+      delay: 150, // Delay before drag starts (prevents accidental drags on click)
+      delayOnTouchOnly: false, // Apply delay to both touch and mouse
+      distance: 10, // Require 10px movement before drag starts (prevents accidental drags)
       onEnd: (evt) => {
         const { newIndex, oldIndex, item } = evt;
         const noteId = item.dataset.noteId;
@@ -263,8 +264,9 @@ function initSortables() {
       animation: 150,
       draggable: '.space-item',
       handle: '.space-button', // Drag by the button itself
-      delay: 100, // Slight delay to prevent accidental drags when clicking
-      delayOnTouchOnly: true,
+      delay: 150, // Delay before drag starts (prevents accidental drags on click)
+      delayOnTouchOnly: false, // Apply delay to both touch and mouse
+      distance: 10, // Require 10px movement before drag starts (prevents accidental drags)
       onStart: () => {
         isDraggingSpace.value = true;
       },
@@ -286,8 +288,9 @@ function initSortables() {
       group: 'folders',
       animation: 150,
       draggable: '.folder-item',
-      delay: 100, // Slight delay to prevent accidental drags on touch
-      delayOnTouchOnly: true,
+      delay: 150, // Delay before drag starts (prevents accidental drags on click)
+      delayOnTouchOnly: false, // Apply delay to both touch and mouse
+      distance: 10, // Require 10px movement before drag starts (prevents accidental drags)
       onEnd: (evt) => {
         // Reorder in same list
         if (evt.to === evt.from) {
@@ -821,6 +824,16 @@ async function polishNote() {
   }
 }
 
+// Logout handler
+async function handleLogout() {
+  try {
+    await authStore.logout();
+  } catch (error) {
+    console.error('Error logging out:', error);
+    toast.error('Failed to log out');
+  }
+}
+
 // ... (Keep other necessary handlers)
 
 // Folder menu (for mobile)
@@ -1179,13 +1192,22 @@ function handleNoteListResizeStart(e: MouseEvent) {
           <div class="flex-1 min-w-0">
             <div class="text-sm font-medium truncate">{{ authStore.currentUser?.name }}</div>
           </div>
-          <NuxtLink
-            to="/settings"
-            class="p-1.5 rounded-md hover:bg-gray-200/50 dark:hover:bg-gray-800/50 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
-            title="Settings"
-          >
-            <UIcon name="i-heroicons-cog-6-tooth" class="w-5 h-5" />
-          </NuxtLink>
+          <div class="flex items-center gap-1">
+            <NuxtLink
+              to="/settings"
+              class="p-1.5 rounded-md hover:bg-gray-200/50 dark:hover:bg-gray-800/50 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+              title="Settings"
+            >
+              <UIcon name="i-heroicons-cog-6-tooth" class="w-5 h-5" />
+            </NuxtLink>
+            <button
+              @click="handleLogout"
+              class="p-1.5 rounded-md hover:bg-gray-200/50 dark:hover:bg-gray-800/50 text-gray-500 hover:text-red-600 dark:hover:text-red-400 transition-colors"
+              title="Sign Out"
+            >
+              <UIcon name="i-heroicons-arrow-right-on-rectangle" class="w-5 h-5" />
+            </button>
+          </div>
         </div>
       </div>
     </aside>
