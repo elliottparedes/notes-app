@@ -8,7 +8,6 @@ import { useSpacesStore } from '~/stores/spaces';
 import { useSharedNotesStore } from '~/stores/sharedNotes';
 import { useToast } from '~/composables/useToast';
 import type { Note, CreateNoteDto, CreateFolderDto, Space } from '~/models';
-import { v4 as uuidv4 } from 'uuid';
 import Sortable from 'sortablejs';
 // UnifiedEditor is auto-imported by Nuxt, but we can import explicit type if needed
 // MobileBottomNav is auto-imported
