@@ -110,65 +110,34 @@ function toggleContextMenu(event: MouseEvent) {
   event.stopPropagation();
   event.preventDefault();
   
+  if (!process.client) return;
+  
   // Calculate position for the menu
   if (contextMenuButtonRef.value) {
     const rect = contextMenuButtonRef.value.getBoundingClientRect();
     const menuWidth = 192; // 192px = w-48
     const viewportWidth = window.innerWidth;
-    const viewportHeight = window.innerHeight;
     
-    // Estimate menu height - approximately 60px for delete-only menu
-    const menuEstimatedHeight = 60;
-    const spaceBelow = viewportHeight - rect.bottom;
-    const spaceAbove = rect.top;
+    // Position directly to the right of the button
+    let left = rect.right + 4;
     
-    // Calculate left position - prefer opening to the right, fallback to left if not enough space
-    let left = rect.right + 4; // Position to the right with 4px gap
     // If menu would overflow on the right, position it to the left instead
     if (left + menuWidth > viewportWidth - 8) {
-      // Not enough space on the right - position to the left
-      left = rect.left - menuWidth - 4; // Position to the left with 4px gap
-      // If still doesn't fit on the left, adjust to fit within viewport
+      left = rect.left - menuWidth - 4;
       if (left < 8) {
-        left = 8; // 8px minimum padding from left edge
+        left = 8;
       }
     }
     
-    // Determine if menu should open upward
-    let top = 0;
-    let bottom = 0;
-    if (spaceBelow < menuEstimatedHeight && spaceAbove >= menuEstimatedHeight) {
-      // Not enough space below but enough above - open upward
-      menuOpensUpward.value = true;
-      // Calculate bottom position (distance from bottom of viewport to bottom of button + menu height)
-      // We want the bottom of the menu to align with or be above the top of the button
-      bottom = viewportHeight - rect.top + 4; // Distance from viewport bottom to button top + gap
-      top = 0; // Not used when opening upward
-      // Ensure menu doesn't go above viewport (bottom should not exceed viewport height - menu height)
-      const maxBottom = viewportHeight - 8;
-      if (bottom > maxBottom) {
-        bottom = maxBottom;
-      }
-    } else {
-      // Default: open downward
-      menuOpensUpward.value = false;
-      top = rect.bottom + 4;
-      bottom = 0; // Not used when opening downward
-      // Ensure menu doesn't go below viewport
-      if (top + menuEstimatedHeight > viewportHeight - 8) {
-        top = viewportHeight - menuEstimatedHeight - 8;
-        // If we adjusted top, ensure it doesn't go above button
-        if (top < rect.top) {
-          top = Math.max(8, viewportHeight - menuEstimatedHeight - 8);
-        }
-      }
-    }
+    // Align top of menu with top of button (like space menu)
+    const top = rect.top;
     
     menuPosition.value = {
       top: top,
       left: left,
-      bottom: bottom
+      bottom: 0
     };
+    menuOpensUpward.value = false;
   }
   
   showContextMenu.value = !showContextMenu.value;

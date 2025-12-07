@@ -438,37 +438,6 @@ function formatTime(date: string | Date): string {
   });
 }
 
-// Decode HTML entities properly
-function decodeHtmlEntities(text: string): string {
-  if (!text) return '';
-  // Create a temporary element to decode HTML entities
-  if (process.client) {
-    const textarea = document.createElement('textarea');
-    textarea.innerHTML = text;
-    return textarea.value;
-  } else {
-    // Fallback for SSR - decode common entities
-    return text
-      .replace(/&nbsp;/g, ' ')
-      .replace(/&amp;/g, '&')
-      .replace(/&lt;/g, '<')
-      .replace(/&gt;/g, '>')
-      .replace(/&quot;/g, '"')
-      .replace(/&#39;/g, "'")
-      .replace(/&#x27;/g, "'")
-      .replace(/&#x2F;/g, '/')
-      .replace(/&#x60;/g, '`')
-      .replace(/&#x3D;/g, '=');
-  }
-}
-
-// Get note preview HTML - just decode entities, keep HTML formatting
-function getNotePreview(content: string): string {
-  if (!content) return '';
-  // Just decode HTML entities, keep all HTML tags for proper formatting
-  return decodeHtmlEntities(content);
-}
-
 function formatHeaderDate(date: string | Date): string {
   if (!date) return '';
   return new Date(date).toLocaleDateString(undefined, {
@@ -1276,8 +1245,7 @@ function handleNoteListResizeStart(e: MouseEvent) {
               'hover:bg-gray-50 dark:hover:bg-gray-800': activeNote?.id !== note.id
             }"
           >
-            <div class="font-medium text-sm mb-1 truncate select-none pr-8">{{ note.title || 'Untitled Page' }}</div>
-            <div v-if="note.content" class="text-xs text-gray-500 select-none note-preview" v-html="getNotePreview(note.content)"></div>
+            <div class="font-medium text-sm truncate select-none pr-8">{{ note.title || 'Untitled Page' }}</div>
             <!-- Delete Button -->
             <button
               @click.stop="handleDeleteClick(note.id, $event)"
@@ -1402,20 +1370,19 @@ function handleNoteListResizeStart(e: MouseEvent) {
                 leave-to-class="opacity-0 scale-95 translate-y-4"
               >
                 <div 
-                  class="relative bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-md w-full p-6"
+                  class="relative bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-sm w-full p-5"
                   @click.stop
                 >
-                  <h3 class="text-lg font-semibold mb-4">Create New Section</h3>
+                  <h3 class="text-base font-semibold mb-3 text-gray-900 dark:text-white">Create New Section</h3>
                   <UInput
                     v-model="newFolderName"
                     placeholder="Section Name"
-                    class="mb-4"
-                    size="xl"
-                    :ui="{ padding: { xl: 'px-4 py-3' } }"
+                    class="mb-3"
+                    size="md"
                     autofocus
                     @keyup.enter="handleCreateFolder"
                   />
-                  <div class="grid grid-cols-2 gap-3 pt-4">
+                  <div class="grid grid-cols-2 gap-2 pt-2">
                     <UButton
                       color="neutral"
                       variant="soft"
@@ -1489,19 +1456,19 @@ function handleNoteListResizeStart(e: MouseEvent) {
               >
                 <div 
                   v-if="showDeleteSpaceModal"
-                  class="relative bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-md w-full p-6 border border-red-200 dark:border-red-900"
+                  class="relative bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-sm w-full p-5 border border-red-200 dark:border-red-900"
                   @click.stop
                 >
                   <!-- Header -->
-                  <div class="flex items-center gap-3 mb-4">
-                    <div class="flex-shrink-0 w-12 h-12 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
-                      <UIcon name="i-heroicons-exclamation-triangle" class="w-6 h-6 text-red-600 dark:text-red-400" />
+                  <div class="flex items-center gap-3 mb-3">
+                    <div class="flex-shrink-0 w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
+                      <UIcon name="i-heroicons-exclamation-triangle" class="w-5 h-5 text-red-600 dark:text-red-400" />
                     </div>
                     <div class="flex-1">
-                      <h3 class="text-xl font-bold text-gray-900 dark:text-white">
+                      <h3 class="text-base font-bold text-gray-900 dark:text-white">
                         Delete Space
                       </h3>
-                      <p class="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+                      <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                         This action cannot be undone
                       </p>
                     </div>
@@ -1511,17 +1478,17 @@ function handleNoteListResizeStart(e: MouseEvent) {
                       class="flex-shrink-0 text-gray-400 md:hover:text-gray-500 md:dark:hover:text-gray-300 active:text-gray-500 dark:active:text-gray-300 transition-colors"
                       :disabled="isDeletingSpace"
                     >
-                      <UIcon name="i-heroicons-x-mark" class="w-6 h-6" />
+                      <UIcon name="i-heroicons-x-mark" class="w-5 h-5" />
                     </button>
                   </div>
                   
                   <!-- Warning Content -->
-                  <div class="mb-6">
-                    <div class="bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800 rounded-lg p-4 mb-4">
-                      <p class="text-sm font-medium text-red-800 dark:text-red-300 mb-2">
+                  <div class="mb-4">
+                    <div class="bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800 rounded-lg p-3 mb-3">
+                      <p class="text-xs font-medium text-red-800 dark:text-red-300 mb-1.5">
                         ⚠️ Warning: Permanent Data Loss
                       </p>
-                      <ul class="text-sm text-red-700 dark:text-red-400 space-y-1 list-disc list-inside">
+                      <ul class="text-xs text-red-700 dark:text-red-400 space-y-1 list-disc list-inside">
                         <li>All <strong>folders</strong> in this space will be permanently deleted</li>
                         <li>All <strong>notes</strong> in those folders will be permanently deleted</li>
                         <li>Any shared notes from this space will be removed</li>
@@ -1529,13 +1496,13 @@ function handleNoteListResizeStart(e: MouseEvent) {
                       </ul>
                     </div>
                     
-                    <p class="text-sm text-gray-700 dark:text-gray-300">
+                    <p class="text-xs text-gray-700 dark:text-gray-300">
                       Are you absolutely sure you want to delete <strong class="text-gray-900 dark:text-white">"{{ spacesStore.spaces.find(s => s.id === deletingSpaceId)?.name }}"</strong>?
                     </p>
                   </div>
 
                   <!-- Action Buttons -->
-                  <div class="flex gap-3">
+                  <div class="flex gap-2">
                     <UButton
                       color="neutral"
                       variant="soft"
@@ -1568,28 +1535,6 @@ function handleNoteListResizeStart(e: MouseEvent) {
 </template>
 
 <style scoped>
-.note-preview {
-  max-height: calc(1.2em * 5.5); /* Slightly more than 5 lines to avoid cutting mid-line */
-  line-height: 1.2em;
-  overflow: hidden;
-  word-break: break-word;
-  display: block;
-  position: relative;
-  mask-image: linear-gradient(to bottom, black calc(100% - 1.2em), transparent 100%);
-  -webkit-mask-image: linear-gradient(to bottom, black calc(100% - 1.2em), transparent 100%);
-}
-
-.note-preview :deep(p) {
-  margin: 0.2em 0;
-  display: block;
-}
-
-.note-preview :deep(br) {
-  display: block;
-  content: "";
-  margin-top: 0.2em;
-}
-
 /* Elegant thin scrollbars for notebooks and notes lists */
 .notebooks-scroll::-webkit-scrollbar,
 .notes-scroll::-webkit-scrollbar {
