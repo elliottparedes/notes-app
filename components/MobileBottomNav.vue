@@ -15,7 +15,7 @@ const activeRoute = computed(() => {
   return 'home';
 });
 
-// Navigation items
+// Navigation items (mobile IA: Home, Me)
 const navItems = [
   {
     id: 'home',
@@ -25,64 +25,27 @@ const navItems = [
     badge: null
   },
   {
-    id: 'spaces',
-    label: 'Notebooks',
-    icon: 'i-heroicons-book-open',
-    route: null, // Opens space selector
-    badge: spacesStore.spaces.length > 0 ? null : null
-  },
-  {
-    id: 'new',
-    label: 'New',
-    icon: 'i-heroicons-plus-circle',
-    route: null, // Opens create menu
-    badge: null,
-    isPrimary: true
-  },
-  {
-    id: 'folders',
-    label: 'Folders',
-    icon: 'i-heroicons-folder',
-    route: null, // Opens folder selector
-    badge: foldersStore.folders.length > 0 ? null : null
-  },
-  {
     id: 'settings',
-    label: 'Settings',
-    icon: 'i-heroicons-cog-6-tooth',
+    label: 'Me',
+    icon: 'i-heroicons-user-circle',
     route: '/settings',
     badge: null
   }
 ];
 
 const emit = defineEmits<{
-  (e: 'open-spaces'): void;
-  (e: 'open-folders'): void;
-  (e: 'open-create'): void;
 }>();
 
 function handleNavClick(item: typeof navItems[0]) {
   if (item.route) {
     router.push(item.route);
-  } else {
-    switch (item.id) {
-      case 'spaces':
-        emit('open-spaces');
-        break;
-      case 'folders':
-        emit('open-folders');
-        break;
-      case 'new':
-        emit('open-create');
-        break;
-    }
   }
 }
 </script>
 
 <template>
   <nav class="fixed bottom-0 left-0 right-0 z-50 md:hidden bg-white/95 dark:bg-gray-900/95 backdrop-blur-xl border-t border-gray-200/50 dark:border-gray-700/50 safe-area-inset-bottom">
-    <div class="flex items-center justify-around h-20 px-1">
+    <div class="flex items-center justify-around h-16 px-1">
       <button
         v-for="item in navItems"
         :key="item.id"

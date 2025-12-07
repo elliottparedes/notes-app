@@ -192,6 +192,130 @@ const noteListRef = ref<HTMLElement | null>(null);
 const noteSortableInstance = ref<Sortable | null>(null);
 const isDraggingSpace = ref(false);
 
+// Mobile bottom sheet state (Spaces / Folder notes)
+const sheetTranslateY = ref(0);
+const isDraggingSheet = ref(false);
+let sheetDragStartY = 0;
+const sheetView = ref<'spaces' | 'folder'>('spaces');
+
+const sheetFolderTitle = computed(() => {
+  if (!sheetFolderId.value) return 'Section';
+  return foldersStore.getFolderById(sheetFolderId.value)?.name || 'Section';
+});
+
+function resetSheetPosition() {
+  sheetTranslateY.value = 0;
+}
+
+function handleSheetDragMove(clientY: number) {
+  if (!isDraggingSheet.value) return;
+  const delta = clientY - sheetDragStartY;
+  sheetTranslateY.value = delta > 0 ? delta : 0;
+}
+
+function closeMobileSpacesSheet() {
+  showMobileSpacesSheet.value = false;
+  sheetView.value = 'spaces';
+  sheetTranslateY.value = 0;
+  // On mobile, closing the sheet should bring you back to Home (no folder selected)
+  selectedFolderId.value = null;
+}
+
+function finishSheetDrag() {
+  if (!isDraggingSheet.value) return;
+  const shouldClose = sheetTranslateY.value > 80;
+  isDraggingSheet.value = false;
+
+  if (shouldClose) {
+    closeMobileSpacesSheet();
+  } else {
+    // Snap back up
+    sheetTranslateY.value = 0;
+  }
+}
+
+function handleSheetHandleTouchStart(event: TouchEvent) {
+  if (!isMobileView.value) return;
+  if (event.touches.length !== 1) return;
+  isDraggingSheet.value = true;
+  sheetDragStartY = event.touches[0].clientY;
+}
+
+function handleSheetHandleTouchMove(event: TouchEvent) {
+  if (!isDraggingSheet.value) return;
+  if (event.touches.length !== 1) return;
+  handleSheetDragMove(event.touches[0].clientY);
+}
+
+function handleSheetHandleTouchEnd() {
+  finishSheetDrag();
+}
+
+function handleSheetHandleMouseDown(event: MouseEvent) {
+  if (!isMobileView.value) return;
+  isDraggingSheet.value = true;
+  sheetDragStartY = event.clientY;
+
+  const onMouseMove = (e: MouseEvent) => {
+    if (!isDraggingSheet.value) return;
+    handleSheetDragMove(e.clientY);
+  };
+
+  const onMouseUp = () => {
+    window.removeEventListener('mousemove', onMouseMove);
+    window.removeEventListener('mouseup', onMouseUp);
+    finishSheetDrag();
+  };
+
+  window.addEventListener('mousemove', onMouseMove);
+  window.addEventListener('mouseup', onMouseUp);
+}
+
+function openFolderInSheet(folder: any) {
+  sheetFolderId.value = folder.id;
+  sheetView.value = 'folder';
+}
+
+// Open Spaces sheet automatically when coming from other pages with ?openSpaces=1
+watch(
+  () => route.query.openSpaces,
+  (open) => {
+    if (open && isMobileView.value) {
+      showMobileSpacesSheet.value = true;
+      sheetView.value = 'spaces';
+      // Clean up query param so it doesn't re-trigger
+      const newQuery = { ...route.query } as Record<string, any>;
+      delete newQuery.openSpaces;
+      router.replace({ path: route.path, query: newQuery });
+    }
+  },
+  { immediate: true }
+);
+
+// Animate sheet on open (slide up) on mobile and ensure Home behind
+watch(showMobileSpacesSheet, (open) => {
+  if (open && isMobileView.value) {
+    // Make sure the main view behind is Home (no folder selected, no note open)
+    if (activeNote.value) {
+      notesStore.closeTab(activeNote.value.id);
+    }
+    selectedFolderId.value = null;
+
+    // Start slightly below, then slide up
+    sheetTranslateY.value = 120;
+    nextTick(() => {
+      requestAnimationFrame(() => {
+        sheetTranslateY.value = 0;
+      });
+    });
+  } else if (!open) {
+    // Reset when closed
+    sheetTranslateY.value = 0;
+    sheetView.value = 'spaces';
+    sheetFolderId.value = null;
+  }
+});
+
 const setFolderListRef = (el: any, spaceId: number) => {
   if (el) {
     folderListRefs.value.set(spaceId, el as HTMLElement);
@@ -402,6 +526,59 @@ function getFolderNoteCount(folderId: number) {
   return notesStore.notes.filter(n => n.folder_id === folderId && !n.share_permission).length;
 }
 
+// Helper to get ordered notes for a folder (shared between main view + sheet)
+function getOrderedNotesForFolder(folderId: number | null) {
+  if (!folderId) return [];
+
+  const notesInFolder = notesStore.notes.filter(note => 
+    note.folder_id === folderId && !note.share_permission
+  );
+
+  const folderKey = `folder_${folderId}`;
+  const order = notesStore.noteOrder[folderKey];
+
+  if (order && order.length > 0) {
+    return notesInFolder.sort((a, b) => {
+      const indexA = order.indexOf(a.id);
+      const indexB = order.indexOf(b.id);
+
+      if (indexA !== -1 && indexB !== -1) {
+        return indexA - indexB;
+      }
+
+      if (indexA === -1 && indexB !== -1) return 1;
+      if (indexA !== -1 && indexB === -1) return -1;
+
+      return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+    });
+  }
+
+  return notesInFolder.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+}
+
+// Helper to get note location (space + folder) for mobile home view
+interface NoteLocation {
+  spaceName?: string;
+  folderName?: string;
+}
+
+function getNoteLocation(note: Note): NoteLocation {
+  if (!note.folder_id) {
+    return {};
+  }
+
+  const folder = foldersStore.getFolderById(note.folder_id);
+  if (!folder) {
+    return {};
+  }
+
+  const space = spacesStore.spaces.find((s) => s.id === folder.space_id) || null;
+  return {
+    spaceName: space?.name,
+    folderName: folder.name
+  };
+}
+
 // ... (Keep existing helpers like formatDate, truncateNoteTitle if needed)
 function formatDate(date: string | Date): string {
   if (!date) return '';
@@ -475,44 +652,23 @@ function openCreateSpaceModal() {
 }
 
 // Computed for displayNotes (filtered by selectedFolderId)
-const displayNotes = computed(() => {
-  if (selectedFolderId.value !== null) {
-    const notesInFolder = notesStore.notes.filter(note => 
-      note.folder_id === selectedFolderId.value && !note.share_permission
-    );
-
-    // Get order for this folder
-    const folderKey = `folder_${selectedFolderId.value}`;
-    const order = notesStore.noteOrder[folderKey];
-
-    if (order && order.length > 0) {
-      // Sort based on order array
-      return notesInFolder.sort((a, b) => {
-        const indexA = order.indexOf(a.id);
-        const indexB = order.indexOf(b.id);
-        
-        // If both are in order list, sort by index
-        if (indexA !== -1 && indexB !== -1) {
-          return indexA - indexB;
-        }
-        
-        // If one is not in order list, put it at the end (preserve position)
-        if (indexA === -1 && indexB !== -1) return 1;
-        if (indexA !== -1 && indexB === -1) return -1;
-        
-        // If neither is in order list, sort by created_at (preserve creation order)
-        return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
-      });
-    }
-
-    // If no order exists, sort by created_at to maintain stable order
-    return notesInFolder.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-  } else {
-    return [];
-  }
-});
+const displayNotes = computed(() => getOrderedNotesForFolder(selectedFolderId.value));
+// Folder notes used inside the mobile sheet
+const sheetFolderId = ref<number | null>(null);
+const sheetDisplayNotes = computed(() => getOrderedNotesForFolder(sheetFolderId.value));
 
 const activeNote = computed(() => notesStore.activeNote);
+
+// Mobile Home view: cross-space recent notes
+const regularNotesSortedByUpdated = computed(() => {
+  return notesStore.notes
+    .filter((note) => !note.share_permission)
+    .slice()
+    .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
+});
+
+const continueWritingNotes = computed(() => regularNotesSortedByUpdated.value.slice(0, 5));
+const recentActivityNotes = computed(() => regularNotesSortedByUpdated.value.slice(5, 20));
 
 // Note that belongs to displayed folders (for mobile list)
 const displayedFolders = computed(() => {
@@ -552,6 +708,33 @@ async function handleOpenNote(noteId: string) {
     noteToDelete.value = null;
   }
   await notesStore.openTab(noteId); // This opens the tab and sets activeNote
+}
+
+// Mobile: primary FAB action from bottom nav
+async function handleMobileCreate() {
+  try {
+    // Prefer creating in the currently selected folder
+    if (selectedFolderId.value !== null) {
+      await handleCreateNoteInFolder(selectedFolderId.value);
+      return;
+    }
+
+    // Fallback: use first folder of current space, or any folder
+    const fallbackFolder =
+      (spacesStore.currentSpaceId
+        ? foldersStore.folders.find((f) => f.space_id === spacesStore.currentSpaceId)
+        : null) || foldersStore.folders[0];
+
+    if (fallbackFolder) {
+      await handleCreateNoteInFolder(fallbackFolder.id);
+    } else {
+      toast.error('Create a notebook and section first to add a note');
+      showMobileSpacesSheet.value = true;
+    }
+  } catch (error) {
+    console.error('Failed to create note from mobile FAB:', error);
+    toast.error('Failed to create note');
+  }
 }
 
 // Handle note selection from search modal
@@ -655,6 +838,17 @@ async function handleConfirmDelete(noteId: string) {
     toast.error('Failed to delete note');
     noteToDelete.value = null;
   }
+}
+
+// Mobile: close the currently open note and return to folder list or Home
+function handleCloseActiveNote() {
+  if (!activeNote.value) return;
+  notesStore.closeTab(activeNote.value.id);
+}
+
+// Mobile: back from folder notes list to Home
+function handleBackToHomeFromFolder() {
+  selectedFolderId.value = null;
 }
 
 function handleDeleteCancel() {
@@ -1267,24 +1461,209 @@ function handleNoteListResizeStart(e: MouseEvent) {
 
     <!-- Column 3: Editor (Main) -->
     <main class="flex-1 flex flex-col min-w-0 bg-white dark:bg-gray-900 relative">
-      <div v-if="!activeNote" class="flex-1 flex items-center justify-center text-gray-400">
-        <div class="text-center">
-          <UIcon name="i-heroicons-pencil-square" class="w-16 h-16 mx-auto mb-4 opacity-50" />
-          <p>Select a page to start editing</p>
+      <!-- Empty state / Home / Mobile folder notes -->
+      <div v-if="!activeNote">
+        <!-- Desktop empty state -->
+        <div v-if="!isMobileView" class="flex-1 flex items-center justify-center text-gray-400">
+          <div class="text-center">
+            <UIcon name="i-heroicons-pencil-square" class="w-16 h-16 mx-auto mb-4 opacity-50" />
+            <p>Select a page to start editing</p>
+          </div>
+        </div>
+
+        <!-- Mobile: Folder notes list screen -->
+        <div
+          v-else-if="selectedFolderId"
+          class="md:hidden flex-1 overflow-y-auto pb-28"
+        >
+          <div class="px-4 pt-6 pb-3 flex items-center justify-between gap-2">
+            <button
+              type="button"
+              class="p-2 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-500 hover:text-gray-700 dark:hover:text-gray-200 active:scale-95 transition"
+              @click="handleBackToHomeFromFolder"
+            >
+              <UIcon name="i-heroicons-arrow-left" class="w-5 h-5" />
+            </button>
+            <div class="flex-1 min-w-0 text-center">
+              <p class="text-xs uppercase tracking-wide text-gray-400">Section</p>
+              <h1 class="text-sm font-semibold text-gray-900 dark:text-gray-50 truncate">
+                {{ foldersStore.getFolderById(selectedFolderId)?.name || 'Untitled section' }}
+              </h1>
+            </div>
+            <button
+              v-if="selectedFolderId"
+              type="button"
+              class="p-2 rounded-full bg-primary-50 dark:bg-primary-900/30 text-primary-600 dark:text-primary-300 active:scale-95 transition"
+              @click="handleCreateNoteInFolder(selectedFolderId)"
+            >
+              <UIcon name="i-heroicons-plus" class="w-5 h-5" />
+            </button>
+          </div>
+
+          <div class="px-4 space-y-4">
+            <div v-if="notesStore.loading && displayNotes.length === 0" class="py-10 text-center text-gray-500">
+              <UIcon name="i-heroicons-arrow-path" class="w-8 h-8 mx-auto mb-2 animate-spin" />
+              Loading notes...
+            </div>
+
+            <div v-else-if="displayNotes.length === 0" class="py-10 text-center text-gray-500 dark:text-gray-400">
+              <p class="mb-3 text-sm">No notes in this section yet.</p>
+              <UButton color="primary" size="md" @click="handleCreateNoteInFolder(selectedFolderId as number)">
+                New note
+              </UButton>
+            </div>
+
+            <div v-else class="space-y-2">
+              <button
+                v-for="note in displayNotes"
+                :key="note.id"
+                type="button"
+                class="w-full text-left rounded-2xl px-4 py-3 bg-gray-50/80 dark:bg-gray-800/80 active:scale-[0.99] transition flex flex-col gap-1"
+                @click="handleOpenNote(note.id)"
+              >
+                <div class="flex items-center justify-between gap-2">
+                  <p class="text-sm font-medium text-gray-900 dark:text-gray-50 truncate">
+                    {{ note.title || 'Untitled note' }}
+                  </p>
+                  <span class="text-xs text-gray-400 whitespace-nowrap">
+                    {{ formatTime(note.updated_at) }}
+                  </span>
+                </div>
+                <p class="text-[11px] text-gray-400">
+                  Last updated {{ formatDate(note.updated_at) }}
+                </p>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Mobile Home tab: cross-space "what matters now" -->
+        <div v-else class="md:hidden flex-1 overflow-y-auto pb-28">
+          <div class="px-4 pt-6 pb-4 flex items-center justify-between">
+            <div>
+              <p class="text-xs uppercase tracking-wide text-gray-400">Home</p>
+              <h1 class="text-xl font-semibold text-gray-900 dark:text-gray-50 mt-1">Welcome back</h1>
+            </div>
+            <button
+              type="button"
+              class="p-2 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-500 hover:text-gray-700 dark:hover:text-gray-200 active:scale-95 transition"
+              @click="showSearchModal = true"
+            >
+              <UIcon name="i-heroicons-magnifying-glass" class="w-5 h-5" />
+            </button>
+          </div>
+
+          <div class="px-4 space-y-6">
+            <!-- Continue writing -->
+            <section v-if="continueWritingNotes.length">
+              <h2 class="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">Continue writing</h2>
+              <div class="space-y-2">
+                <button
+                  v-for="note in continueWritingNotes"
+                  :key="note.id"
+                  type="button"
+                  class="w-full text-left rounded-2xl bg-gray-50/80 dark:bg-gray-800/80 px-4 py-3 active:scale-[0.99] transition flex flex-col gap-1"
+                  @click="handleOpenNote(note.id)"
+                >
+                  <div class="flex items-center justify-between gap-2">
+                    <p class="text-sm font-medium text-gray-900 dark:text-gray-50 truncate">
+                      {{ note.title || 'Untitled note' }}
+                    </p>
+                    <span class="text-xs text-gray-400">
+                      {{ formatTime(note.updated_at) }}
+                    </span>
+                  </div>
+                  <!-- Optional snippet area: keep minimal to avoid heavy parsing on mobile -->
+                  <div class="mt-1 flex items-center gap-2 text-[11px] text-gray-400">
+                    <template v-if="getNoteLocation(note).spaceName">
+                      <span class="truncate">
+                        {{ getNoteLocation(note).spaceName }}<span v-if="getNoteLocation(note).folderName"> · {{ getNoteLocation(note).folderName }}</span>
+                      </span>
+                    </template>
+                  </div>
+                </button>
+              </div>
+            </section>
+
+            <!-- Spaces entry -->
+            <section>
+              <button
+                type="button"
+                class="w-full rounded-2xl bg-gradient-to-r from-primary-50 via-primary-100 to-primary-50 dark:from-primary-900/40 dark:via-primary-800/40 dark:to-primary-900/40 border border-primary-100 dark:border-primary-800 px-4 py-4 flex items-center gap-3 active:scale-[0.99] transition shadow-sm"
+                @click="showMobileSpacesSheet = true"
+              >
+                <div class="flex items-center justify-center w-9 h-9 rounded-xl bg-white/90 dark:bg-gray-900/90 shadow-sm flex-shrink-0">
+                  <UIcon name="i-heroicons-book-open" class="w-5 h-5 text-primary-600 dark:text-primary-300" />
+                </div>
+                <div class="flex-1 text-left">
+                  <p class="text-sm font-semibold text-gray-900 dark:text-gray-50">
+                    Browse spaces & sections
+                  </p>
+                  <p class="text-xs text-gray-600 dark:text-gray-300 mt-0.5">
+                    Jump into any notebook and section to find the notes you need.
+                  </p>
+                </div>
+                <UIcon name="i-heroicons-chevron-up-down" class="w-4 h-4 text-primary-500/80 dark:text-primary-300/80" />
+              </button>
+            </section>
+
+            <!-- Account / Settings entry -->
+            <section>
+              <NuxtLink
+                to="/settings"
+                class="mt-3 w-full rounded-2xl bg-gray-50 dark:bg-gray-900/70 border border-gray-200 dark:border-gray-800 px-4 py-3 flex items-center gap-3 active:scale-[0.99] transition"
+              >
+                <div class="flex items-center justify-center w-9 h-9 rounded-full bg-primary-500/10 text-primary-700 dark:text-primary-300 flex-shrink-0">
+                  <UIcon name="i-heroicons-user-circle" class="w-5 h-5" />
+                </div>
+                <div class="flex-1 text-left min-w-0">
+                  <p class="text-sm font-medium text-gray-900 dark:text-gray-50 truncate">
+                    Account & Settings
+                  </p>
+                  <p class="text-xs text-gray-600 dark:text-gray-400">
+                    Manage your profile, theme, password, and more.
+                  </p>
+                </div>
+                <UIcon name="i-heroicons-chevron-right" class="w-4 h-4 text-gray-400 flex-shrink-0" />
+              </NuxtLink>
+            </section>
+
+            <!-- Empty state when there are no notes yet -->
+            <section v-if="!continueWritingNotes.length && !recentActivityNotes.length">
+              <div class="rounded-2xl border border-dashed border-gray-300 dark:border-gray-700 px-4 py-6 text-center text-gray-500 dark:text-gray-400">
+                <p class="mb-3 text-sm">No notes yet. Create your first note to get started.</p>
+                <UButton color="primary" size="md" block @click="handleMobileCreate">
+                  New note
+                </UButton>
+              </div>
+            </section>
+          </div>
         </div>
       </div>
       
       <template v-else>
         <!-- Editor Title Area -->
         <div class="px-8 pt-6 pb-2 relative">
-          <!-- Focus Mode Button -->
+          <!-- Desktop: Focus Mode Button / Mobile: Close Note -->
           <button
+            v-if="!isMobileView"
             @click="toggleFocusMode"
             class="absolute top-6 right-8 p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition-colors z-10"
             :title="isFullscreen ? 'Show Sidebars' : 'Hide Sidebars'"
           >
             <UIcon 
               :name="isFullscreen ? 'i-heroicons-arrows-pointing-in' : 'i-heroicons-arrows-pointing-out'" 
+              class="w-5 h-5" 
+            />
+          </button>
+          <button
+            v-else
+            @click="handleCloseActiveNote"
+            class="absolute top-6 right-8 p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition-colors z-10"
+            title="Close note"
+          >
+            <UIcon 
+              name="i-heroicons-x-mark"
               class="w-5 h-5" 
             />
           </button>
@@ -1333,12 +1712,203 @@ function handleNoteListResizeStart(e: MouseEvent) {
       </template>
     </main>
 
-    <!-- Keep Mobile Navigation (MobileBottomNav) -->
-    <MobileBottomNav 
-      @open-spaces="showMobileSpacesSheet = true"
-      @open-folders="showMobileFoldersSheet = true"
-      @open-create="openCreateFolderModal" 
-    />
+    <!-- Mobile bottom navigation removed; Home now links to Settings directly -->
+
+    <!-- Mobile: Spaces & Sections sheet -->
+    <ClientOnly>
+      <Teleport to="body">
+        <Transition
+          enter-active-class="transition-opacity duration-200"
+          enter-from-class="opacity-0"
+          enter-to-class="opacity-100"
+          leave-active-class="transition-opacity duration-200"
+          leave-from-class="opacity-100"
+          leave-to-class="opacity-0"
+        >
+          <div
+            v-if="showMobileSpacesSheet && isMobileView"
+            class="fixed inset-0 z-40 md:hidden"
+          >
+            <div
+              class="absolute inset-0 bg-black/40 backdrop-blur-sm"
+              @click="closeMobileSpacesSheet()"
+            />
+            <div
+              class="absolute inset-x-0 bottom-0 pt-3 pb-4 bg-white dark:bg-gray-900 rounded-t-3xl shadow-2xl max-h-[80vh] overflow-hidden"
+              :class="{ 'transition-transform duration-200': !isDraggingSheet }"
+              :style="{ transform: `translateY(${sheetTranslateY}px)` }"
+            >
+              <!-- Drag handle + header: expanded drag area -->
+              <div
+                class="pb-2"
+                @touchstart.stop.prevent="handleSheetHandleTouchStart"
+                @touchmove.stop.prevent="handleSheetHandleTouchMove"
+                @touchend.stop="handleSheetHandleTouchEnd"
+                @mousedown.stop.prevent="handleSheetHandleMouseDown"
+              >
+                <div class="mx-auto h-1 w-10 rounded-full bg-gray-300 dark:bg-gray-700 mb-3" />
+                <!-- Spaces header -->
+                <div
+                  v-if="sheetView === 'spaces'"
+                  class="px-4 flex items-center justify-between"
+                >
+                  <div>
+                    <p class="text-xs uppercase tracking-wide text-gray-400">Spaces</p>
+                    <h2 class="text-base font-semibold text-gray-900 dark:text-gray-50">Notebooks & sections</h2>
+                  </div>
+                  <button
+                    type="button"
+                    class="p-2 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-500 hover:text-gray-200 active:scale-95 transition"
+                    @click.stop="openCreateSpaceModal"
+                  >
+                    <UIcon name="i-heroicons-plus" class="w-4 h-4" />
+                  </button>
+                </div>
+
+                <!-- Folder notes header -->
+                <div
+                  v-else
+                  class="px-4 flex items-center justify-between gap-2"
+                >
+                  <button
+                    type="button"
+                    class="p-2 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-500 hover:text-gray-200 active:scale-95 transition flex-shrink-0"
+                    @click.stop="sheetView = 'spaces'"
+                  >
+                    <UIcon name="i-heroicons-arrow-left" class="w-4 h-4" />
+                  </button>
+                  <div class="flex-1 min-w-0 text-center">
+                    <p class="text-[11px] uppercase tracking-wide text-gray-400">Section</p>
+                    <h2 class="text-sm font-semibold text-gray-900 dark:text-gray-50 truncate">
+                      {{ sheetFolderTitle }}
+                    </h2>
+                  </div>
+                  <button
+                    v-if="selectedFolderId"
+                    type="button"
+                    class="p-2 rounded-full bg-primary-50 dark:bg-primary-900/30 text-primary-600 dark:text-primary-300 active:scale-95 transition flex-shrink-0"
+                    @click.stop="handleCreateNoteInFolder(selectedFolderId as number)"
+                  >
+                    <UIcon name="i-heroicons-plus" class="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              <Transition name="sheet-view" mode="out-in">
+                <!-- Spaces list view -->
+                <div
+                  v-if="sheetView === 'spaces'"
+                  class="px-4 pb-1 overflow-y-auto max-h-[70vh] min-h-[40vh] space-y-3"
+                >
+                  <div
+                    v-for="space in spacesStore.spaces"
+                    :key="space.id"
+                    class="rounded-2xl border border-gray-200/70 dark:border-gray-800/70 bg-gray-50/70 dark:bg-gray-800/60 px-3 py-2.5"
+                  >
+                    <div class="flex items-center justify-between gap-2 mb-1.5">
+                      <button
+                        type="button"
+                        class="flex items-center gap-2 min-w-0 flex-1 text-left"
+                        @click="spacesStore.setCurrentSpace(space.id)"
+                      >
+                        <UIcon 
+                          :name="space.icon ? `i-lucide-${space.icon}` : 'i-heroicons-book-open'"
+                          class="w-4 h-4 text-gray-600 dark:text-gray-300 flex-shrink-0"
+                        />
+                        <span class="text-sm font-medium text-gray-900 dark:text-gray-50 truncate">
+                          {{ space.name }}
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        class="p-1.5 rounded-full text-gray-400 hover:text-gray-200 hover:bg-gray-900/20 active:scale-95 transition"
+                        @click.stop="openCreateFolderModal(space.id)"
+                      >
+                        <UIcon name="i-heroicons-plus" class="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                    <div class="space-y-1.5">
+                      <button
+                        v-for="folder in getSpaceFolders(space.id)"
+                        :key="folder.id"
+                        type="button"
+                        class="w-full flex items-center justify-between gap-2 rounded-xl px-2.5 py-2 bg-white/70 dark:bg-gray-900/50 active:bg-gray-100 dark:active:bg-gray-800 transition text-left"
+                        @click="openFolderInSheet(folder)"
+                      >
+                        <div class="flex items-center gap-2 min-w-0">
+                          <UIcon name="i-heroicons-folder" class="w-4 h-4 text-gray-400 flex-shrink-0" />
+                          <span class="text-xs font-medium text-gray-800 dark:text-gray-100 truncate">
+                            {{ folder.name }}
+                          </span>
+                        </div>
+                        <span class="text-[11px] text-gray-400 whitespace-nowrap ml-2">
+                          {{ getFolderNoteCount(folder.id) }} {{ getFolderNoteCount(folder.id) === 1 ? 'note' : 'notes' }}
+                        </span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <div v-if="!spacesStore.spaces.length" class="py-4 text-center text-sm text-gray-500 dark:text-gray-400">
+                    No spaces yet. Create your first notebook to get started.
+                  </div>
+                </div>
+
+                <!-- Folder notes view inside sheet -->
+                <div
+                  v-else
+                  class="px-4 pb-1 overflow-y-auto max-h-[70vh] min-h-[40vh] space-y-2"
+                >
+                  <div
+                    v-if="notesStore.loading && sheetDisplayNotes.length === 0"
+                    class="py-8 text-center text-gray-500 dark:text-gray-400"
+                  >
+                    <UIcon name="i-heroicons-arrow-path" class="w-6 h-6 mx-auto mb-2 animate-spin" />
+                    Loading notes...
+                  </div>
+
+                  <div
+                    v-else-if="sheetDisplayNotes.length === 0"
+                    class="py-8 text-center text-gray-500 dark:text-gray-400"
+                  >
+                    <p class="mb-3 text-sm">No notes in this section yet.</p>
+                    <UButton
+                      v-if="sheetFolderId"
+                      color="primary"
+                      size="md"
+                      @click="handleCreateNoteInFolder(sheetFolderId as number)"
+                    >
+                      New note
+                    </UButton>
+                  </div>
+
+                  <div v-else class="space-y-1">
+                    <button
+                      v-for="note in sheetDisplayNotes"
+                      :key="note.id"
+                      type="button"
+                      class="w-full text-left rounded-xl px-3 py-2 bg-white dark:bg-gray-900/80 active:scale-[0.99] transition flex flex-col gap-0.5"
+                      @click="handleOpenNote(note.id); closeMobileSpacesSheet()"
+                    >
+                      <div class="flex items-center justify-between gap-2">
+                        <p class="text-xs font-medium text-gray-900 dark:text-gray-50 truncate">
+                          {{ note.title || 'Untitled note' }}
+                        </p>
+                        <span class="text-[10px] text-gray-400 whitespace-nowrap">
+                          {{ formatTime(note.updated_at) }}
+                        </span>
+                      </div>
+                      <p class="text-[10px] text-gray-400">
+                        Last updated {{ formatDate(note.updated_at) }}
+                      </p>
+                    </button>
+                  </div>
+                </div>
+              </Transition>
+            </div>
+          </div>
+        </Transition>
+      </Teleport>
+    </ClientOnly>
     
     <!-- Create Folder Modal -->
     <ClientOnly>
@@ -1591,6 +2161,18 @@ function handleNoteListResizeStart(e: MouseEvent) {
 .dark .notebooks-scroll,
 .dark .notes-scroll {
   scrollbar-color: rgba(255, 255, 255, 0.12) transparent;
+}
+
+/* Smooth content swap animation inside mobile sheet */
+.sheet-view-enter-active,
+.sheet-view-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.sheet-view-enter-from,
+.sheet-view-leave-to {
+  opacity: 0;
+  transform: translateY(8px);
 }
 </style>
 

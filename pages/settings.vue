@@ -110,12 +110,12 @@ function goBack() {
 
 <template>
   <div class="min-h-screen bg-gray-50 dark:bg-gray-900">
-    <div class="max-w-4xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
+    <div class="max-w-4xl mx-auto px-4 pt-8 pb-16 sm:px-6 lg:px-8">
       <!-- Header -->
       <div class="mb-8">
         <button
-          @click="goBack"
           class="flex items-center text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white mb-4 transition-colors"
+          @click="goBack"
         >
           <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>

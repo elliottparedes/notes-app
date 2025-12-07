@@ -212,7 +212,10 @@ const toolbarGroups = [
 </script>
 
 <template>
-  <div v-if="editor" class="flex items-center gap-1 px-2 py-1.5 bg-white/80 dark:bg-gray-900/80 border-b border-gray-200 dark:border-gray-700 overflow-x-auto hide-scrollbar sticky top-0 z-20 backdrop-blur-sm">
+  <div
+    v-if="editor"
+    class="flex flex-wrap items-center gap-1 px-2 py-1.5 bg-white/80 dark:bg-gray-900/80 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-20 backdrop-blur-sm"
+  >
     <div v-for="(group, index) in toolbarGroups" :key="group.name" class="flex items-center gap-0.5">
       <!-- Only render group if at least one item is visible -->
       <template v-if="group.items.some(item => !item.isHidden?.())">
