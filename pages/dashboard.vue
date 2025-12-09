@@ -1012,6 +1012,22 @@ function handleCloseFolderMenu() {
   folderMenuOpen.value = null;
 }
 
+// Folder context menu (sidebar sections)
+const openFolderContextMenuId = ref<number | null>(null);
+
+// Ensure only one of space or folder context menus is open at a time
+watch(showSpaceContextMenu, (spaceId) => {
+  if (spaceId !== null) {
+    openFolderContextMenuId.value = null;
+  }
+});
+
+watch(openFolderContextMenuId, (folderId) => {
+  if (folderId !== null) {
+    showSpaceContextMenu.value = null;
+  }
+});
+
 // Helper to restore selected folder and active note on refresh
 const restoreState = () => {
   if (!isMounted.value) return;
@@ -1034,9 +1050,9 @@ const restoreState = () => {
   }
 }
 
-// Close space context menu when clicking outside
+// Close space and folder context menus when clicking outside
 onMounted(() => {
-  const handleClickOutside = (event: MouseEvent) => {
+  const handleSpaceClickOutside = (event: MouseEvent) => {
     if (showSpaceContextMenu.value === null) return;
     
     const target = event.target as HTMLElement;
@@ -1065,15 +1081,51 @@ onMounted(() => {
   watch(() => showSpaceContextMenu.value, (shouldListen) => {
     if (shouldListen) {
       setTimeout(() => {
-        document.addEventListener('click', handleClickOutside);
+        document.addEventListener('click', handleSpaceClickOutside);
       }, 0);
     } else {
-      document.removeEventListener('click', handleClickOutside);
+      document.removeEventListener('click', handleSpaceClickOutside);
     }
   });
   
   onUnmounted(() => {
-    document.removeEventListener('click', handleClickOutside);
+    document.removeEventListener('click', handleSpaceClickOutside);
+  });
+});
+
+// Close folder context menu when clicking outside
+onMounted(() => {
+  const handleFolderClickOutside = (event: MouseEvent) => {
+    if (openFolderContextMenuId.value === null) return;
+
+    const target = event.target as HTMLElement;
+
+    // Don't close if clicking the folder menu button
+    if (target.closest('[data-context-menu-button]')) {
+      return;
+    }
+
+    // Don't close if clicking inside the folder context menu
+    if (target.closest('[data-context-menu]')) {
+      return;
+    }
+
+    // Close for any other click
+    openFolderContextMenuId.value = null;
+  };
+
+  watch(() => openFolderContextMenuId.value, (folderId) => {
+    if (folderId !== null) {
+      setTimeout(() => {
+        document.addEventListener('click', handleFolderClickOutside);
+      }, 0);
+    } else {
+      document.removeEventListener('click', handleFolderClickOutside);
+    }
+  });
+
+  onUnmounted(() => {
+    document.removeEventListener('click', handleFolderClickOutside);
   });
 });
 
@@ -1324,10 +1376,12 @@ function handleNoteListResizeStart(e: MouseEvent) {
                 :key="folder.id"
                 :folder="folder"
                 :selected-id="selectedFolderId"
+                :open-menu-id="openFolderContextMenuId"
                 @select="handleSelectFolder"
                 @create-note="handleCreateNoteInFolder"
                 @delete="(id) => foldersStore.deleteFolder(id)"
                 @rename="(id) => console.log('Rename folder', id)"
+                @update:openMenuId="openFolderContextMenuId = $event"
               />
             </div>
             

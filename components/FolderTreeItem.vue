@@ -5,6 +5,7 @@ interface Props {
   folder: Folder;
   selectedId: number | null;
   isExpanded?: boolean;
+  openMenuId?: number | null;
 }
 
 interface Emits {
@@ -21,10 +22,12 @@ interface Emits {
   (e: 'move-up', folderId: number): void;
   (e: 'move-down', folderId: number): void;
   (e: 'reorder-folder', folderId: number, newIndex: number): void;
+  (e: 'update:openMenuId', value: number | null): void;
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  isExpanded: false
+  isExpanded: false,
+  openMenuId: null
 });
 
 const emit = defineEmits<Emits>();
@@ -53,10 +56,11 @@ const canMoveDown = computed(() => {
   return currentIndex >= 0 && currentIndex < siblings.length - 1;
 });
 
-const showContextMenu = ref(false);
 const contextMenuButtonRef = ref<HTMLElement | null>(null);
 const menuPosition = ref({ top: 0, left: 0, bottom: 0 });
 const menuOpensUpward = ref(false);
+
+const isMenuOpen = computed(() => props.openMenuId === props.folder.id);
 
 // Renaming state
 const isRenaming = ref(false);
@@ -77,7 +81,7 @@ function handleSelect() {
 function startRename() {
   renameValue.value = props.folder.name;
   isRenaming.value = true;
-  showContextMenu.value = false;
+  emit('update:openMenuId', null);
   
   // Focus input on next tick
   nextTick(() => {
@@ -140,59 +144,12 @@ function toggleContextMenu(event: MouseEvent) {
     menuOpensUpward.value = false;
   }
   
-  showContextMenu.value = !showContextMenu.value;
+  if (isMenuOpen.value) {
+    emit('update:openMenuId', null);
+  } else {
+    emit('update:openMenuId', props.folder.id);
+  }
 }
-
-
-// Initial listener setup
-onMounted(() => {
-  // Close context menu when clicking outside
-  const handleClickOutside = (event: MouseEvent) => {
-    if (!showContextMenu.value) return;
-    
-    const target = event.target as HTMLElement;
-    
-    // Don't close if clicking the button itself (let toggleContextMenu handle it)
-    // Check both by ref and by data attribute for reliability
-    const button = contextMenuButtonRef.value;
-    const buttonByAttr = target.closest('[data-context-menu-button]');
-    if ((button && button.contains(target)) || buttonByAttr) {
-      // Let the button's click handler handle the toggle
-      return;
-    }
-    
-    // Don't close if clicking inside the menu (menu has @click.stop but check anyway)
-    const menu = target.closest('[data-context-menu]');
-    if (menu) {
-      return;
-    }
-    
-    // Don't close if clicking on a button (as per user requirement: "anywhere but a button")
-    // This ensures buttons can handle their own clicks without closing the menu
-    if (target.tagName === 'BUTTON' || target.closest('button')) {
-      return;
-    }
-    
-    // Close if clicking anywhere else (not a button, not inside menu, not the menu button)
-    showContextMenu.value = false;
-  };
-  
-  // Use a watcher to add/remove listener only when menu is open
-  watch(() => showContextMenu.value, (shouldListen) => {
-    if (shouldListen) {
-      // Add listener on next tick to avoid interfering with the toggle
-      setTimeout(() => {
-        document.addEventListener('click', handleClickOutside);
-      }, 0);
-    } else {
-      document.removeEventListener('click', handleClickOutside);
-    }
-  });
-  
-  onUnmounted(() => {
-    document.removeEventListener('click', handleClickOutside);
-  });
-});
 </script>
 
 <template>
@@ -250,7 +207,7 @@ onMounted(() => {
         @click.stop="toggleContextMenu"
         @mousedown.stop
         class="no-drag flex-shrink-0 p-1.5 rounded-lg opacity-100 md:opacity-0 md:group-hover/folder:opacity-100 md:hover:bg-gray-200/80 md:dark:hover:bg-gray-700/80 active:bg-gray-200/80 dark:active:bg-gray-700/80 transition-all duration-200"
-        :class="showContextMenu ? 'bg-gray-200/80 dark:bg-gray-700/80' : ''"
+        :class="isMenuOpen ? 'bg-gray-200/80 dark:bg-gray-700/80' : ''"
       >
         <svg class="w-4 h-4 text-gray-500 dark:text-gray-400" fill="currentColor" viewBox="0 0 16 16">
           <circle cx="8" cy="2" r="1.5"/>
@@ -264,7 +221,7 @@ onMounted(() => {
     <Teleport to="body">
       <Transition name="fade">
         <div
-          v-if="showContextMenu"
+          v-if="isMenuOpen"
           data-context-menu
           @click.stop
           class="fixed w-48 bg-white/95 dark:bg-gray-800/95 backdrop-blur-xl rounded-2xl border border-gray-200/60 dark:border-gray-700/60 shadow-2xl py-1.5 z-[9999]"
@@ -276,7 +233,7 @@ onMounted(() => {
         >
           <button
             type="button"
-            @click="emit('delete', folder.id); showContextMenu = false"
+            @click="emit('delete', folder.id); emit('update:openMenuId', null)"
             class="w-full text-left px-4 py-2.5 text-sm text-red-600 dark:text-red-400 md:hover:bg-red-50 md:dark:hover:bg-red-900/20 active:bg-red-50 dark:active:bg-red-900/20 flex items-center gap-3"
           >
             <UIcon name="i-heroicons-trash" class="w-5 h-5" />
@@ -286,9 +243,9 @@ onMounted(() => {
       </Transition>
       <!-- Backdrop for mobile - closes menu when clicking outside -->
       <div
-        v-if="showContextMenu && isMobile()"
+        v-if="isMenuOpen && isMobile()"
         class="fixed inset-0 z-[9998] md:hidden"
-        @click="showContextMenu = false"
+        @click="emit('update:openMenuId', null)"
       />
     </Teleport>
 </template>
