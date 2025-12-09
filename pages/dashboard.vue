@@ -690,11 +690,17 @@ async function handleSelectSpace(spaceId: number) {
   }
 }
 
-function handleSelectFolder(folderId: number) {
+async function handleSelectFolder(folderId: number) {
   // Track previous folder before switching
   previousFolderId.value = selectedFolderId.value;
   selectedFolderId.value = folderId;
-  // Optionally select first note?
+  
+  // Automatically open the first note in the folder
+  await nextTick(); // Wait for displayNotes to update
+  const notes = getOrderedNotesForFolder(folderId);
+  if (notes.length > 0) {
+    await handleOpenNote(notes[0].id);
+  }
 }
 
 function handleFolderClick(folder: any) {
