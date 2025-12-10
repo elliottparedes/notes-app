@@ -394,6 +394,63 @@ async function saveNote(silent = false) {
   }
 }
 
+async function downloadPDF() {
+  try {
+    const authStore = useAuthStore();
+    if (!authStore.token) {
+      toast.add({
+        title: 'Error',
+        description: 'Not authenticated',
+        color: 'error'
+      });
+      return;
+    }
+
+    toast.add({
+      title: 'Generating PDF',
+      description: 'Please wait...',
+      color: 'info'
+    });
+
+    // Fetch PDF from server
+    const response = await $fetch(`/api/notes/${noteId.value}/download-pdf`, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${authStore.token}`,
+      },
+      responseType: 'blob',
+    });
+
+    // Create blob URL and trigger download
+    const blob = new Blob([response], { type: 'application/pdf' });
+    const blobUrl = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = blobUrl;
+    link.download = `${editForm.title || 'note'}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    // Clean up blob URL
+    setTimeout(() => {
+      window.URL.revokeObjectURL(blobUrl);
+    }, 100);
+
+    toast.add({
+      title: 'Success',
+      description: 'PDF downloaded successfully',
+      color: 'success'
+    });
+  } catch (error: any) {
+    console.error('PDF download error:', error);
+    toast.add({
+      title: 'Error',
+      description: error.data?.message || 'Failed to download PDF',
+      color: 'error'
+    });
+  }
+}
+
 function deleteNote() {
   showDeleteModal.value = true;
 }
@@ -662,6 +719,16 @@ onUnmounted(() => {
             size="sm"
             @click="toggleLock"
             :title="isLocked ? 'Unlock Note (Enable Editing)' : 'Lock Note (Read-Only)'"
+          />
+          
+          <!-- Download PDF -->
+          <UButton
+            icon="i-heroicons-arrow-down-tray"
+            color="neutral"
+            variant="ghost"
+            size="sm"
+            @click="downloadPDF"
+            title="Download as PDF"
           />
           
           <!-- Keyboard Shortcuts -->

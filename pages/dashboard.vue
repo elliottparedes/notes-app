@@ -1011,6 +1011,49 @@ async function polishNote() {
 
 // Ask AI to modify note
 const isAskingAI = ref(false);
+async function downloadPDF() {
+  if (!activeNote.value) return;
+  
+  try {
+    const authStore = useAuthStore();
+    if (!authStore.token) {
+      toast.error('Not authenticated');
+      return;
+    }
+
+    toast.info('Generating PDF...');
+
+    // Fetch PDF from server
+    const response = await $fetch(`/api/notes/${activeNote.value.id}/download-pdf`, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${authStore.token}`,
+      },
+      responseType: 'blob',
+    });
+
+    // Create blob URL and trigger download
+    const blob = new Blob([response], { type: 'application/pdf' });
+    const blobUrl = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = blobUrl;
+    link.download = `${activeNote.value.title || 'note'}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    // Clean up blob URL
+    setTimeout(() => {
+      window.URL.revokeObjectURL(blobUrl);
+    }, 100);
+
+    toast.success('PDF downloaded successfully');
+  } catch (error: any) {
+    console.error('PDF download error:', error);
+    toast.error(error.data?.message || 'Failed to download PDF');
+  }
+}
+
 async function askAINote(prompt: string) {
   if (!activeNote.value) return;
   
@@ -1669,7 +1712,7 @@ function handleNoteListResizeStart(e: MouseEvent) {
       <!-- Empty state / Home / Mobile folder notes -->
       <div v-if="!activeNote">
         <!-- Desktop empty state -->
-        <div v-if="!isMobileView" class="flex-1 flex items-center justify-center text-gray-400">
+        <div v-if="!isMobileView" class="flex-1 flex items-start justify-center text-gray-400 pt-[50vh]">
           <div class="text-center">
             <UIcon name="i-heroicons-pencil-square" class="w-16 h-16 mx-auto mb-4 opacity-50" />
             <p>Select a page to start editing</p>
@@ -1849,18 +1892,31 @@ function handleNoteListResizeStart(e: MouseEvent) {
       <template v-else>
         <!-- Editor Title Area -->
         <div class="px-8 pt-6 pb-2 relative">
-          <!-- Desktop: Focus Mode Button / Mobile: Close Note -->
-          <button
-            v-if="!isMobileView"
-            @click="toggleFocusMode"
-            class="absolute top-6 right-8 p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition-colors z-10"
-            :title="isFullscreen ? 'Show Sidebars' : 'Hide Sidebars'"
-          >
-            <UIcon 
-              :name="isFullscreen ? 'i-heroicons-arrows-pointing-in' : 'i-heroicons-arrows-pointing-out'" 
-              class="w-5 h-5" 
-            />
-          </button>
+          <!-- Desktop: Action Buttons / Mobile: Close Note -->
+          <div v-if="!isMobileView" class="absolute top-6 right-8 flex items-center gap-2 z-10">
+            <!-- Download PDF Button -->
+            <button
+              @click="downloadPDF"
+              class="p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+              title="Download as PDF"
+            >
+              <UIcon 
+                name="i-heroicons-arrow-down-tray"
+                class="w-5 h-5" 
+              />
+            </button>
+            <!-- Focus Mode Button -->
+            <button
+              @click="toggleFocusMode"
+              class="p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+              :title="isFullscreen ? 'Show Sidebars' : 'Hide Sidebars'"
+            >
+              <UIcon 
+                :name="isFullscreen ? 'i-heroicons-arrows-pointing-in' : 'i-heroicons-arrows-pointing-out'" 
+                class="w-5 h-5" 
+              />
+            </button>
+          </div>
           <button
             v-else
             @click="handleCloseActiveNote"
@@ -1875,7 +1931,8 @@ function handleNoteListResizeStart(e: MouseEvent) {
           
           <input
             v-model="activeNote.title"
-            class="w-full text-3xl font-bold bg-transparent border-none outline-none placeholder-gray-300 dark:placeholder-gray-600 py-3 leading-normal pr-12"
+            class="w-full text-3xl font-bold bg-transparent border-none outline-none placeholder-gray-300 dark:placeholder-gray-600 py-3 leading-normal"
+            :class="isMobileView ? 'pr-12' : 'pr-40'"
             placeholder="Page Title"
             @input="handleTitleChange"
           />
