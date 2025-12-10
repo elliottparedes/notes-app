@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted, onActivated, nextTick } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted, onActivated, nextTick, provide } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '~/stores/auth';
 import { useNotesStore } from '~/stores/notes';
@@ -39,6 +39,23 @@ const showMobileSpacesSheet = ref(false);
 const showMobileFoldersSheet = ref(false);
 const showCreateFolderModal = ref(false); // Restored modal state
 const showSearchModal = ref(false);
+
+// View state - 'notebooks' or 'storage'
+const currentView = ref<'notebooks' | 'storage'>('notebooks');
+const showViewDropdown = ref(false);
+
+// Provide view switching function for FileStorage component
+function switchToNotebooks() {
+  currentView.value = 'notebooks';
+  showViewDropdown.value = false;
+}
+
+function switchToStorage() {
+  currentView.value = 'storage';
+  showViewDropdown.value = false;
+}
+
+provide('switchView', { switchToNotebooks, switchToStorage });
 
 // Inline Space Renaming
 const editingSpaceId = ref<number | null>(null);
@@ -1056,8 +1073,25 @@ const restoreState = () => {
   }
 }
 
-// Close space and folder context menus when clicking outside
+// Close dropdown when clicking outside
 onMounted(() => {
+  const handleClickOutside = (event: MouseEvent) => {
+    const target = event.target as HTMLElement;
+    if (!target.closest('[data-view-dropdown]')) {
+      showViewDropdown.value = false;
+    }
+  };
+  
+  watch(() => showViewDropdown.value, (isOpen) => {
+    if (isOpen) {
+      setTimeout(() => {
+        document.addEventListener('click', handleClickOutside);
+      }, 0);
+    } else {
+      document.removeEventListener('click', handleClickOutside);
+    }
+  });
+  
   const handleSpaceClickOutside = (event: MouseEvent) => {
     if (showSpaceContextMenu.value === null) return;
     
@@ -1243,7 +1277,7 @@ function handleNoteListResizeStart(e: MouseEvent) {
     
     <!-- Column 1: Notebooks & Sections (Sidebar) -->
     <aside 
-      v-if="isDesktopSidebarVisible && !isFullscreen"
+      v-if="isDesktopSidebarVisible && !isFullscreen && currentView === 'notebooks'"
       class="hidden md:flex flex-col bg-gray-50/80 dark:bg-gray-900/80 border-r border-gray-200/60 dark:border-gray-800/60 flex-shrink-0 relative overflow-x-hidden"
       :style="{ width: `${sidebarWidth}px` }"
     >
@@ -1255,9 +1289,65 @@ function handleNoteListResizeStart(e: MouseEvent) {
 
       <!-- Header -->
       <div class="h-14 flex items-center justify-between px-4 border-b border-gray-200/50 dark:border-gray-800/50">
-        <div class="flex items-center gap-2">
-          <span class="font-semibold text-lg">Notebooks</span>
+        <div class="flex items-center gap-2 relative">
+          <!-- Dropdown -->
+          <div class="relative" data-view-dropdown>
+            <button
+              @click.stop="showViewDropdown = !showViewDropdown"
+              class="flex items-center gap-1.5 font-semibold text-lg hover:bg-gray-200/50 dark:hover:bg-gray-800/50 px-2 py-1 rounded-md transition-colors"
+            >
+              <span>{{ currentView === 'notebooks' ? 'Notebooks' : 'Storage' }}</span>
+              <UIcon 
+                name="i-heroicons-chevron-down" 
+                class="w-4 h-4 transition-transform"
+                :class="{ 'rotate-180': showViewDropdown }"
+              />
+            </button>
+            
+            <!-- Dropdown Menu -->
+            <Transition
+              enter-active-class="transition-all duration-150 ease"
+              enter-from-class="opacity-0 scale-95 translate-y-(-4px)"
+              enter-to-class="opacity-100 scale-100 translate-y-0"
+              leave-active-class="transition-all duration-150 ease"
+              leave-from-class="opacity-100 scale-100 translate-y-0"
+              leave-to-class="opacity-0 scale-95 translate-y-(-4px)"
+            >
+              <div
+                v-if="showViewDropdown"
+                class="absolute top-full left-0 mt-1 w-48 bg-white/95 dark:bg-gray-800/95 backdrop-blur-xl rounded-xl border border-gray-200/60 dark:border-gray-700/60 shadow-xl py-1.5 z-50"
+                @click.stop
+              >
+                <button
+                  @click="currentView = 'notebooks'; showViewDropdown = false"
+                  class="w-full text-left px-4 py-2 text-sm transition-colors"
+                  :class="currentView === 'notebooks' 
+                    ? 'bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400 font-medium' 
+                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50'"
+                >
+                  <div class="flex items-center gap-2">
+                    <UIcon name="i-heroicons-book-open" class="w-4 h-4" />
+                    <span>Notebooks</span>
+                  </div>
+                </button>
+                <button
+                  @click="currentView = 'storage'; showViewDropdown = false"
+                  class="w-full text-left px-4 py-2 text-sm transition-colors"
+                  :class="currentView === 'storage' 
+                    ? 'bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400 font-medium' 
+                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50'"
+                >
+                  <div class="flex items-center gap-2">
+                    <UIcon name="i-heroicons-folder" class="w-4 h-4" />
+                    <span>Storage</span>
+                  </div>
+                </button>
+              </div>
+            </Transition>
+          </div>
+          
           <button 
+            v-if="currentView === 'notebooks'"
             @click="showSearchModal = true"
             class="p-1 rounded-md hover:bg-gray-200/50 dark:hover:bg-gray-800/50 text-gray-500 transition-colors"
             title="Search Notes"
@@ -1266,6 +1356,7 @@ function handleNoteListResizeStart(e: MouseEvent) {
           </button>
         </div>
         <button 
+          v-if="currentView === 'notebooks'"
           @click="openCreateSpaceModal"
           class="p-1 rounded-md hover:bg-gray-200/50 dark:hover:bg-gray-800/50 text-gray-500 transition-colors"
           title="New Notebook"
@@ -1275,7 +1366,7 @@ function handleNoteListResizeStart(e: MouseEvent) {
       </div>
 
       <!-- Notebooks List -->
-      <div ref="spacesListRef" class="notebooks-scroll flex-1 overflow-y-auto overflow-x-hidden p-1 space-y-3">
+      <div v-if="currentView === 'notebooks'" ref="spacesListRef" class="notebooks-scroll flex-1 overflow-y-auto overflow-x-hidden p-1 space-y-3">
         <div 
           v-for="space in spacesStore.spaces" 
           :key="space.id" 
@@ -1405,6 +1496,11 @@ function handleNoteListResizeStart(e: MouseEvent) {
         </div>
       </div>
       
+      <!-- Storage View -->
+      <div v-if="currentView === 'storage'" class="flex-1 overflow-hidden">
+        <FileStorage />
+      </div>
+      
       <!-- User Footer -->
       <div class="p-4 border-t border-gray-200/50 dark:border-gray-800/50">
         <div class="flex items-center gap-2">
@@ -1436,7 +1532,7 @@ function handleNoteListResizeStart(e: MouseEvent) {
 
     <!-- Column 2: Note List (Middle) -->
     <aside 
-      v-if="!isFullscreen"
+      v-if="!isFullscreen && currentView === 'notebooks'"
       class="hidden md:flex flex-col bg-white dark:bg-gray-900 border-r border-gray-200/60 dark:border-gray-800/60 flex-shrink-0 relative"
       :style="{ width: `${noteListWidth}px` }"
     >
@@ -1519,8 +1615,8 @@ function handleNoteListResizeStart(e: MouseEvent) {
       </div>
     </aside>
 
-    <!-- Column 3: Editor (Main) -->
-    <main class="flex-1 flex flex-col min-w-0 bg-white dark:bg-gray-900 relative">
+    <!-- Column 3: Editor (Main) or Storage View -->
+    <main v-if="currentView === 'notebooks'" class="flex-1 flex flex-col min-w-0 bg-white dark:bg-gray-900 relative">
       <!-- Empty state / Home / Mobile folder notes -->
       <div v-if="!activeNote">
         <!-- Desktop empty state -->
@@ -1770,6 +1866,11 @@ function handleNoteListResizeStart(e: MouseEvent) {
           />
         </div>
       </template>
+    </main>
+    
+    <!-- Storage View (Full Width) -->
+    <main v-if="currentView === 'storage'" class="flex-1 flex flex-col min-w-0 bg-white dark:bg-gray-900 relative">
+      <FileStorage />
     </main>
 
     <!-- Mobile bottom navigation removed; Home now links to Settings directly -->

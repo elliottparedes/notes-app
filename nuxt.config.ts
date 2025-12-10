@@ -37,6 +37,15 @@ export default defineNuxtConfig({
     typeCheck: false  // VS Code/Cursor handles type checking via Volar extension
   },
   
+  nitro: {
+    // Increase max request size for file uploads
+    maxRequestSize: '100mb',
+    // Add body parser options
+    experimental: {
+      wasm: true
+    }
+  },
+  
   vite: {
     clearScreen: false,
     optimizeDeps: {
@@ -178,6 +187,12 @@ export default defineNuxtConfig({
     jwtSecret: process.env.JWT_SECRET || '',
     openRouterApiKey: process.env.OPENROUTER_API_KEY || '',
     brevoApiKey: process.env.BREVO_API_KEY || '',
+    minioEndpoint: process.env.MINIO_ENDPOINT || '',
+    minioAccessKey: process.env.MINIO_ACCESS_KEY || '',
+    minioSecretKey: process.env.MINIO_SECRET_KEY || '',
+    minioBucket: process.env.MINIO_BUCKET || 'notes-images',
+    minioRegion: process.env.MINIO_REGION || 'us-east-1',
+    minioUseSSL: process.env.MINIO_USE_SSL === 'true',
     
     // Public keys exposed to client (non-sensitive only)
     public: {

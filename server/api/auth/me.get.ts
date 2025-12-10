@@ -8,8 +8,8 @@ export default defineEventHandler(async (event): Promise<User> => {
 
   try {
     // Fetch user
-    const users = await executeQuery<Array<Omit<User, 'folder_order'> & { folder_order: string | null }>>(
-      'SELECT id, email, name, folder_order, created_at, updated_at FROM users WHERE id = ?',
+    const users = await executeQuery<Array<Omit<User, 'folder_order'> & { folder_order: string | null; storage_used: number }>>(
+      'SELECT id, email, name, folder_order, storage_used, created_at, updated_at FROM users WHERE id = ?',
       [userId]
     );
 
@@ -25,7 +25,8 @@ export default defineEventHandler(async (event): Promise<User> => {
     // Parse folder_order from JSON
     const user: User = {
       ...result,
-      folder_order: parseJsonField<string[]>(result.folder_order)
+      folder_order: parseJsonField<string[]>(result.folder_order),
+      storage_used: result.storage_used || 0
     };
 
     return user;
