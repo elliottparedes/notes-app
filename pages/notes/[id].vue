@@ -24,6 +24,7 @@ const showFolderDropdown = ref(false);
 const folderDropdownPos = ref({ top: 0, left: 0 });
 const folderButtonRef = ref<HTMLButtonElement | null>(null);
 const isPolishing = ref(false);
+const isAskingAI = ref(false);
 
 const editForm = reactive<UpdateNoteDto & { content: string }>({
   title: '',
@@ -545,6 +546,53 @@ async function polishNote() {
   }
 }
 
+// Ask AI to modify note
+async function askAINote(prompt: string) {
+  console.log('[Page] AskAI note requested via event', prompt);
+  
+  if (!prompt || !prompt.trim()) {
+    return;
+  }
+
+  isAskingAI.value = true;
+
+  try {
+    const authStore = useAuthStore();
+    const response = await $fetch<{ content: string }>('/api/notes/ask-ai', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${authStore.token}`
+      },
+      body: {
+        title: editForm.title || 'Untitled Note',
+        content: editForm.content || '',
+        prompt: prompt
+      }
+    });
+
+    // Update the note with the AI-modified content
+    editForm.content = response.content;
+
+    toast.add({
+      title: 'Note Updated! ✨',
+      description: 'Your note has been modified by AI',
+      color: 'success'
+    });
+
+    // Save the changes
+    await saveNote(true);
+  } catch (error: any) {
+    console.error('AskAI error:', error);
+    toast.add({
+      title: 'AI Request Failed',
+      description: error.data?.message || 'Failed to process AI request',
+      color: 'error'
+    });
+  } finally {
+    isAskingAI.value = false;
+  }
+}
+
 // Cleanup auto-save timeout
 onUnmounted(() => {
   if (autoSaveTimeout.value) {
@@ -818,7 +866,9 @@ onUnmounted(() => {
                 :note-id="noteId"
                 :is-collaborative="false"
                 :is-polishing="isPolishing"
+                :is-asking-a-i="isAskingAI"
                 @request-polish="polishNote"
+                @request-ask-ai="askAINote"
               />
             </template>
           </ClientOnly>

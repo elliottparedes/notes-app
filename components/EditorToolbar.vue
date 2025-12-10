@@ -4,6 +4,7 @@ import type { Editor } from '@tiptap/vue-3';
 const props = defineProps<{
   editor: Editor | null | undefined;
   isPolishing?: boolean;
+  isAskingAI?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -12,7 +13,37 @@ const emit = defineEmits<{
   (e: 'insert-table'): void;
   (e: 'insert-link'): void;
   (e: 'polish'): void;
+  (e: 'ask-ai', prompt: string): void;
 }>();
+
+const showAskAIPrompt = ref(false);
+const askAIPrompt = ref('');
+
+function toggleAskAIPrompt() {
+  showAskAIPrompt.value = !showAskAIPrompt.value;
+  if (showAskAIPrompt.value) {
+    // Focus the input after it's rendered
+    nextTick(() => {
+      const input = document.querySelector('.ask-ai-input') as HTMLInputElement;
+      input?.focus();
+    });
+  } else {
+    askAIPrompt.value = '';
+  }
+}
+
+function submitAskAI() {
+  if (askAIPrompt.value.trim()) {
+    emit('ask-ai', askAIPrompt.value.trim());
+    askAIPrompt.value = '';
+    showAskAIPrompt.value = false;
+  }
+}
+
+function cancelAskAI() {
+  askAIPrompt.value = '';
+  showAskAIPrompt.value = false;
+}
 
 // Helper to check if active
 const isActive = (name: string, attributes?: Record<string, any>) => {
@@ -154,6 +185,17 @@ const toolbarGroups = [
         },
         color: 'text-purple-600 dark:text-purple-400',
         isLoading: () => props.isPolishing
+      },
+      {
+        icon: 'i-heroicons-chat-bubble-left-right',
+        title: 'Ask AI',
+        action: () => {
+          console.log('Toolbar: AskAI button clicked');
+          toggleAskAIPrompt();
+        },
+        color: 'text-purple-600 dark:text-purple-400',
+        isLoading: () => props.isAskingAI,
+        isActive: () => showAskAIPrompt.value
       }
     ]
   },
@@ -212,43 +254,84 @@ const toolbarGroups = [
 </script>
 
 <template>
-  <div
-    v-if="editor"
-    class="flex flex-wrap items-center gap-1 px-2 py-1.5 bg-white/80 dark:bg-gray-900/80 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-20 backdrop-blur-sm"
-  >
-    <div v-for="(group, index) in toolbarGroups" :key="group.name" class="flex items-center gap-0.5">
-      <!-- Only render group if at least one item is visible -->
-      <template v-if="group.items.some(item => !item.isHidden?.())">
-        <template v-for="item in group.items" :key="item.title">
-          <button
-            v-if="!item.isHidden?.()"
-            type="button"
-            @click="item.action"
-            :disabled="item.isLoading?.()"
-            class="p-1.5 rounded-md transition-all duration-200 flex items-center justify-center"
-            :class="[
-              item.isActive?.() 
-                ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300' 
-                : (item.color || 'text-gray-600 dark:text-gray-400') + ' hover:bg-gray-100 dark:hover:bg-gray-800',
-              item.isLoading?.() ? 'opacity-80 cursor-wait pr-2 pl-1.5 gap-1.5 w-auto' : 'min-w-[28px] h-[28px]'
-            ]"
-            :title="item.title"
-          >
-            <UIcon v-if="item.icon" :name="item.icon" class="w-4 h-4" />
-            <span v-else-if="item.label" class="text-xs font-bold">{{ item.label }}</span>
-            
-            <!-- Spinner -->
-            <UIcon 
-              v-if="item.isLoading?.()" 
-              name="i-heroicons-arrow-path" 
-              class="w-3.5 h-3.5 animate-spin text-purple-500 dark:text-purple-400" 
-            />
-          </button>
+  <div v-if="editor" class="sticky top-0 z-20">
+    <div
+      class="flex flex-wrap items-center gap-1 px-2 py-1.5 bg-white/80 dark:bg-gray-900/80 border-b border-gray-200 dark:border-gray-700 backdrop-blur-sm"
+    >
+      <div v-for="(group, index) in toolbarGroups" :key="group.name" class="flex items-center gap-0.5">
+        <!-- Only render group if at least one item is visible -->
+        <template v-if="group.items.some(item => !item.isHidden?.())">
+          <template v-for="item in group.items" :key="item.title">
+            <button
+              v-if="!item.isHidden?.()"
+              type="button"
+              @click="item.action"
+              :disabled="item.isLoading?.()"
+              class="p-1.5 rounded-md transition-all duration-200 flex items-center justify-center"
+              :class="[
+                item.isActive?.() 
+                  ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300' 
+                  : (item.color || 'text-gray-600 dark:text-gray-400') + ' hover:bg-gray-100 dark:hover:bg-gray-800',
+                item.isLoading?.() ? 'opacity-80 cursor-wait pr-2 pl-1.5 gap-1.5 w-auto' : 'min-w-[28px] h-[28px]'
+              ]"
+              :title="item.title"
+            >
+              <UIcon v-if="item.icon" :name="item.icon" class="w-4 h-4" />
+              <span v-else-if="item.label" class="text-xs font-bold">{{ item.label }}</span>
+              
+              <!-- Spinner -->
+              <UIcon 
+                v-if="item.isLoading?.()" 
+                name="i-heroicons-arrow-path" 
+                class="w-3.5 h-3.5 animate-spin text-purple-500 dark:text-purple-400" 
+              />
+            </button>
+          </template>
+          
+          <!-- Separator -->
+          <div v-if="index < toolbarGroups.length - 1 && toolbarGroups.slice(index + 1).some(g => g.items.some(i => !i.isHidden?.()))" class="w-px h-4 bg-gray-200 dark:bg-gray-700 mx-1.5 flex-shrink-0"></div>
         </template>
-        
-        <!-- Separator -->
-        <div v-if="index < toolbarGroups.length - 1 && toolbarGroups.slice(index + 1).some(g => g.items.some(i => !i.isHidden?.()))" class="w-px h-4 bg-gray-200 dark:bg-gray-700 mx-1.5 flex-shrink-0"></div>
-      </template>
+      </div>
+    </div>
+    
+    <!-- AskAI Prompt Box -->
+    <div
+      v-if="showAskAIPrompt"
+      class="px-4 py-3 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700"
+    >
+      <div class="flex items-start gap-2">
+        <div class="flex-1">
+          <input
+            v-model="askAIPrompt"
+            type="text"
+            placeholder="Ask AI to modify your note (e.g., 'Make this more concise', 'Add bullet points', 'Rewrite in a professional tone')"
+            class="ask-ai-input w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500 dark:focus:ring-purple-400"
+            @keyup.enter="submitAskAI"
+            @keyup.escape="cancelAskAI"
+          />
+        </div>
+        <div class="flex items-center gap-2">
+          <button
+            @click="submitAskAI"
+            :disabled="!askAIPrompt.trim() || isAskingAI"
+            class="px-4 py-2 text-sm font-medium text-white bg-purple-600 dark:bg-purple-500 rounded-md hover:bg-purple-700 dark:hover:bg-purple-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+          >
+            <UIcon 
+              v-if="isAskingAI" 
+              name="i-heroicons-arrow-path" 
+              class="w-4 h-4 animate-spin" 
+            />
+            <span v-else>Send</span>
+          </button>
+          <button
+            @click="cancelAskAI"
+            :disabled="isAskingAI"
+            class="px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 rounded-md hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 </template>

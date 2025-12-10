@@ -17,3 +17,5 @@ CREATE TABLE IF NOT EXISTS files (
   INDEX idx_user_folder (user_id, folder_path)
 );
 
+
+

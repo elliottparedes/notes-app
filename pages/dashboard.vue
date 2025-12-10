@@ -1009,6 +1009,55 @@ async function polishNote() {
   }
 }
 
+// Ask AI to modify note
+const isAskingAI = ref(false);
+async function askAINote(prompt: string) {
+  if (!activeNote.value) return;
+  
+  if (!prompt || !prompt.trim()) {
+    return;
+  }
+
+  isAskingAI.value = true;
+
+  try {
+    const authStore = useAuthStore();
+    if (!authStore.token) {
+      toast.error('Not authenticated');
+      return;
+    }
+
+    const response = await $fetch<{ content: string }>('/api/notes/ask-ai', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${authStore.token}`
+      },
+      body: {
+        title: activeNote.value.title || 'Untitled Note',
+        content: activeNote.value.content || '',
+        prompt: prompt
+      }
+    });
+
+    // Update the note with the AI-modified content
+    if (activeNote.value) {
+      activeNote.value.content = response.content;
+      
+      // Save the changes
+      await notesStore.updateNote(activeNote.value.id, {
+        content: response.content
+      });
+    }
+
+    toast.success('Note updated! ✨');
+  } catch (error: any) {
+    console.error('AskAI error:', error);
+    toast.error(error.data?.message || 'Failed to process AI request');
+  } finally {
+    isAskingAI.value = false;
+  }
+}
+
 // Logout handler
 async function handleLogout() {
   try {
@@ -1861,8 +1910,10 @@ function handleNoteListResizeStart(e: MouseEvent) {
             :editable="true"
             :initial-content="activeNote.content"
             :is-polishing="isPolishing"
+            :is-asking-a-i="isAskingAI"
             :search-query="searchQueryForHighlight"
             @request-polish="polishNote"
+            @request-ask-ai="askAINote"
           />
         </div>
       </template>

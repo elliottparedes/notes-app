@@ -670,6 +670,7 @@ const props = defineProps<{
   noteId?: string;
   isCollaborative?: boolean;
   isPolishing?: boolean;
+  isAskingAI?: boolean;
   searchQuery?: string | null; // Search query to highlight matches
   // Optional callback for when attachment is uploaded
   onAttachmentUpload?: (attachment: any) => void;
@@ -681,11 +682,17 @@ const emit = defineEmits<{
   (e: 'attachment-uploaded', attachment: any): void;
   (e: 'attachmentUploaded', attachment: any): void;
   (e: 'request-polish'): void;
+  (e: 'request-ask-ai', prompt: string): void;
 }>();
 
 function handlePolish() {
   console.log('[UnifiedEditor] Polish event received from toolbar, emitting request-polish to parent');
   emit('request-polish');
+}
+
+function handleAskAI(prompt: string) {
+  console.log('[UnifiedEditor] AskAI event received from toolbar, emitting request-ask-ai to parent');
+  emit('request-ask-ai', prompt);
 }
 
 // Editor state
@@ -1361,11 +1368,13 @@ async function uploadFiles(files: File[]) {
       v-if="editor"
       :editor="editor" 
       :is-polishing="isPolishing"
+      :is-asking-a-i="isAskingAI"
       @insert-link="setLink" 
       @insert-image="addImage" 
       @insert-youtube="addYouTube"
       @insert-table="editor?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()"
       @polish="handlePolish"
+      @ask-ai="handleAskAI"
     />
 
     <!-- Connection status indicator (only for collaborative notes) -->
