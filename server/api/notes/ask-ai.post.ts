@@ -63,7 +63,7 @@ Return ONLY a JSON object in this exact format:
 
 Do not include any markdown formatting. Use HTML tags only.`;
 
-    // Call OpenRouter API with Gemini 3 Pro Preview
+    // Call OpenRouter API with Claude Haiku 4.5 (fast and reliable)
     const response = await $fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -73,7 +73,7 @@ Do not include any markdown formatting. Use HTML tags only.`;
         'X-Title': 'Markdown Notes App'
       },
       body: {
-        model: 'google/gemini-3-pro-preview',
+        model: 'anthropic/claude-haiku-4.5',
         messages: [
           {
             role: 'system',
