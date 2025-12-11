@@ -493,7 +493,7 @@ function processInlineMarkdown(text: string): string {
   processed = processed.replace(/`([^`]+)`/g, '<code>$1</code>')
   
   // Links [text](url)
-  processed = processed.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>')
+  processed = processed.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>')
   
   return processed
 }
@@ -836,9 +836,11 @@ const baseExtensions = [
   HardBreak,
   HorizontalRule,
   Link.configure({
-    openOnClick: false, // We'll handle click manually if needed, but false is safer for editing
+    openOnClick: true,
     HTMLAttributes: {
-      class: 'text-primary-600 dark:text-primary-400 hover:underline cursor-pointer'
+      class: 'text-primary-600 dark:text-primary-400 hover:underline cursor-pointer',
+      target: '_blank',
+      rel: 'noopener noreferrer'
     }
   }),
   Underline,

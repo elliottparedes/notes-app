@@ -1,15 +1,26 @@
 <script setup lang="ts">
 import { NodeViewWrapper, nodeViewProps } from '@tiptap/vue-3'
-import { computed, ref, onUnmounted } from 'vue'
+import { computed, ref, onMounted, onUnmounted } from 'vue'
 
 const props = defineProps(nodeViewProps)
 
 const startX = ref(0)
 const startWidth = ref(0)
 const isResizing = ref(false)
+const isFocused = ref(false)
 
 const src = computed(() => props.node.attrs.src)
 const width = computed(() => props.node.attrs.width)
+
+const updateFocus = () => {
+  isFocused.value = props.editor.isFocused
+}
+
+onMounted(() => {
+  isFocused.value = props.editor.isFocused
+  props.editor.on('focus', updateFocus)
+  props.editor.on('blur', updateFocus)
+})
 
 const onMouseDown = (event: MouseEvent) => {
   event.preventDefault()
@@ -50,6 +61,8 @@ const onMouseUp = () => {
 
 // Cleanup just in case
 onUnmounted(() => {
+  props.editor.off('focus', updateFocus)
+  props.editor.off('blur', updateFocus)
   document.removeEventListener('mousemove', onMouseMove)
   document.removeEventListener('mouseup', onMouseUp)
 })
@@ -63,7 +76,7 @@ onUnmounted(() => {
       :title="node.attrs.title"
       :style="{ width: typeof width === 'number' ? width + 'px' : width }"
       class="rounded-lg h-auto block transition-shadow duration-200"
-      :class="{ 'ring-4 ring-primary-500': props.selected }"
+      :class="{ 'ring-4 ring-primary-500': props.selected && (isFocused || isResizing) }"
     />
     <div
       class="resize-handle absolute bottom-2 right-2 w-3 h-3 bg-white border border-gray-400 rounded-sm cursor-nwse-resize z-10 shadow-sm hover:bg-primary-500 hover:border-primary-500 transition-colors"
