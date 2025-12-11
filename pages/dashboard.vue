@@ -209,6 +209,55 @@ const noteListRef = ref<HTMLElement | null>(null);
 const noteSortableInstance = ref<Sortable | null>(null);
 const isDraggingSpace = ref(false);
 
+// Scroll detection for notebooks
+const canScrollDown = ref(false);
+let resizeObserver: ResizeObserver | null = null;
+
+function checkScrollPosition() {
+  if (!spacesListRef.value) {
+    canScrollDown.value = false;
+    return;
+  }
+  
+  const element = spacesListRef.value;
+  const isScrollable = element.scrollHeight > element.clientHeight;
+  const isAtBottom = element.scrollHeight - element.scrollTop <= element.clientHeight + 1; // 1px threshold
+  
+  canScrollDown.value = isScrollable && !isAtBottom;
+}
+
+function handleNotebooksScroll() {
+  checkScrollPosition();
+}
+
+function setupScrollDetection() {
+  if (!spacesListRef.value || !process.client) return;
+  
+  // Add scroll listener
+  spacesListRef.value.addEventListener('scroll', handleNotebooksScroll);
+  
+  // Set up ResizeObserver to check when container size changes
+  if (typeof ResizeObserver !== 'undefined') {
+    resizeObserver = new ResizeObserver(() => {
+      checkScrollPosition();
+    });
+    resizeObserver.observe(spacesListRef.value);
+  }
+  
+  // Initial check
+  checkScrollPosition();
+}
+
+function cleanupScrollDetection() {
+  if (spacesListRef.value) {
+    spacesListRef.value.removeEventListener('scroll', handleNotebooksScroll);
+  }
+  if (resizeObserver) {
+    resizeObserver.disconnect();
+    resizeObserver = null;
+  }
+}
+
 // Mobile bottom sheet state (Spaces / Folder notes)
 const sheetTranslateY = ref(0);
 const isDraggingSheet = ref(false);
@@ -475,9 +524,20 @@ watch(() => [spacesStore.spaces.length, hasInitialized.value], () => {
     nextTick(() => {
       initSortables();
       initNoteSortable();
+      checkScrollPosition(); // Recheck scroll position when spaces change
     });
   }
 });
+
+// Watch for spacesListRef to become available and set up scroll detection
+watch(spacesListRef, (newRef, oldRef) => {
+  if (oldRef) {
+    cleanupScrollDetection();
+  }
+  if (newRef) {
+    setupScrollDetection();
+  }
+}, { immediate: true });
 
 // Watch for folder selection change to init note sortable
 watch(() => selectedFolderId.value, () => {
@@ -1283,6 +1343,7 @@ onMounted(async () => {
   nextTick(() => {
     initSortables();
     initNoteSortable();
+    setupScrollDetection();
   });
   
   // Add keyboard shortcut listener
@@ -1293,6 +1354,7 @@ onUnmounted(() => {
   if (titleSaveTimeout) clearTimeout(titleSaveTimeout);
   if (contentSaveTimeout) clearTimeout(contentSaveTimeout);
   window.removeEventListener('keydown', handleGlobalKeydown);
+  cleanupScrollDetection();
 });
 
 // Focus mode (hide sidebars for distraction-free editing)
@@ -2374,60 +2436,72 @@ function handleNoteListResizeStart(e: MouseEvent) {
 </template>
 
 <style scoped>
-/* Elegant thin scrollbars for notebooks and notes lists */
-.notebooks-scroll::-webkit-scrollbar,
+/* Hide scrollbar completely for notebooks */
+.notebooks-scroll {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
+}
+
+.notebooks-scroll::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
+}
+
+/* Elegant thin scrollbars for notes lists */
 .notes-scroll::-webkit-scrollbar {
   width: 2px;
   height: 2px;
 }
 
-.notebooks-scroll::-webkit-scrollbar-track,
 .notes-scroll::-webkit-scrollbar-track {
   background: transparent;
 }
 
-.notebooks-scroll::-webkit-scrollbar-thumb,
+/* Regular scrollbar for notes list */
 .notes-scroll::-webkit-scrollbar-thumb {
   background: rgba(0, 0, 0, 0.12);
   border-radius: 10px;
   transition: background 0.3s cubic-bezier(0.4, 0, 0.2, 1), width 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.notebooks-scroll::-webkit-scrollbar-thumb:hover,
 .notes-scroll::-webkit-scrollbar-thumb:hover {
   background: rgba(0, 0, 0, 0.22);
   width: 3px;
 }
 
-.notebooks-scroll::-webkit-scrollbar-thumb:active,
 .notes-scroll::-webkit-scrollbar-thumb:active {
   background: rgba(0, 0, 0, 0.3);
 }
 
-/* Dark mode scrollbars */
-.dark .notebooks-scroll::-webkit-scrollbar-thumb,
+/* Fade transition for scroll indicator */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
 .dark .notes-scroll::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.12);
 }
 
-.dark .notebooks-scroll::-webkit-scrollbar-thumb:hover,
 .dark .notes-scroll::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.22);
 }
 
-.dark .notebooks-scroll::-webkit-scrollbar-thumb:active,
 .dark .notes-scroll::-webkit-scrollbar-thumb:active {
   background: rgba(255, 255, 255, 0.3);
 }
 
-/* Firefox scrollbar styling */
-.notebooks-scroll,
+
 .notes-scroll {
   scrollbar-width: thin;
   scrollbar-color: rgba(0, 0, 0, 0.12) transparent;
 }
 
-.dark .notebooks-scroll,
+
 .dark .notes-scroll {
   scrollbar-color: rgba(255, 255, 255, 0.12) transparent;
 }
