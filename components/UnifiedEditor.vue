@@ -33,6 +33,7 @@ import History from '@tiptap/extension-history'
 import { Extension, Mark } from '@tiptap/core'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 import { TextSelection } from '@tiptap/pm/state'
+import { Decoration, DecorationSet } from '@tiptap/pm/view'
 import { WebsocketProvider } from 'y-websocket'
 import * as Y from 'yjs'
 import ydocManager from '~/utils/ydocManager.client'
@@ -129,6 +130,79 @@ const UserHighlight = Mark.create({
       }),
     ]
   },
+})
+
+// Custom extension for search highlighting using Decorations (non-persistent)
+const searchHighlightPluginKey = new PluginKey('searchHighlight')
+
+const SearchHighlight = Extension.create({
+  name: 'searchHighlight',
+
+  addCommands() {
+    return {
+      setSearchHighlight: (query: string | null) => ({ tr, dispatch }) => {
+        if (dispatch) {
+          tr.setMeta(searchHighlightPluginKey, query)
+        }
+        return true
+      },
+    }
+  },
+
+  addProseMirrorPlugins() {
+    return [
+      new Plugin({
+        key: searchHighlightPluginKey,
+        state: {
+          init() {
+            return DecorationSet.empty
+          },
+          apply(tr, oldSet) {
+            // Check if we have a new query
+            const query = tr.getMeta(searchHighlightPluginKey)
+            
+            // If query is explicitly set (string or null), recompute
+            if (query !== undefined) {
+              if (!query) return DecorationSet.empty
+              
+              const decorations: Decoration[] = []
+              const searchQuery = query.trim()
+              if (!searchQuery) return DecorationSet.empty
+              
+              const regex = new RegExp(searchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi')
+              
+              tr.doc.descendants((node, pos) => {
+                if (node.isText) {
+                  const text = node.text || ''
+                  let match
+                  while ((match = regex.exec(text)) !== null) {
+                    decorations.push(
+                      Decoration.inline(pos + match.index, pos + match.index + match[0].length, {
+                         style: 'background-color: rgba(250, 204, 21, 0.4); border-radius: 2px; box-shadow: 0 0 0 1px rgba(250, 204, 21, 0.4); color: black;' 
+                      })
+                    )
+                  }
+                }
+              })
+              return DecorationSet.create(tr.doc, decorations)
+            }
+            
+            // If document changed, map decorations
+            if (tr.docChanged) {
+              return oldSet.map(tr.mapping, tr.doc)
+            }
+            
+            return oldSet
+          }
+        },
+        props: {
+          decorations(state) {
+            return this.getState(state)
+          }
+        }
+      })
+    ]
+  }
 })
 
 // Custom TaskItem extension that applies strike formatting when checked
@@ -811,6 +885,7 @@ const baseExtensions = [
   Gapcursor,
   TableExit,
   MarkdownPaste,
+  SearchHighlight,
   Placeholder.configure({
     placeholder: props.placeholder || 'Start writing...'
   }),
@@ -850,6 +925,9 @@ const editor = useEditor({
   onCreate: ({ editor }) => {
     // Scroll to first match when editor is created if search query exists
     if (props.searchQuery) {
+      // Set highlighting
+      (editor.commands as any).setSearchHighlight(props.searchQuery)
+      
       nextTick(() => {
         scrollToFirstMatch(props.searchQuery)
       })
@@ -935,31 +1013,65 @@ function scrollToFirstMatch(query: string | null, noteId?: string) {
     return // Already scrolled for this combination, don't scroll again
   }
   
-  let firstMatchPos: number | null = null
+  let matchRange: { from: number; to: number } | null = null
   
   // Find first match position
-  editor.value.state.doc.descendants((node, pos) => {
-    if (node.isText && firstMatchPos === null) {
-      const text = node.text
-      const regex = new RegExp(searchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi')
-      const match = regex.exec(text)
-      
-      if (match) {
-        firstMatchPos = pos + match.index
+  try {
+    editor.value.state.doc.descendants((node, pos) => {
+      if (node.isText && matchRange === null) {
+        const text = node.text || ''
+        const regex = new RegExp(searchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi')
+        const match = regex.exec(text)
+        
+        if (match) {
+          matchRange = {
+            from: pos + match.index,
+            to: pos + match.index + match[0].length
+          }
+          return false // Stop searching
+        }
       }
-    }
-  })
+      return true
+    })
+  } catch (e) {
+    console.warn('Error searching in doc:', e)
+  }
   
-  // Scroll to first match after a short delay to ensure DOM is updated
-  if (firstMatchPos !== null) {
+  // Scroll to first match
+  if (matchRange) {
+    // 1. Highlight the text using decoration (briefly, managed by props or manually set here)
+    if (editor.value) {
+       (editor.value.commands as any).setSearchHighlight(searchQuery)
+    }
+    
+    // 2. Scroll into view (Manual calculation for reliability)
     setTimeout(() => {
       try {
-        const coords = editor.value!.view.coordsAtPos(firstMatchPos!)
-        const editorEl = editor.value!.view.dom.closest('.prose') || editor.value!.view.dom.parentElement
-        if (editorEl && editorEl instanceof HTMLElement) {
-          editorEl.scrollIntoView({ behavior: 'smooth', block: 'center' })
-          // Mark that we've scrolled for this note + query combination
+        const view = editor.value?.view
+        if (!view) return
+        
+        // Get coordinates of the selection/match (start position)
+        const coords = view.coordsAtPos(matchRange!.from)
+        const container = editorContainer.value
+        
+        if (container && coords) {
+          const containerRect = container.getBoundingClientRect()
+          // Calculate relative position within the scrolling container
+          const relativeTop = coords.top - containerRect.top + container.scrollTop
+          
+          // Center the match in the container
+          const scrollTo = relativeTop - (container.clientHeight / 2)
+          
+          container.scrollTo({ 
+            top: Math.max(0, scrollTo), 
+            behavior: 'smooth' 
+          })
+          
+          // Mark as scrolled
           hasScrolledForSearch.value = { noteId: currentNoteId, query: searchQuery }
+        } else {
+          // Fallback to Tiptap native
+          editor.value?.commands.scrollIntoView()
         }
       } catch (e) {
         // Ignore scroll errors
@@ -978,16 +1090,21 @@ watch(() => props.noteId, (newNoteId) => {
 
 // Watch for search query changes and scroll to first match (only once)
 watch(() => props.searchQuery, (newQuery) => {
-  if (editor.value && newQuery) {
-    const currentNoteId = props.noteId || ''
-    // Only scroll if we haven't scrolled for this note + query yet
-    if (hasScrolledForSearch.value?.noteId !== currentNoteId || 
-        hasScrolledForSearch.value?.query !== newQuery.trim()) {
-      nextTick(() => {
-        setTimeout(() => {
-          scrollToFirstMatch(newQuery, currentNoteId)
-        }, 300)
-      })
+  if (editor.value) {
+    // Always update highlight when query changes
+    (editor.value.commands as any).setSearchHighlight(newQuery)
+    
+    if (newQuery) {
+      const currentNoteId = props.noteId || ''
+      // Only scroll if we haven't scrolled for this note + query yet
+      if (hasScrolledForSearch.value?.noteId !== currentNoteId || 
+          hasScrolledForSearch.value?.query !== newQuery.trim()) {
+        nextTick(() => {
+          setTimeout(() => {
+            scrollToFirstMatch(newQuery, currentNoteId)
+          }, 300)
+        })
+      }
     }
   }
 }, { immediate: true })
@@ -995,6 +1112,9 @@ watch(() => props.searchQuery, (newQuery) => {
 // Also watch for when editor becomes available and we have a search query
 watch(editor, (editorInstance) => {
   if (editorInstance && props.searchQuery) {
+    // Set highlight
+    (editorInstance.commands as any).setSearchHighlight(props.searchQuery)
+    
     const currentNoteId = props.noteId || ''
     // Only scroll if we haven't scrolled for this note + query yet
     if (hasScrolledForSearch.value?.noteId !== currentNoteId || 
