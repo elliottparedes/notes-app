@@ -838,7 +838,7 @@ const baseExtensions = [
   Link.configure({
     openOnClick: true,
     HTMLAttributes: {
-      class: 'text-primary-600 dark:text-primary-400 hover:underline cursor-pointer',
+      class: 'text-blue-600 dark:text-blue-400 hover:underline cursor-pointer',
       target: '_blank',
       rel: 'noopener noreferrer'
     }
@@ -1600,10 +1600,29 @@ async function uploadFiles(files: File[]) {
             <div class="flex min-h-full items-center justify-center p-4">
               <div class="relative bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 shadow-lg max-w-md w-full p-5" @click.stop>
                 <h3 class="text-base font-semibold mb-3 text-gray-900 dark:text-white">Insert Link</h3>
-                <UInput v-model="linkUrl" placeholder="https://example.com" class="mb-3" size="md" autofocus @keyup.enter="confirmLink" />
+                <input
+                  v-model="linkUrl"
+                  type="text"
+                  placeholder="https://example.com"
+                  class="mb-3 w-full px-3 py-2 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-sm text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all"
+                  autofocus
+                  @keyup.enter="confirmLink"
+                />
                 <div class="grid grid-cols-2 gap-2">
-                  <UButton color="gray" variant="soft" block size="sm" @click="cancelLink" :ui="{ rounded: 'rounded-none' }">Cancel</UButton>
-                  <UButton color="blue" block size="sm" @click="confirmLink" :ui="{ rounded: 'rounded-none' }">Insert</UButton>
+                  <button
+                    type="button"
+                    @click="cancelLink"
+                    class="px-3 py-2 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-sm font-normal border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 active:bg-gray-100 dark:active:bg-gray-600 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    @click="confirmLink"
+                    class="px-3 py-2 bg-blue-600 dark:bg-blue-500 text-white text-sm font-normal border border-blue-700 dark:border-blue-600 hover:bg-blue-700 dark:hover:bg-blue-600 active:bg-blue-800 dark:active:bg-blue-700 transition-colors"
+                  >
+                    Insert
+                  </button>
                 </div>
               </div>
             </div>
@@ -1624,10 +1643,29 @@ async function uploadFiles(files: File[]) {
             <div class="flex min-h-full items-center justify-center p-4">
               <div class="relative bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 shadow-lg max-w-md w-full p-5" @click.stop>
                 <h3 class="text-base font-semibold mb-3 text-gray-900 dark:text-white">Insert Image</h3>
-                <UInput v-model="imageUrl" placeholder="https://example.com/image.jpg" class="mb-3" size="md" autofocus @keyup.enter="confirmImage" />
+                <input
+                  v-model="imageUrl"
+                  type="text"
+                  placeholder="https://example.com/image.jpg"
+                  class="mb-3 w-full px-3 py-2 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-sm text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all"
+                  autofocus
+                  @keyup.enter="confirmImage"
+                />
                 <div class="grid grid-cols-2 gap-2">
-                  <UButton color="gray" variant="soft" block size="sm" @click="cancelImage" :ui="{ rounded: 'rounded-none' }">Cancel</UButton>
-                  <UButton color="blue" block size="sm" @click="confirmImage" :ui="{ rounded: 'rounded-none' }">Insert</UButton>
+                  <button
+                    type="button"
+                    @click="cancelImage"
+                    class="px-3 py-2 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-sm font-normal border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 active:bg-gray-100 dark:active:bg-gray-600 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    @click="confirmImage"
+                    class="px-3 py-2 bg-blue-600 dark:bg-blue-500 text-white text-sm font-normal border border-blue-700 dark:border-blue-600 hover:bg-blue-700 dark:hover:bg-blue-600 active:bg-blue-800 dark:active:bg-blue-700 transition-colors"
+                  >
+                    Insert
+                  </button>
                 </div>
               </div>
             </div>
@@ -1648,10 +1686,29 @@ async function uploadFiles(files: File[]) {
             <div class="flex min-h-full items-center justify-center p-4">
               <div class="relative bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 shadow-lg max-w-md w-full p-5" @click.stop>
                 <h3 class="text-base font-semibold mb-3 text-gray-900 dark:text-white">Insert YouTube Video</h3>
-                <UInput v-model="youtubeUrl" placeholder="https://youtube.com/watch?v=..." class="mb-3" size="md" autofocus @keyup.enter="confirmYouTube" />
+                <input
+                  v-model="youtubeUrl"
+                  type="text"
+                  placeholder="https://youtube.com/watch?v=..."
+                  class="mb-3 w-full px-3 py-2 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-sm text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all"
+                  autofocus
+                  @keyup.enter="confirmYouTube"
+                />
                 <div class="grid grid-cols-2 gap-2">
-                  <UButton color="gray" variant="soft" block size="sm" @click="cancelYouTube" :ui="{ rounded: 'rounded-none' }">Cancel</UButton>
-                  <UButton color="blue" block size="sm" @click="confirmYouTube" :ui="{ rounded: 'rounded-none' }">Insert</UButton>
+                  <button
+                    type="button"
+                    @click="cancelYouTube"
+                    class="px-3 py-2 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-sm font-normal border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 active:bg-gray-100 dark:active:bg-gray-600 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    @click="confirmYouTube"
+                    class="px-3 py-2 bg-blue-600 dark:bg-blue-500 text-white text-sm font-normal border border-blue-700 dark:border-blue-600 hover:bg-blue-700 dark:hover:bg-blue-600 active:bg-blue-800 dark:active:bg-blue-700 transition-colors"
+                  >
+                    Insert
+                  </button>
                 </div>
               </div>
             </div>
@@ -1667,6 +1724,28 @@ async function uploadFiles(files: File[]) {
 .unified-editor :deep(.ProseMirror),
 .collaborative-editor :deep(.ProseMirror) {
   outline: none !important;
+}
+
+/* Link colors - corporate blue */
+.unified-editor :deep(.ProseMirror a),
+.collaborative-editor :deep(.ProseMirror a) {
+  color: #2563eb !important; /* blue-600 */
+  text-decoration: underline;
+}
+
+.unified-editor :deep(.ProseMirror a:hover),
+.collaborative-editor :deep(.ProseMirror a:hover) {
+  color: #1d4ed8 !important; /* blue-700 */
+}
+
+.dark .unified-editor :deep(.ProseMirror a),
+.dark .collaborative-editor :deep(.ProseMirror a) {
+  color: #60a5fa !important; /* blue-400 */
+}
+
+.dark .unified-editor :deep(.ProseMirror a:hover),
+.dark .collaborative-editor :deep(.ProseMirror a:hover) {
+  color: #93c5fd !important; /* blue-300 */
 }
 
 /* Styles moved to global css or scoped here if needed, mostly covered by Tailwind classes in editorProps */

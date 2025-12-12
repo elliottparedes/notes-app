@@ -1543,7 +1543,11 @@ function handleNoteListResizeStart(e: MouseEvent) {
           <div 
             v-else
             class="space-item-header group/space relative flex items-center gap-1 transition-colors hover:bg-gray-100 dark:hover:bg-gray-800 active:bg-gray-200 dark:active:bg-gray-700 overflow-hidden min-w-0"
-            :class="{ 'bg-blue-50 dark:bg-blue-900/20': expandedSpaceIds.has(space.id) }"
+            :class="{ 
+              // Subtle gray highlight when expanded but no folder is selected (or selected folder is in different notebook)
+              'bg-gray-100/50 dark:bg-gray-800/50': expandedSpaceIds.has(space.id) && 
+                (!selectedFolderId || foldersStore.getFolderById(selectedFolderId)?.space_id !== space.id)
+            }"
           >
             <button 
               @click="handleSelectSpace(space.id)"
@@ -2271,37 +2275,39 @@ function handleNoteListResizeStart(e: MouseEvent) {
                 leave-to-class="opacity-0 scale-95 translate-y-4"
               >
                 <div 
-                  class="relative bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-sm w-full p-5"
+                  class="relative bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 shadow-lg max-w-sm w-full p-5"
                   @click.stop
                 >
                   <h3 class="text-base font-semibold mb-3 text-gray-900 dark:text-white">Create New Section</h3>
-                  <UInput
+                  <input
                     v-model="newFolderName"
+                    type="text"
                     placeholder="Section Name"
-                    class="mb-3"
-                    size="md"
+                    class="mb-3 w-full px-3 py-2 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-sm text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all"
                     autofocus
                     @keyup.enter="handleCreateFolder"
                   />
                   <div class="grid grid-cols-2 gap-2 pt-2">
-                    <UButton
-                      color="neutral"
-                      variant="soft"
-                      block
-                      size="md"
+                    <button
+                      type="button"
                       @click="showCreateFolderModal = false"
+                      class="px-3 py-2 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-sm font-normal border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 active:bg-gray-100 dark:active:bg-gray-600 transition-colors"
                     >
                       Cancel
-                    </UButton>
-                    <UButton
-                      color="primary"
-                      block
-                      size="md"
-                      :loading="isCreatingFolder"
+                    </button>
+                    <button
+                      type="button"
                       @click="handleCreateFolder"
+                      :disabled="isCreatingFolder"
+                      class="px-3 py-2 bg-blue-600 dark:bg-blue-500 text-white text-sm font-normal border border-blue-700 dark:border-blue-600 hover:bg-blue-700 dark:hover:bg-blue-600 active:bg-blue-800 dark:active:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
                     >
-                      Create
-                    </UButton>
+                      <UIcon 
+                        v-if="isCreatingFolder" 
+                        name="i-heroicons-arrow-path" 
+                        class="w-4 h-4 animate-spin" 
+                      />
+                      <span>Create</span>
+                    </button>
                   </div>
                 </div>
               </Transition>
@@ -2404,25 +2410,32 @@ function handleNoteListResizeStart(e: MouseEvent) {
 
                   <!-- Action Buttons -->
                   <div class="flex gap-2">
-                    <UButton
-                      color="neutral"
-                      variant="soft"
-                      block
+                    <button
+                      type="button"
                       @click="cancelDeleteSpace"
                       :disabled="isDeletingSpace"
+                      class="flex-1 px-3 py-2 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-sm font-normal border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 active:bg-gray-100 dark:active:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                     >
                       Cancel
-                    </UButton>
-                    <UButton
-                      color="error"
-                      block
+                    </button>
+                    <button
+                      type="button"
                       @click="confirmDeleteSpace"
-                      :loading="isDeletingSpace"
                       :disabled="isDeletingSpace"
+                      class="flex-1 px-3 py-2 bg-red-600 dark:bg-red-500 text-white text-sm font-normal border border-red-700 dark:border-red-600 hover:bg-red-700 dark:hover:bg-red-600 active:bg-red-800 dark:active:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
                     >
-                      <UIcon name="i-heroicons-trash" class="w-4 h-4 mr-2" />
-                      Delete Forever
-                    </UButton>
+                      <UIcon 
+                        v-if="isDeletingSpace" 
+                        name="i-heroicons-arrow-path" 
+                        class="w-4 h-4 animate-spin" 
+                      />
+                      <UIcon 
+                        v-else
+                        name="i-heroicons-trash" 
+                        class="w-4 h-4" 
+                      />
+                      <span>Delete Forever</span>
+                    </button>
                   </div>
                 </div>
               </Transition>

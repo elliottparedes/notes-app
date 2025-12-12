@@ -1552,33 +1552,33 @@ onMounted(() => {
             <div class="fixed inset-0 bg-black/50"></div>
             <div class="flex min-h-full items-center justify-center p-4">
               <div
-                class="relative bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-sm w-full p-6"
+                class="relative bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 shadow-lg max-w-sm w-full p-5"
                 @click.stop
               >
-                <h3 class="text-lg font-semibold mb-4">New Folder</h3>
-                <UInput
+                <h3 class="text-base font-semibold mb-3 text-gray-900 dark:text-white">New Folder</h3>
+                <input
                   v-model="newFolderName"
+                  type="text"
                   placeholder="Folder name"
-                  class="mb-4 w-full"
+                  class="mb-3 w-full px-3 py-2 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-sm text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all"
                   autofocus
                   @keyup.enter="createFolder"
                 />
                 <div class="flex gap-2">
-                  <UButton
-                    variant="soft"
-                    block
+                  <button
+                    type="button"
                     @click="showCreateFolderModal = false"
+                    class="flex-1 px-3 py-2 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-sm font-normal border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 active:bg-gray-100 dark:active:bg-gray-600 transition-colors"
                   >
                     Cancel
-                  </UButton>
-                  <UButton
-                    color="blue"
-                    block
+                  </button>
+                  <button
+                    type="button"
                     @click="createFolder"
-                    :ui="{ rounded: 'rounded-none' }"
+                    class="flex-1 px-3 py-2 bg-blue-600 dark:bg-blue-500 text-white text-sm font-normal border border-blue-700 dark:border-blue-600 hover:bg-blue-700 dark:hover:bg-blue-600 active:bg-blue-800 dark:active:bg-blue-700 transition-colors"
                   >
                     Create
-                  </UButton>
+                  </button>
                 </div>
               </div>
             </div>
@@ -1606,27 +1606,27 @@ onMounted(() => {
             <div class="fixed inset-0 bg-black/50"></div>
             <div class="flex min-h-full items-center justify-center p-4">
               <div
-                class="relative bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-md w-full p-6 border border-red-200 dark:border-red-900"
+                class="relative bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 shadow-lg max-w-md w-full p-5"
                 @click.stop
               >
                 <!-- Header -->
-                <div class="flex items-center gap-3 mb-4">
-                  <div class="flex-shrink-0 w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
-                    <UIcon name="i-heroicons-exclamation-triangle" class="w-5 h-5 text-red-600 dark:text-red-400" />
+                <div class="flex items-center gap-3 mb-3">
+                  <div class="flex-shrink-0 w-8 h-8 bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
+                    <UIcon name="i-heroicons-exclamation-triangle" class="w-4 h-4 text-red-600 dark:text-red-400" />
                   </div>
                   <div class="flex-1">
-                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
+                    <h3 class="text-base font-semibold text-gray-900 dark:text-white">
                       Delete Folder
                     </h3>
-                    <p class="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                       This action cannot be undone
                     </p>
                   </div>
                 </div>
 
                 <!-- Warning Content -->
-                <div class="mb-6">
-                  <div class="bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800 rounded-lg p-4 mb-4">
+                <div class="mb-4">
+                  <div class="bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800 p-3 mb-3">
                     <p class="text-sm font-medium text-red-800 dark:text-red-300 mb-2">
                       ⚠️ Warning: Permanent Deletion
                     </p>
@@ -1648,21 +1648,21 @@ onMounted(() => {
 
                 <!-- Action Buttons -->
                 <div class="flex gap-2">
-                  <UButton
-                    variant="soft"
-                    block
+                  <button
+                    type="button"
                     @click="cancelDeleteFolder"
+                    class="flex-1 px-3 py-2 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-sm font-normal border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 active:bg-gray-100 dark:active:bg-gray-600 transition-colors"
                   >
                     Cancel
-                  </UButton>
-                  <UButton
-                    color="error"
-                    block
+                  </button>
+                  <button
+                    type="button"
                     @click="confirmDeleteFolder"
+                    class="flex-1 px-3 py-2 bg-red-600 dark:bg-red-500 text-white text-sm font-normal border border-red-700 dark:border-red-600 hover:bg-red-700 dark:hover:bg-red-600 active:bg-red-800 dark:active:bg-red-700 transition-colors flex items-center justify-center gap-2"
                   >
-                    <UIcon name="i-heroicons-trash" class="w-4 h-4 mr-2" />
+                    <UIcon name="i-heroicons-trash" class="w-4 h-4" />
                     Delete Forever
-                  </UButton>
+                  </button>
                 </div>
               </div>
             </div>
@@ -1690,27 +1690,27 @@ onMounted(() => {
             <div class="fixed inset-0 bg-black/50"></div>
             <div class="flex min-h-full items-center justify-center p-4">
               <div
-                class="relative bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-md w-full p-6 border border-red-200 dark:border-red-900"
+                class="relative bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 shadow-lg max-w-md w-full p-5"
                 @click.stop
               >
                 <!-- Header -->
-                <div class="flex items-center gap-3 mb-4">
-                  <div class="flex-shrink-0 w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
-                    <UIcon name="i-heroicons-exclamation-triangle" class="w-5 h-5 text-red-600 dark:text-red-400" />
+                <div class="flex items-center gap-3 mb-3">
+                  <div class="flex-shrink-0 w-8 h-8 bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
+                    <UIcon name="i-heroicons-exclamation-triangle" class="w-4 h-4 text-red-600 dark:text-red-400" />
                   </div>
                   <div class="flex-1">
-                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
+                    <h3 class="text-base font-semibold text-gray-900 dark:text-white">
                       Delete {{ filesToDelete.length + foldersToDelete.length }} {{ (filesToDelete.length + foldersToDelete.length) === 1 ? 'Item' : 'Items' }}
                     </h3>
-                    <p class="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                       This action cannot be undone
                     </p>
                   </div>
                 </div>
 
                 <!-- Warning Content -->
-                <div class="mb-6">
-                  <div class="bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800 rounded-lg p-4 mb-4">
+                <div class="mb-4">
+                  <div class="bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800 p-3 mb-3">
                     <p class="text-sm font-medium text-red-800 dark:text-red-300 mb-2">
                       ⚠️ Warning: Permanent Deletion
                     </p>
@@ -1732,21 +1732,21 @@ onMounted(() => {
 
                 <!-- Action Buttons -->
                 <div class="flex gap-2">
-                  <UButton
-                    variant="soft"
-                    block
+                  <button
+                    type="button"
                     @click="cancelDeleteFiles"
+                    class="flex-1 px-3 py-2 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-sm font-normal border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 active:bg-gray-100 dark:active:bg-gray-600 transition-colors"
                   >
                     Cancel
-                  </UButton>
-                  <UButton
-                    color="error"
-                    block
+                  </button>
+                  <button
+                    type="button"
                     @click="confirmDeleteFiles"
+                    class="flex-1 px-3 py-2 bg-red-600 dark:bg-red-500 text-white text-sm font-normal border border-red-700 dark:border-red-600 hover:bg-red-700 dark:hover:bg-red-600 active:bg-red-800 dark:active:bg-red-700 transition-colors flex items-center justify-center gap-2"
                   >
-                    <UIcon name="i-heroicons-trash" class="w-4 h-4 mr-2" />
+                    <UIcon name="i-heroicons-trash" class="w-4 h-4" />
                     Delete Forever
-                  </UButton>
+                  </button>
                 </div>
               </div>
             </div>

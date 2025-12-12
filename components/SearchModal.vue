@@ -398,7 +398,7 @@ function highlightText(text: string, query: string): string {
             >
               <div 
                 v-if="modelValue"
-                class="relative bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-2xl w-full overflow-hidden"
+                class="relative bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 shadow-lg max-w-2xl w-full overflow-hidden"
                 @click.stop
               >
                 <!-- Header -->
