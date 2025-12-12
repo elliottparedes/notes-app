@@ -1046,46 +1046,46 @@ onMounted(() => {
     @drop.prevent="handleDrop"
   >
     <!-- Header - Matching Notebooks style -->
-    <div class="h-14 flex items-center justify-between px-4 border-b border-gray-200/50 dark:border-gray-800/50">
+    <div class="h-12 flex items-center justify-between px-3 border-b border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800">
       <div class="flex items-center gap-2 relative">
         <!-- View Switcher Dropdown -->
         <div class="relative" data-view-dropdown>
-          <button
-            @click.stop="showViewDropdown = !showViewDropdown"
-            class="flex items-center gap-1.5 font-semibold text-lg hover:bg-gray-200/50 dark:hover:bg-gray-800/50 px-2 py-1 rounded-md transition-colors"
-          >
-            <span>Storage</span>
-            <UIcon 
-              name="i-heroicons-chevron-down" 
-              class="w-4 h-4 transition-transform"
-              :class="{ 'rotate-180': showViewDropdown }"
-            />
-          </button>
-          
-          <!-- Dropdown Menu -->
-          <Transition
-            enter-active-class="transition-all duration-150 ease"
-            enter-from-class="opacity-0 scale-95 translate-y-(-4px)"
-            enter-to-class="opacity-100 scale-100 translate-y-0"
-            leave-active-class="transition-all duration-150 ease"
-            leave-from-class="opacity-100 scale-100 translate-y-0"
-            leave-to-class="opacity-0 scale-95 translate-y-(-4px)"
-          >
-            <div
-              v-if="showViewDropdown"
-              class="absolute top-full left-0 mt-1 w-48 bg-white/95 dark:bg-gray-800/95 backdrop-blur-xl rounded-xl border border-gray-200/60 dark:border-gray-700/60 shadow-xl py-1.5 z-50"
-              @click.stop
+            <button
+              @click.stop="showViewDropdown = !showViewDropdown"
+              class="flex items-center gap-1.5 font-medium text-sm hover:bg-gray-100 dark:hover:bg-gray-700 px-2 py-1 transition-colors"
             >
+              <span>Storage</span>
+              <UIcon 
+                name="i-heroicons-chevron-down" 
+                class="w-3.5 h-3.5 transition-transform"
+                :class="{ 'rotate-180': showViewDropdown }"
+              />
+            </button>
+            
+            <!-- Dropdown Menu -->
+            <Transition
+              enter-active-class="transition-opacity duration-100"
+              enter-from-class="opacity-0"
+              enter-to-class="opacity-100"
+              leave-active-class="transition-opacity duration-100"
+              leave-from-class="opacity-100"
+              leave-to-class="opacity-0"
+            >
+              <div
+                v-if="showViewDropdown"
+                class="absolute top-full left-0 mt-0.5 w-48 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 shadow-lg py-1 z-50"
+                @click.stop
+              >
               <button
                 @click="viewSwitcher?.switchToNotebooks(); showViewDropdown = false"
-                class="w-full text-left px-4 py-2 text-sm transition-colors text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 flex items-center gap-2"
+                class="w-full text-left px-3 py-1.5 text-sm transition-colors text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
               >
                 <UIcon name="i-heroicons-book-open" class="w-4 h-4" />
                 <span>Notebooks</span>
               </button>
               <button
                 @click="showViewDropdown = false"
-                class="w-full text-left px-4 py-2 text-sm transition-colors bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400 font-medium flex items-center gap-2"
+                class="w-full text-left px-3 py-1.5 text-sm transition-colors bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 font-medium flex items-center gap-2"
               >
                 <UIcon name="i-heroicons-folder" class="w-4 h-4" />
                 <span>Storage</span>
@@ -1098,19 +1098,19 @@ onMounted(() => {
       <!-- Right side actions -->
       <div class="flex items-center gap-2">
         <!-- View mode toggle -->
-        <div class="flex items-center gap-1 p-1 bg-gray-100 dark:bg-gray-800 rounded-lg">
+        <div class="flex items-center gap-0.5 p-0.5 bg-gray-100 dark:bg-gray-800">
           <button
             @click="viewMode = 'grid'"
-            class="p-1.5 rounded transition-colors"
-            :class="viewMode === 'grid' ? 'bg-white dark:bg-gray-700 text-primary-600' : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'"
+            class="p-1.5 transition-colors"
+            :class="viewMode === 'grid' ? 'bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100'"
             title="Grid view"
           >
             <UIcon name="i-heroicons-squares-2x2" class="w-4 h-4" />
           </button>
           <button
             @click="viewMode = 'list'"
-            class="p-1.5 rounded transition-colors"
-            :class="viewMode === 'list' ? 'bg-white dark:bg-gray-700 text-primary-600' : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'"
+            class="p-1.5 transition-colors"
+            :class="viewMode === 'list' ? 'bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100'"
             title="List view"
           >
             <UIcon name="i-heroicons-bars-3" class="w-4 h-4" />
@@ -1120,7 +1120,7 @@ onMounted(() => {
     </div>
 
     <!-- Breadcrumbs and Actions Bar -->
-    <div class="px-4 py-4 border-b border-gray-200/50 dark:border-gray-800/50">
+    <div class="px-3 py-3 border-b border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
       <!-- Breadcrumbs -->
       <div v-if="breadcrumbs.length > 0" class="flex items-center gap-2 mb-4">
         <button
@@ -1158,44 +1158,42 @@ onMounted(() => {
           <button
             v-if="parentFolderPath !== null"
             @click="navigateToFolder(parentFolderPath!)"
-            class="flex items-center justify-center w-9 h-9 rounded-lg transition-all hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 border border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600"
+            class="flex items-center justify-center w-8 h-8 transition-colors hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 border border-gray-300 dark:border-gray-600"
             title="Go back"
           >
-            <UIcon name="i-heroicons-arrow-left" class="w-5 h-5" />
+            <UIcon name="i-heroicons-arrow-left" class="w-4 h-4" />
           </button>
-          <UButton
-            color="primary"
+          <button
             @click="fileInputRef?.click()"
             :disabled="filesStore.storagePercentage >= 100"
+            class="px-3 py-1.5 bg-blue-600 dark:bg-blue-500 text-white text-sm font-normal border border-blue-700 dark:border-blue-600 hover:bg-blue-700 dark:hover:bg-blue-600 active:bg-blue-800 dark:active:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5"
           >
-            <UIcon name="i-heroicons-plus" class="w-4 h-4 mr-2" />
+            <UIcon name="i-heroicons-plus" class="w-4 h-4" />
             Upload
-          </UButton>
-          <UButton
-            variant="soft"
+          </button>
+          <button
             @click="showCreateFolderModal = true"
+            class="px-3 py-1.5 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-sm font-normal border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 active:bg-gray-100 dark:active:bg-gray-600 transition-colors flex items-center gap-1.5"
           >
-            <UIcon name="i-heroicons-folder-plus" class="w-4 h-4 mr-2" />
+            <UIcon name="i-heroicons-folder-plus" class="w-4 h-4" />
             New Folder
-          </UButton>
-          <UButton
+          </button>
+          <button
             v-if="selectedFiles.size > 0"
-            color="primary"
-            variant="soft"
             @click.stop="downloadSelectedFiles"
+            class="px-3 py-1.5 bg-white dark:bg-gray-800 text-blue-600 dark:text-blue-400 text-sm font-normal border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 active:bg-gray-100 dark:active:bg-gray-600 transition-colors flex items-center gap-1.5"
           >
-            <UIcon name="i-heroicons-arrow-down-tray" class="w-4 h-4 mr-2" />
+            <UIcon name="i-heroicons-arrow-down-tray" class="w-4 h-4" />
             Download ({{ selectedFiles.size }})
-          </UButton>
-          <UButton
+          </button>
+          <button
             v-if="selectedFiles.size > 0 || selectedFolders.size > 0"
-            color="error"
-            variant="soft"
             @click="deleteSelected"
+            class="px-3 py-1.5 bg-white dark:bg-gray-800 text-red-600 dark:text-red-400 text-sm font-normal border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 active:bg-gray-100 dark:active:bg-gray-600 transition-colors flex items-center gap-1.5"
           >
-            <UIcon name="i-heroicons-trash" class="w-4 h-4 mr-2" />
+            <UIcon name="i-heroicons-trash" class="w-4 h-4" />
             Delete ({{ selectedFiles.size + selectedFolders.size }})
-          </UButton>
+          </button>
         </div>
         
         <!-- Storage quota - minimal -->
@@ -1210,7 +1208,7 @@ onMounted(() => {
       ref="contentAreaRef"
       class="flex-1 overflow-y-auto p-8 relative select-none"
       :class="{ 
-        'bg-primary-50/30 dark:bg-primary-900/10': isDragging,
+        'bg-blue-50/30 dark:bg-blue-900/10': isDragging,
         'cursor-crosshair': isSelecting
       }"
       @dragenter.prevent="handleDragEnter"
@@ -1222,7 +1220,7 @@ onMounted(() => {
       <!-- Selection Box -->
       <div
         v-if="isSelecting && selectionStart && selectionEnd"
-        class="absolute border-2 border-primary-500 bg-primary-500/10 pointer-events-none z-40"
+        class="absolute border-2 border-blue-500 bg-blue-500/10 pointer-events-none z-40"
         :style="{
           left: `${Math.min(selectionStart.x, selectionEnd.x)}px`,
           top: `${Math.min(selectionStart.y, selectionEnd.y)}px`,
@@ -1241,16 +1239,16 @@ onMounted(() => {
       >
         <div
           v-if="isDragging"
-          class="fixed inset-0 z-50 flex items-center justify-center bg-primary-500/30 dark:bg-primary-600/30 backdrop-blur-md"
+          class="fixed inset-0 z-50 flex items-center justify-center bg-blue-500/20 dark:bg-blue-600/20"
           @dragenter.prevent="handleDragEnter"
           @dragover.prevent="handleDragOver"
           @dragleave.prevent="handleDragLeave"
           @drop.prevent="handleDrop"
         >
-          <div class="text-center bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-12 border-4 border-dashed border-primary-500 dark:border-primary-400">
-            <UIcon name="i-heroicons-cloud-arrow-up" class="w-20 h-20 mx-auto mb-4 text-primary-600 dark:text-primary-400 animate-bounce" />
-            <p class="text-2xl font-bold text-gray-900 dark:text-white mb-2">Drop files here to upload</p>
-            <p class="text-sm text-gray-500 dark:text-gray-400">Files will be uploaded to: <span class="font-medium text-primary-600 dark:text-primary-400">{{ filesStore.currentFolder === '/' ? 'Storage' : filesStore.currentFolder }}</span></p>
+          <div class="text-center bg-white dark:bg-gray-800 border border-dashed border-blue-500 dark:border-blue-400 p-12">
+            <UIcon name="i-heroicons-cloud-arrow-up" class="w-16 h-16 mx-auto mb-4 text-blue-600 dark:text-blue-400" />
+            <p class="text-lg font-semibold text-gray-900 dark:text-white mb-2">Drop files here to upload</p>
+            <p class="text-sm text-gray-500 dark:text-gray-400">Files will be uploaded to: <span class="font-medium text-blue-600 dark:text-blue-400">{{ filesStore.currentFolder === '/' ? 'Storage' : filesStore.currentFolder }}</span></p>
           </div>
         </div>
       </Transition>
@@ -1277,32 +1275,31 @@ onMounted(() => {
         class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-4"
       >
         <!-- Folders -->
-        <div
-          v-for="(folder, index) in folders"
-          :key="`folder-${folder.path}`"
-          :data-folder-item="folder.path"
-          class="relative group flex flex-col items-center p-5 rounded-xl transition-all cursor-pointer"
-          :class="{
-            'bg-gradient-to-br from-primary-50 to-primary-100/50 dark:from-primary-900/20 dark:to-primary-800/10 border border-primary-200/50 dark:border-primary-700/30 hover:shadow-lg hover:shadow-primary-500/10 hover:scale-[1.02]': !selectedFolders.has(folder.path),
-            'bg-gradient-to-br from-primary-100 to-primary-200/50 dark:from-primary-800/30 dark:to-primary-700/20 border-2 border-primary-500 ring-2 ring-primary-500 ring-offset-2 dark:ring-offset-gray-900': selectedFolders.has(folder.path)
-          }"
-          :style="{ '--delay': `${index * 30}ms` }"
-          @click="handleFolderClick(folder.path, $event)"
-        >
+          <div
+            v-for="(folder, index) in folders"
+            :key="`folder-${folder.path}`"
+            :data-folder-item="folder.path"
+            class="relative group flex flex-col items-center p-4 border border-gray-300 dark:border-gray-600 transition-colors cursor-pointer bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700"
+            :class="{
+              'ring-2 ring-blue-500 border-blue-500': selectedFolders.has(folder.path)
+            }"
+            :style="{ '--delay': `${index * 30}ms` }"
+            @click="handleFolderClick(folder.path, $event)"
+          >
           <!-- Checkbox -->
           <input
             type="checkbox"
             :checked="selectedFolders.has(folder.path)"
             @change.stop="toggleFolderSelection(folder.path)"
             @click.stop
-            class="absolute top-2 left-2 w-4 h-4 text-primary-600 rounded z-10"
+            class="absolute top-2 left-2 w-4 h-4 text-blue-600 z-10"
           />
           
           <div
             class="flex flex-col items-center w-full"
           >
-            <UIcon name="i-heroicons-folder" class="w-12 h-12 text-primary-500 mb-2" />
-            <p class="text-sm font-medium text-gray-900 dark:text-white truncate w-full text-center">
+            <UIcon name="i-heroicons-folder" class="w-10 h-10 text-blue-600 dark:text-blue-400 mb-2" />
+            <p class="text-xs font-normal text-gray-900 dark:text-white truncate w-full text-center">
               {{ folder.name }}
             </p>
           </div>
@@ -1310,7 +1307,7 @@ onMounted(() => {
           <!-- Folder menu button -->
           <button
             @click.stop="showFolderMenu($event, folder)"
-            class="absolute top-2 right-2 p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity hover:bg-gray-200 dark:hover:bg-gray-700 z-10"
+            class="absolute top-2 right-2 p-1 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-gray-200 dark:hover:bg-gray-700 z-10"
             title="Folder options"
           >
             <UIcon name="i-heroicons-ellipsis-vertical" class="w-4 h-4 text-gray-500" />
@@ -1322,10 +1319,9 @@ onMounted(() => {
           v-for="(file, index) in filesStore.filesInCurrentFolder"
           :key="`file-${file.id}`"
           :data-file-item="file.id"
-          class="relative group flex flex-col items-center p-4 rounded-xl border transition-all cursor-pointer"
+          class="relative group flex flex-col items-center p-4 border border-gray-300 dark:border-gray-600 transition-colors cursor-pointer bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700"
           :class="{
-            'border-gray-200 dark:border-gray-800 hover:border-primary-300 dark:hover:border-primary-700 hover:shadow-md': !selectedFiles.has(file.id),
-            'ring-2 ring-primary-500 border-primary-500': selectedFiles.has(file.id)
+            'ring-2 ring-blue-500 border-blue-500': selectedFiles.has(file.id)
           }"
           :style="{ '--delay': `${(folders.length + index) * 30}ms` }"
           @click="handleFileClick(file.id, $event)"
@@ -1340,18 +1336,18 @@ onMounted(() => {
             class="absolute top-2 left-2 w-4 h-4 text-primary-600 rounded z-10 cursor-pointer"
           />
           
-          <UIcon :name="getFileIcon(file)" class="w-12 h-12 text-gray-400 mb-2" />
-          <p class="text-xs font-medium text-gray-900 dark:text-white truncate w-full text-center mb-1">
+          <UIcon :name="getFileIcon(file)" class="w-10 h-10 text-gray-500 dark:text-gray-400 mb-2" />
+          <p class="text-xs font-normal text-gray-900 dark:text-white truncate w-full text-center mb-1">
             {{ file.file_name }}
           </p>
-          <p class="text-xs text-gray-500 dark:text-gray-400">
+          <p class="text-[10px] text-gray-500 dark:text-gray-400">
             {{ formatFileSize(file.file_size) }}
           </p>
           
           <!-- Three-dot menu button -->
           <button
             @click.stop="showFileMenu($event, file)"
-            class="absolute top-2 right-2 p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity hover:bg-gray-200 dark:hover:bg-gray-700 z-10"
+            class="absolute top-2 right-2 p-1 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-gray-200 dark:hover:bg-gray-700 z-10"
             title="File options"
           >
             <UIcon name="i-heroicons-ellipsis-vertical" class="w-4 h-4 text-gray-500" />
@@ -1371,10 +1367,9 @@ onMounted(() => {
           v-for="(folder, index) in folders"
           :key="`folder-${folder.path}`"
           :data-folder-item="folder.path"
-          class="flex items-center gap-4 p-4 rounded-lg transition-all group cursor-pointer"
+          class="flex items-center gap-3 p-3 border-b border-gray-200 dark:border-gray-700 transition-colors group cursor-pointer bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700"
           :class="{
-            'bg-gradient-to-r from-primary-50/50 to-transparent dark:from-primary-900/10 dark:to-transparent border-l-4 border-primary-400 dark:border-primary-600 hover:shadow-md hover:from-primary-100/70 dark:hover:from-primary-800/20': !selectedFolders.has(folder.path),
-            'bg-gradient-to-r from-primary-100 to-primary-50 dark:from-primary-800/30 dark:to-primary-900/20 border-l-4 border-primary-500 dark:border-primary-400 ring-2 ring-primary-500 ring-offset-1 dark:ring-offset-gray-900': selectedFolders.has(folder.path)
+            'bg-blue-50 dark:bg-blue-900/20 border-l-2 border-l-blue-600 dark:border-l-blue-400': selectedFolders.has(folder.path)
           }"
           :style="{ '--delay': `${index * 30}ms` }"
           @click="handleFolderClick(folder.path, $event)"
@@ -1385,15 +1380,15 @@ onMounted(() => {
             :checked="selectedFolders.has(folder.path)"
             @change.stop="toggleFolderSelection(folder.path)"
             @click.stop
-            class="w-4 h-4 text-primary-600 rounded flex-shrink-0"
+            class="w-4 h-4 text-blue-600 flex-shrink-0"
           />
           
           <div
             class="flex items-center gap-3 flex-1 min-w-0"
           >
-            <UIcon name="i-heroicons-folder" class="w-6 h-6 text-primary-500 flex-shrink-0" />
+            <UIcon name="i-heroicons-folder" class="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0" />
             <div class="flex-1 min-w-0">
-              <p class="font-medium text-sm text-gray-900 dark:text-white truncate">{{ folder.name }}</p>
+              <p class="font-normal text-sm text-gray-900 dark:text-white truncate">{{ folder.name }}</p>
               <p class="text-xs text-gray-500 dark:text-gray-400">Folder</p>
             </div>
           </div>
@@ -1401,7 +1396,7 @@ onMounted(() => {
           <!-- Folder menu button -->
           <button
             @click.stop="showFolderMenu($event, folder)"
-            class="p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity hover:bg-gray-200 dark:hover:bg-gray-700"
+            class="p-1 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-gray-200 dark:hover:bg-gray-700"
             title="Folder options"
           >
             <UIcon name="i-heroicons-ellipsis-vertical" class="w-4 h-4 text-gray-500" />
@@ -1413,10 +1408,9 @@ onMounted(() => {
           v-for="(file, index) in filesStore.filesInCurrentFolder"
           :key="`file-${file.id}`"
           :data-file-item="file.id"
-          class="flex items-center gap-4 p-3 rounded-lg border transition-colors group cursor-pointer"
+          class="flex items-center gap-3 p-3 border-b border-gray-200 dark:border-gray-700 transition-colors group cursor-pointer bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700"
           :class="{
-            'border-gray-200 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800': !selectedFiles.has(file.id),
-            'bg-primary-50 dark:bg-primary-900/20 border-primary-300 dark:border-primary-700 ring-2 ring-primary-500': selectedFiles.has(file.id)
+            'bg-blue-50 dark:bg-blue-900/20 border-l-2 border-l-blue-600 dark:border-l-blue-400': selectedFiles.has(file.id)
           }"
           :style="{ '--delay': `${(folders.length + index) * 30}ms` }"
           @click="handleFileClick(file.id, $event)"
@@ -1429,9 +1423,9 @@ onMounted(() => {
             @click.stop
             class="w-4 h-4 text-primary-600 rounded flex-shrink-0 cursor-pointer"
           />
-          <UIcon :name="getFileIcon(file)" class="w-6 h-6 text-gray-400 flex-shrink-0" />
+          <UIcon :name="getFileIcon(file)" class="w-5 h-5 text-gray-500 dark:text-gray-400 flex-shrink-0" />
           <div class="flex-1 min-w-0">
-            <p class="font-medium text-sm text-gray-900 dark:text-white truncate">{{ file.file_name }}</p>
+            <p class="font-normal text-sm text-gray-900 dark:text-white truncate">{{ file.file_name }}</p>
             <p class="text-xs text-gray-500 dark:text-gray-400">
               {{ formatFileSize(file.file_size) }} • {{ new Date(file.created_at).toLocaleDateString() }}
             </p>
@@ -1439,7 +1433,7 @@ onMounted(() => {
           <!-- Three-dot menu button -->
           <button
             @click.stop="showFileMenu($event, file)"
-            class="p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity hover:bg-gray-200 dark:hover:bg-gray-700"
+            class="p-1 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-gray-200 dark:hover:bg-gray-700"
             title="File options"
           >
             <UIcon name="i-heroicons-ellipsis-vertical" class="w-4 h-4 text-gray-500" />
@@ -1461,7 +1455,7 @@ onMounted(() => {
         >
           <div
             v-if="folderContextMenu"
-            class="fixed z-50 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 py-1 min-w-[160px]"
+            class="fixed z-50 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 shadow-lg py-1 min-w-[160px]"
             :style="{ left: `${folderMenuPosition.x}px`, top: `${folderMenuPosition.y}px` }"
             @click.stop
           >
@@ -1578,9 +1572,10 @@ onMounted(() => {
                     Cancel
                   </UButton>
                   <UButton
-                    color="primary"
+                    color="blue"
                     block
                     @click="createFolder"
+                    :ui="{ rounded: 'rounded-none' }"
                   >
                     Create
                   </UButton>

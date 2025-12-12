@@ -75,14 +75,18 @@ onUnmounted(() => {
       :alt="node.attrs.alt"
       :title="node.attrs.title"
       :style="{ width: typeof width === 'number' ? width + 'px' : width }"
-      class="rounded-lg h-auto block transition-shadow duration-200"
-      :class="{ 'ring-4 ring-primary-500': props.selected && (isFocused || isResizing) }"
+      class="h-auto block transition-shadow duration-200"
+      :class="{ 'ring-2 ring-blue-500': props.selected && (isFocused || isResizing) }"
     />
     <div
-      class="resize-handle absolute bottom-2 right-2 w-3 h-3 bg-white border border-gray-400 rounded-sm cursor-nwse-resize z-10 shadow-sm hover:bg-primary-500 hover:border-primary-500 transition-colors"
+      class="resize-handle absolute bottom-1 right-1 w-4 h-4 bg-white dark:bg-gray-800 border-2 border-blue-600 dark:border-blue-500 cursor-nwse-resize z-10 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
       @mousedown="onMouseDown"
       v-if="props.editor.isEditable"
-    ></div>
+    >
+      <div class="absolute inset-0 flex items-center justify-center">
+        <div class="w-2 h-2 bg-blue-600 dark:bg-blue-500"></div>
+      </div>
+    </div>
   </node-view-wrapper>
 </template>
 

@@ -938,7 +938,7 @@ const editor = useEditor({
   editorProps: {
     attributes: {
       spellcheck: 'true',
-      class: 'prose dark:prose-invert max-w-none focus:outline-none min-h-[calc(100vh-200px)] px-8 py-6'
+      class: 'prose dark:prose-invert max-w-none focus:outline-none min-h-[calc(100vh-200px)] px-6 py-4'
     },
     // Removed handleTextInput - let the TaskItem plugin handle [] pattern detection
     // The plugin's handleTextInput will run and can return true to prevent other handlers
@@ -1502,13 +1502,13 @@ async function uploadFiles(files: File[]) {
     <!-- Connection status indicator (only for collaborative notes) -->
     <div
       v-if="isCollaborative && connectionStatus !== 'connected'"
-      class="mb-3 px-4 py-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg text-sm flex items-center gap-2"
+      class="mb-2 px-3 py-2 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-300 dark:border-yellow-700 text-sm flex items-center gap-2"
     >
-      <UIcon name="i-heroicons-wifi" class="w-4 h-4 animate-pulse text-yellow-600 dark:text-yellow-400" />
-      <span v-if="connectionStatus === 'connecting'" class="text-yellow-700 dark:text-yellow-300">
+      <UIcon name="i-heroicons-wifi" class="w-3.5 h-3.5 animate-pulse text-yellow-600 dark:text-yellow-400" />
+      <span v-if="connectionStatus === 'connecting'" class="text-yellow-700 dark:text-yellow-300 text-xs">
         Connecting to collaboration server...
       </span>
-      <span v-else class="text-yellow-700 dark:text-yellow-300">
+      <span v-else class="text-yellow-700 dark:text-yellow-300 text-xs">
         Disconnected. Attempting to reconnect...
       </span>
     </div>
@@ -1516,7 +1516,7 @@ async function uploadFiles(files: File[]) {
     <!-- Connected users indicator with avatars (only for collaborative notes) -->
     <div
       v-if="isCollaborative && connectionStatus === 'connected' && connectedUsers > 1"
-      class="mb-3 px-4 py-2 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg text-sm flex items-center gap-3"
+      class="mb-2 px-3 py-2 bg-green-50 dark:bg-green-900/20 border border-green-300 dark:border-green-700 text-sm flex items-center gap-3"
     >
       <UIcon name="i-heroicons-user-group" class="w-4 h-4 text-green-600 dark:text-green-400" />
       <span class="text-green-700 dark:text-green-300">
@@ -1598,12 +1598,12 @@ async function uploadFiles(files: File[]) {
           <div v-if="showLinkModal" class="fixed inset-0 z-50 overflow-y-auto" @click.self="cancelLink">
             <div class="fixed inset-0 bg-black/50 transition-opacity"></div>
             <div class="flex min-h-full items-center justify-center p-4">
-              <div class="relative bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-md w-full p-6" @click.stop>
-                <h3 class="text-lg font-semibold mb-4">Insert Link</h3>
-                <UInput v-model="linkUrl" placeholder="https://example.com" class="mb-4" size="xl" :ui="{ padding: { xl: 'px-4 py-3' } }" autofocus @keyup.enter="confirmLink" />
-                <div class="grid grid-cols-2 gap-3">
-                  <UButton color="gray" variant="soft" block size="md" @click="cancelLink">Cancel</UButton>
-                  <UButton color="primary" block size="md" @click="confirmLink">Insert</UButton>
+              <div class="relative bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 shadow-lg max-w-md w-full p-5" @click.stop>
+                <h3 class="text-base font-semibold mb-3 text-gray-900 dark:text-white">Insert Link</h3>
+                <UInput v-model="linkUrl" placeholder="https://example.com" class="mb-3" size="md" autofocus @keyup.enter="confirmLink" />
+                <div class="grid grid-cols-2 gap-2">
+                  <UButton color="gray" variant="soft" block size="sm" @click="cancelLink" :ui="{ rounded: 'rounded-none' }">Cancel</UButton>
+                  <UButton color="blue" block size="sm" @click="confirmLink" :ui="{ rounded: 'rounded-none' }">Insert</UButton>
                 </div>
               </div>
             </div>
@@ -1622,12 +1622,12 @@ async function uploadFiles(files: File[]) {
           <div v-if="showImageModal" class="fixed inset-0 z-50 overflow-y-auto" @click.self="cancelImage">
             <div class="fixed inset-0 bg-black/50 transition-opacity"></div>
             <div class="flex min-h-full items-center justify-center p-4">
-              <div class="relative bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-md w-full p-6" @click.stop>
-                <h3 class="text-lg font-semibold mb-4">Insert Image</h3>
-                <UInput v-model="imageUrl" placeholder="https://example.com/image.jpg" class="mb-4" size="xl" :ui="{ padding: { xl: 'px-4 py-3' } }" autofocus @keyup.enter="confirmImage" />
-                <div class="grid grid-cols-2 gap-3">
-                  <UButton color="gray" variant="soft" block size="md" @click="cancelImage">Cancel</UButton>
-                  <UButton color="primary" block size="md" @click="confirmImage">Insert</UButton>
+              <div class="relative bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 shadow-lg max-w-md w-full p-5" @click.stop>
+                <h3 class="text-base font-semibold mb-3 text-gray-900 dark:text-white">Insert Image</h3>
+                <UInput v-model="imageUrl" placeholder="https://example.com/image.jpg" class="mb-3" size="md" autofocus @keyup.enter="confirmImage" />
+                <div class="grid grid-cols-2 gap-2">
+                  <UButton color="gray" variant="soft" block size="sm" @click="cancelImage" :ui="{ rounded: 'rounded-none' }">Cancel</UButton>
+                  <UButton color="blue" block size="sm" @click="confirmImage" :ui="{ rounded: 'rounded-none' }">Insert</UButton>
                 </div>
               </div>
             </div>
@@ -1646,12 +1646,12 @@ async function uploadFiles(files: File[]) {
           <div v-if="showYouTubeModal" class="fixed inset-0 z-50 overflow-y-auto" @click.self="cancelYouTube">
             <div class="fixed inset-0 bg-black/50 transition-opacity"></div>
             <div class="flex min-h-full items-center justify-center p-4">
-              <div class="relative bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-md w-full p-6" @click.stop>
-                <h3 class="text-lg font-semibold mb-4">Insert YouTube Video</h3>
-                <UInput v-model="youtubeUrl" placeholder="https://youtube.com/watch?v=..." class="mb-4" size="xl" :ui="{ padding: { xl: 'px-4 py-3' } }" autofocus @keyup.enter="confirmYouTube" />
-                <div class="grid grid-cols-2 gap-3">
-                  <UButton color="gray" variant="soft" block size="md" @click="cancelYouTube">Cancel</UButton>
-                  <UButton color="primary" block size="md" @click="confirmYouTube">Insert</UButton>
+              <div class="relative bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 shadow-lg max-w-md w-full p-5" @click.stop>
+                <h3 class="text-base font-semibold mb-3 text-gray-900 dark:text-white">Insert YouTube Video</h3>
+                <UInput v-model="youtubeUrl" placeholder="https://youtube.com/watch?v=..." class="mb-3" size="md" autofocus @keyup.enter="confirmYouTube" />
+                <div class="grid grid-cols-2 gap-2">
+                  <UButton color="gray" variant="soft" block size="sm" @click="cancelYouTube" :ui="{ rounded: 'rounded-none' }">Cancel</UButton>
+                  <UButton color="blue" block size="sm" @click="confirmYouTube" :ui="{ rounded: 'rounded-none' }">Insert</UButton>
                 </div>
               </div>
             </div>

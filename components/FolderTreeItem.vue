@@ -155,11 +155,11 @@ function toggleContextMenu(event: MouseEvent) {
 <template>
   <!-- Folder Item - Premium Apple Design -->
     <div
-    class="folder-item group/folder relative flex items-center gap-2 rounded-xl transition-all duration-200 active:bg-gray-100/80 dark:active:bg-gray-700/50 cursor-grab active:cursor-grabbing"
+    class="folder-item group/folder relative flex items-center gap-2 transition-colors active:bg-gray-100 dark:active:bg-gray-700 cursor-grab active:cursor-grabbing"
     :data-folder-id="folder.id"
     :class="{ 
-      'bg-primary-50/80 dark:bg-primary-900/20': selectedId === folder.id,
-      'md:hover:bg-gray-50/80 md:dark:hover:bg-gray-800/50': selectedId !== folder.id
+      'bg-blue-50 dark:bg-blue-900/20': selectedId === folder.id,
+      'md:hover:bg-gray-50 dark:hover:bg-gray-800': selectedId !== folder.id
     }"
     >
       <div class="w-4" /> <!-- Spacing instead of expand button -->
@@ -170,7 +170,7 @@ function toggleContextMenu(event: MouseEvent) {
           ref="renameInputRef"
           v-model="renameValue"
           type="text"
-          class="w-full px-2 py-0.5 text-sm bg-white dark:bg-gray-800 border border-primary-500 rounded focus:outline-none focus:ring-1 focus:ring-primary-500"
+          class="w-full px-2 py-0.5 text-sm bg-white dark:bg-gray-800 border border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
           @blur="saveRename"
           @keydown.enter="saveRename"
           @keydown.esc="cancelRename"
@@ -181,8 +181,8 @@ function toggleContextMenu(event: MouseEvent) {
         v-else
         @click.stop="handleSelect"
         @dblclick.stop="startRename"
-        class="flex-1 flex items-center gap-2.5 py-2.5 pr-2 font-semibold transition-all duration-200 rounded-lg min-w-0 text-gray-700 dark:text-gray-300 active:bg-gray-100/80 dark:active:bg-gray-700/30"
-        :class="{ 'md:hover:bg-gray-50/80 md:dark:hover:bg-gray-800/30': selectedId !== folder.id }"
+        class="flex-1 flex items-center gap-2.5 py-2 pr-2 font-normal transition-colors min-w-0 text-gray-900 dark:text-gray-100 active:bg-gray-100 dark:active:bg-gray-700"
+        :class="{ 'md:hover:bg-gray-50 dark:hover:bg-gray-800': selectedId !== folder.id }"
         :style="{ fontSize: 'clamp(0.75rem, 0.5vw + 0.5rem, 0.875rem)' }"
       >
         <UIcon 
@@ -192,7 +192,7 @@ function toggleContextMenu(event: MouseEvent) {
         <span class="truncate flex-1 text-left">{{ folder.name }}</span>
         <span 
           v-if="noteCount > 0"
-          class="px-2 py-0.5 rounded-full bg-gray-200/80 dark:bg-gray-700/80 text-gray-600 dark:text-gray-300 flex-shrink-0 font-medium"
+          class="px-2 py-0.5 bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 flex-shrink-0 font-normal text-xs"
           :style="{ fontSize: 'clamp(0.625rem, 0.4vw + 0.4rem, 0.75rem)' }"
         >
           {{ noteCount }}
@@ -206,8 +206,8 @@ function toggleContextMenu(event: MouseEvent) {
         type="button"
         @click.stop="toggleContextMenu"
         @mousedown.stop
-        class="no-drag flex-shrink-0 p-1.5 rounded-lg opacity-100 md:opacity-0 md:group-hover/folder:opacity-100 md:hover:bg-gray-200/80 md:dark:hover:bg-gray-700/80 active:bg-gray-200/80 dark:active:bg-gray-700/80 transition-all duration-200"
-        :class="isMenuOpen ? 'bg-gray-200/80 dark:bg-gray-700/80' : ''"
+        class="no-drag flex-shrink-0 p-1 opacity-100 md:opacity-0 md:group-hover/folder:opacity-100 hover:bg-gray-200 dark:hover:bg-gray-700 active:bg-gray-200 dark:active:bg-gray-700 transition-colors"
+        :class="isMenuOpen ? 'bg-gray-200 dark:bg-gray-700' : ''"
       >
         <svg class="w-4 h-4 text-gray-500 dark:text-gray-400" fill="currentColor" viewBox="0 0 16 16">
           <circle cx="8" cy="2" r="1.5"/>
@@ -224,7 +224,7 @@ function toggleContextMenu(event: MouseEvent) {
           v-if="isMenuOpen"
           data-context-menu
           @click.stop
-          class="fixed w-48 bg-white/95 dark:bg-gray-800/95 backdrop-blur-xl rounded-2xl border border-gray-200/60 dark:border-gray-700/60 shadow-2xl py-1.5 z-[9999]"
+          class="fixed w-48 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 shadow-lg py-1 z-[9999]"
           :style="{ 
             top: menuOpensUpward ? 'auto' : `${menuPosition.top}px`, 
             bottom: menuOpensUpward ? `${menuPosition.bottom}px` : 'auto',
@@ -234,7 +234,7 @@ function toggleContextMenu(event: MouseEvent) {
           <button
             type="button"
             @click="emit('delete', folder.id); emit('update:openMenuId', null)"
-            class="w-full text-left px-4 py-2.5 text-sm text-red-600 dark:text-red-400 md:hover:bg-red-50 md:dark:hover:bg-red-900/20 active:bg-red-50 dark:active:bg-red-900/20 flex items-center gap-3"
+            class="w-full text-left px-3 py-1.5 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700 active:bg-gray-200 dark:active:bg-gray-600 flex items-center gap-2"
           >
             <UIcon name="i-heroicons-trash" class="w-5 h-5" />
             <span>Delete</span>

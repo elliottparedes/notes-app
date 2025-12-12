@@ -109,34 +109,34 @@ function goBack() {
 </script>
 
 <template>
-  <div class="min-h-screen bg-gray-50 dark:bg-gray-900">
-    <div class="max-w-4xl mx-auto px-4 pt-8 pb-16 sm:px-6 lg:px-8">
+  <div class="min-h-screen bg-white dark:bg-gray-900">
+    <div class="max-w-4xl mx-auto px-4 pt-6 pb-16 sm:px-6 lg:px-8">
       <!-- Header -->
-      <div class="mb-8">
+      <div class="mb-6">
         <button
-          class="flex items-center text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white mb-4 transition-colors"
+          class="flex items-center text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white mb-4 transition-colors text-sm"
           @click="goBack"
         >
-          <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
           </svg>
           Back to Dashboard
         </button>
         
-        <h1 class="text-3xl font-bold text-gray-900 dark:text-white">Settings</h1>
-        <p class="mt-2 text-gray-600 dark:text-gray-400">Manage your account settings</p>
+        <h1 class="text-2xl font-semibold text-gray-900 dark:text-white">Settings</h1>
+        <p class="mt-1 text-sm text-gray-600 dark:text-gray-400">Manage your account settings</p>
       </div>
 
       <!-- Temporary Password Alert -->
-      <UCard v-if="showTempPasswordAlert" class="mb-6 border-2 border-blue-500 dark:border-blue-600 bg-blue-50 dark:bg-blue-900/20">
-        <div class="flex items-start space-x-3">
+      <div v-if="showTempPasswordAlert" class="mb-6 border border-blue-500 dark:border-blue-600 bg-blue-50 dark:bg-blue-900/20 p-4">
+        <div class="flex items-start gap-3">
           <div class="flex-shrink-0">
-            <svg class="w-6 h-6 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg class="w-5 h-5 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
             </svg>
           </div>
           <div class="flex-1">
-            <h3 class="text-lg font-semibold text-blue-900 dark:text-blue-200 mb-2">
+            <h3 class="text-base font-semibold text-blue-900 dark:text-blue-200 mb-1">
               ⚠️ Password Reset Required
             </h3>
             <p class="text-sm text-blue-800 dark:text-blue-300">
@@ -144,60 +144,59 @@ function goBack() {
             </p>
           </div>
         </div>
-      </UCard>
+      </div>
 
       <!-- Account Info -->
-      <UCard class="mb-6">
-        <template #header>
-          <h2 class="text-xl font-semibold text-gray-900 dark:text-white">Account Information</h2>
-        </template>
-
-        <div class="space-y-4">
+      <div class="mb-6 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800">
+        <div class="px-4 py-3 border-b border-gray-300 dark:border-gray-700">
+          <h2 class="text-base font-semibold text-gray-900 dark:text-white">Account Information</h2>
+        </div>
+        <div class="p-4 space-y-4">
           <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label class="block text-sm font-normal text-gray-700 dark:text-gray-300 mb-1">
               Email
             </label>
-            <p class="text-gray-900 dark:text-white">{{ authStore.user?.email }}</p>
+            <p class="text-sm text-gray-900 dark:text-white">{{ authStore.user?.email }}</p>
           </div>
           
           <div v-if="authStore.user?.name">
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label class="block text-sm font-normal text-gray-700 dark:text-gray-300 mb-1">
               Name
             </label>
-            <p class="text-gray-900 dark:text-white">{{ authStore.user?.name }}</p>
+            <p class="text-sm text-gray-900 dark:text-white">{{ authStore.user?.name }}</p>
           </div>
         </div>
-      </UCard>
+      </div>
 
 <!-- Analytics Dashboard -->
-      <UCard class="mb-6">
-        <template #header>
+      <div class="mb-6 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800">
+        <div class="px-4 py-3 border-b border-gray-300 dark:border-gray-700">
           <div class="flex items-center justify-between w-full">
             <div>
-              <h2 class="text-xl font-semibold text-gray-900 dark:text-white">Analytics</h2>
-              <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">
+              <h2 class="text-base font-semibold text-gray-900 dark:text-white">Analytics</h2>
+              <p class="text-xs text-gray-600 dark:text-gray-400 mt-0.5">
                 Track your writing activity and productivity
               </p>
             </div>
           </div>
-        </template>
-
-        <AnalyticsDashboard />
-      </UCard>
+        </div>
+        <div class="p-4">
+          <AnalyticsDashboard />
+        </div>
+      </div>
 
       <!-- Appearance Settings -->
-      <UCard class="mb-6">
-        <template #header>
-          <h2 class="text-xl font-semibold text-gray-900 dark:text-white">Appearance</h2>
-        </template>
-
-        <div class="space-y-4">
+      <div class="mb-6 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800">
+        <div class="px-4 py-3 border-b border-gray-300 dark:border-gray-700">
+          <h2 class="text-base font-semibold text-gray-900 dark:text-white">Appearance</h2>
+        </div>
+        <div class="p-4 space-y-4">
           <div class="flex items-center justify-between py-2">
             <div class="flex-1">
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              <label class="block text-sm font-normal text-gray-700 dark:text-gray-300 mb-1">
                 Dark Mode
               </label>
-              <p class="text-sm text-gray-600 dark:text-gray-400">
+              <p class="text-xs text-gray-600 dark:text-gray-400">
                 Switch between light and dark theme
               </p>
             </div>
@@ -207,118 +206,121 @@ function goBack() {
               type="button"
               role="switch"
               :aria-checked="isDark"
-              class="relative inline-flex h-7 w-12 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 ml-4"
-              :class="isDark ? 'bg-primary-600' : 'bg-gray-300 dark:bg-gray-600'"
+              class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-1 focus:ring-blue-500 ml-4"
+              :class="isDark ? 'bg-blue-600' : 'bg-gray-300 dark:bg-gray-600'"
             >
               <span
-                class="pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
+                class="pointer-events-none inline-block h-5 w-5 transform bg-white transition duration-200 ease-in-out"
                 :class="isDark ? 'translate-x-5' : 'translate-x-0'"
               >
                 <span class="absolute inset-0 flex items-center justify-center">
                   <UIcon 
                     :name="isDark ? 'i-heroicons-moon' : 'i-heroicons-sun'" 
-                    class="h-4 w-4"
-                    :class="isDark ? 'text-primary-600' : 'text-gray-400'"
+                    class="h-3.5 w-3.5"
+                    :class="isDark ? 'text-blue-600' : 'text-gray-400'"
                   />
                 </span>
               </span>
             </button>
           </div>
         </div>
-      </UCard>
+      </div>
 
       <!-- Change Password -->
-      <UCard>
-        <template #header>
+      <div class="mb-6 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800">
+        <div class="px-4 py-3 border-b border-gray-300 dark:border-gray-700">
           <div>
-            <h2 class="text-xl font-semibold text-gray-900 dark:text-white">
+            <h2 class="text-base font-semibold text-gray-900 dark:text-white">
               {{ showTempPasswordAlert ? 'Set New Password' : 'Change Password' }}
             </h2>
-            <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">
+            <p class="text-xs text-gray-600 dark:text-gray-400 mt-0.5">
               {{ showTempPasswordAlert 
                 ? 'Set a permanent password to secure your account' 
                 : 'Update your password to keep your account secure' 
               }}
             </p>
           </div>
-        </template>
-
-        <form @submit.prevent="handleChangePassword" class="space-y-5">
+        </div>
+        <form @submit.prevent="handleChangePassword" class="p-4 space-y-4">
           <div>
-            <label class="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">
+            <label class="block text-sm font-normal mb-1.5 text-gray-700 dark:text-gray-300">
               New Password
             </label>
             <UInput
               v-model="newPassword"
               type="password"
               placeholder="Enter new password (min 6 characters)"
-              size="xl"
+              size="md"
               :disabled="loading"
               class="w-full"
               icon="i-heroicons-lock-closed"
+              :ui="{ rounded: 'rounded-none' }"
             />
           </div>
 
           <div>
-            <label class="block text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">
+            <label class="block text-sm font-normal mb-1.5 text-gray-700 dark:text-gray-300">
               Confirm New Password
             </label>
             <UInput
               v-model="confirmPassword"
               type="password"
               placeholder="Confirm your new password"
-              size="xl"
+              size="md"
               :disabled="loading"
               class="w-full"
               icon="i-heroicons-lock-closed"
+              :ui="{ rounded: 'rounded-none' }"
             />
           </div>
 
-          <UButton
+          <button
             type="submit"
-            size="xl"
-            :loading="loading"
             :disabled="loading"
-            class="justify-center font-semibold"
-            :color="showTempPasswordAlert ? 'warning' : 'primary'"
+            class="px-4 py-2 bg-blue-600 dark:bg-blue-500 text-white text-sm font-normal border border-blue-700 dark:border-blue-600 hover:bg-blue-700 dark:hover:bg-blue-600 active:bg-blue-800 dark:active:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
           >
-            <span v-if="!loading">{{ showTempPasswordAlert ? 'Set New Password' : 'Change Password' }}</span>
-            <span v-else>{{ showTempPasswordAlert ? 'Setting Password...' : 'Changing Password...' }}</span>
-          </UButton>
+            <UIcon 
+              v-if="loading" 
+              name="i-heroicons-arrow-path" 
+              class="w-4 h-4 animate-spin" 
+            />
+            <span>{{ loading ? (showTempPasswordAlert ? 'Setting Password...' : 'Changing Password...') : (showTempPasswordAlert ? 'Set New Password' : 'Change Password') }}</span>
+          </button>
         </form>
-      </UCard>
+      </div>
 
       <!-- Account Actions -->
-      <UCard class="mb-6">
-        <template #header>
-          <h2 class="text-xl font-semibold text-gray-900 dark:text-white">Account Actions</h2>
-        </template>
-
-        <div class="space-y-4">
-          <UButton
-            color="error"
-            variant="soft"
-            icon="i-heroicons-arrow-right-on-rectangle"
-            size="xl"
-            :loading="isLoggingOut"
-            :disabled="isLoggingOut"
-            block
-            @click="handleLogout"
-            class="justify-center font-semibold"
-          >
-            <span v-if="!isLoggingOut">Sign Out</span>
-            <span v-else>Signing Out...</span>
-          </UButton>
+      <div class="mb-6 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800">
+        <div class="px-4 py-3 border-b border-gray-300 dark:border-gray-700">
+          <h2 class="text-base font-semibold text-gray-900 dark:text-white">Account Actions</h2>
         </div>
-      </UCard>
+        <div class="p-4">
+          <button
+            @click="handleLogout"
+            :disabled="isLoggingOut"
+            class="w-full px-4 py-2 bg-white dark:bg-gray-800 text-red-600 dark:text-red-400 text-sm font-normal border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 active:bg-gray-100 dark:active:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+          >
+            <UIcon 
+              v-if="isLoggingOut" 
+              name="i-heroicons-arrow-path" 
+              class="w-4 h-4 animate-spin" 
+            />
+            <UIcon 
+              v-else
+              name="i-heroicons-arrow-right-on-rectangle" 
+              class="w-4 h-4" 
+            />
+            <span>{{ isLoggingOut ? 'Signing Out...' : 'Sign Out' }}</span>
+          </button>
+        </div>
+      </div>
 
       <!-- Support Unfold Notes -->
-      <UCard class="mb-6">
-        <template #header>
-          <h2 class="text-xl font-semibold text-gray-900 dark:text-white">Support Unfold Notes</h2>
-        </template>
-
-        <div class="space-y-4">
+      <div class="mb-6 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800">
+        <div class="px-4 py-3 border-b border-gray-300 dark:border-gray-700">
+          <h2 class="text-base font-semibold text-gray-900 dark:text-white">Support Unfold Notes</h2>
+        </div>
+        <div class="p-4 space-y-4">
           <p class="text-sm text-gray-600 dark:text-gray-400">
             Unfold Notes is built and maintained by a small indie developer. Server costs, AI API calls, and infrastructure add up. 
             If you find Unfold Notes useful, consider buying me a coffee to help keep it running! ☕️
@@ -328,13 +330,13 @@ function goBack() {
             <BuyMeACoffee variant="button" size="lg" />
           </div>
 
-          <div class="pt-4 border-t border-gray-200 dark:border-gray-700 text-center">
+          <div class="pt-4 border-t border-gray-300 dark:border-gray-700 text-center">
             <p class="text-xs text-gray-500 dark:text-gray-400">
               Made with ❤️ by Elliott
             </p>
           </div>
         </div>
-      </UCard>
+      </div>
     </div>
   </div>
 </template>

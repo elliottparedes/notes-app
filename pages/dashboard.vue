@@ -1432,52 +1432,52 @@ function handleNoteListResizeStart(e: MouseEvent) {
     <!-- Column 1: Notebooks & Sections (Sidebar) -->
     <aside 
       v-if="isDesktopSidebarVisible && !isFullscreen && currentView === 'notebooks'"
-      class="hidden md:flex flex-col bg-gray-50/80 dark:bg-gray-900/80 border-r border-gray-200/60 dark:border-gray-800/60 flex-shrink-0 relative overflow-x-hidden"
+      class="hidden md:flex flex-col bg-gray-50 dark:bg-gray-900 border-r border-gray-300 dark:border-gray-700 flex-shrink-0 relative overflow-x-hidden"
       :style="{ width: `${sidebarWidth}px` }"
     >
       <!-- Resize Handle -->
       <div
         @mousedown="handleSidebarResizeStart"
-        class="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-primary-500/30 z-10"
+        class="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-blue-500 z-10"
       />
 
       <!-- Header -->
-      <div class="h-14 flex items-center justify-between px-4 border-b border-gray-200/50 dark:border-gray-800/50">
+      <div class="h-12 flex items-center justify-between px-3 border-b border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800">
         <div class="flex items-center gap-2 relative">
           <!-- Dropdown -->
           <div class="relative" data-view-dropdown>
             <button
               @click.stop="showViewDropdown = !showViewDropdown"
-              class="flex items-center gap-1.5 font-semibold text-lg hover:bg-gray-200/50 dark:hover:bg-gray-800/50 px-2 py-1 rounded-md transition-colors"
+              class="flex items-center gap-1.5 font-medium text-sm hover:bg-gray-100 dark:hover:bg-gray-700 px-2 py-1 transition-colors"
             >
               <span>{{ currentView === 'notebooks' ? 'Notebooks' : 'Storage' }}</span>
               <UIcon 
                 name="i-heroicons-chevron-down" 
-                class="w-4 h-4 transition-transform"
+                class="w-3.5 h-3.5 transition-transform"
                 :class="{ 'rotate-180': showViewDropdown }"
               />
             </button>
             
             <!-- Dropdown Menu -->
             <Transition
-              enter-active-class="transition-all duration-150 ease"
-              enter-from-class="opacity-0 scale-95 translate-y-(-4px)"
-              enter-to-class="opacity-100 scale-100 translate-y-0"
-              leave-active-class="transition-all duration-150 ease"
-              leave-from-class="opacity-100 scale-100 translate-y-0"
-              leave-to-class="opacity-0 scale-95 translate-y-(-4px)"
+              enter-active-class="transition-opacity duration-100"
+              enter-from-class="opacity-0"
+              enter-to-class="opacity-100"
+              leave-active-class="transition-opacity duration-100"
+              leave-from-class="opacity-100"
+              leave-to-class="opacity-0"
             >
               <div
                 v-if="showViewDropdown"
-                class="absolute top-full left-0 mt-1 w-48 bg-white/95 dark:bg-gray-800/95 backdrop-blur-xl rounded-xl border border-gray-200/60 dark:border-gray-700/60 shadow-xl py-1.5 z-50"
+                class="absolute top-full left-0 mt-0.5 w-48 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 shadow-lg py-1 z-50"
                 @click.stop
               >
                 <button
                   @click="currentView = 'notebooks'; showViewDropdown = false"
-                  class="w-full text-left px-4 py-2 text-sm transition-colors"
+                  class="w-full text-left px-3 py-1.5 text-sm transition-colors"
                   :class="currentView === 'notebooks' 
-                    ? 'bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400 font-medium' 
-                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50'"
+                    ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 font-medium' 
+                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'"
                 >
                   <div class="flex items-center gap-2">
                     <UIcon name="i-heroicons-book-open" class="w-4 h-4" />
@@ -1486,10 +1486,10 @@ function handleNoteListResizeStart(e: MouseEvent) {
                 </button>
                 <button
                   @click="currentView = 'storage'; showViewDropdown = false"
-                  class="w-full text-left px-4 py-2 text-sm transition-colors"
+                  class="w-full text-left px-3 py-1.5 text-sm transition-colors"
                   :class="currentView === 'storage' 
-                    ? 'bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400 font-medium' 
-                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50'"
+                    ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 font-medium' 
+                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'"
                 >
                   <div class="flex items-center gap-2">
                     <UIcon name="i-heroicons-folder" class="w-4 h-4" />
@@ -1503,7 +1503,7 @@ function handleNoteListResizeStart(e: MouseEvent) {
           <button 
             v-if="currentView === 'notebooks'"
             @click="showSearchModal = true"
-            class="p-1 rounded-md hover:bg-gray-200/50 dark:hover:bg-gray-800/50 text-gray-500 transition-colors"
+            class="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400 transition-colors"
             title="Search Notes"
           >
             <UIcon name="i-heroicons-magnifying-glass" class="w-4 h-4" />
@@ -1512,28 +1512,28 @@ function handleNoteListResizeStart(e: MouseEvent) {
         <button 
           v-if="currentView === 'notebooks'"
           @click="openCreateSpaceModal"
-          class="p-1 rounded-md hover:bg-gray-200/50 dark:hover:bg-gray-800/50 text-gray-500 transition-colors"
+          class="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400 transition-colors"
           title="New Notebook"
         >
-          <UIcon name="i-heroicons-plus" class="w-5 h-5" />
+          <UIcon name="i-heroicons-plus" class="w-4 h-4" />
         </button>
       </div>
 
       <!-- Notebooks List -->
-      <div v-if="currentView === 'notebooks'" ref="spacesListRef" class="notebooks-scroll flex-1 overflow-y-auto overflow-x-hidden p-1 space-y-3">
+      <div v-if="currentView === 'notebooks'" ref="spacesListRef" class="notebooks-scroll flex-1 overflow-y-auto overflow-x-hidden p-1">
         <div 
           v-for="space in spacesStore.spaces" 
           :key="space.id" 
-          class="space-y-1 space-item"
+          class="space-item mb-0.5"
           :data-space-id="space.id"
         >
             <!-- Notebook Header -->
-          <div v-if="editingSpaceId === space.id" class="flex-1 px-2 py-1.5">
+          <div v-if="editingSpaceId === space.id" class="flex-1 px-2 py-1">
             <input
               ref="spaceRenameInputRef"
               v-model="editingSpaceName"
               type="text"
-              class="w-full px-2 py-0.5 text-sm font-medium bg-white dark:bg-gray-800 border border-primary-500 rounded focus:outline-none focus:ring-1 focus:ring-primary-500"
+              class="w-full px-2 py-1 text-sm font-medium bg-white dark:bg-gray-800 border border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
               @blur="saveSpaceRename"
               @keydown.enter="saveSpaceRename"
               @keydown.esc="cancelSpaceRename"
@@ -1542,24 +1542,24 @@ function handleNoteListResizeStart(e: MouseEvent) {
           </div>
           <div 
             v-else
-            class="space-item-header group/space relative flex items-center gap-1 rounded-xl transition-all duration-200 md:hover:bg-gray-50/80 md:dark:hover:bg-gray-800/50 active:bg-gray-100/80 dark:active:bg-gray-700/50 overflow-hidden min-w-0"
-            :class="{ 'bg-gray-200/50 dark:bg-gray-800/50': expandedSpaceIds.has(space.id) }"
+            class="space-item-header group/space relative flex items-center gap-1 transition-colors hover:bg-gray-100 dark:hover:bg-gray-800 active:bg-gray-200 dark:active:bg-gray-700 overflow-hidden min-w-0"
+            :class="{ 'bg-blue-50 dark:bg-blue-900/20': expandedSpaceIds.has(space.id) }"
           >
             <button 
               @click="handleSelectSpace(space.id)"
               @dblclick="startSpaceRename(space)"
               @dragenter="handleSpaceDragOver(space.id)"
-              class="space-button flex-1 flex items-center gap-1 px-1 py-1.5 rounded-lg hover:bg-gray-200/50 dark:hover:bg-gray-800/50 transition-colors text-left min-w-0"
+              class="space-button flex-1 flex items-center gap-1.5 px-2 py-1.5 transition-colors text-left min-w-0"
             >
               <UIcon 
                 :name="expandedSpaceIds.has(space.id) ? 'i-heroicons-chevron-down' : 'i-heroicons-chevron-right'" 
-                class="w-4 h-4 text-gray-400 flex-shrink-0"
+                class="w-3.5 h-3.5 text-gray-500 dark:text-gray-400 flex-shrink-0"
               />
               <UIcon 
                 :name="space.icon ? `i-lucide-${space.icon}` : 'i-heroicons-book-open'" 
-                class="w-5 h-5 text-gray-600 dark:text-gray-400 flex-shrink-0" 
+                class="w-4 h-4 text-gray-700 dark:text-gray-300 flex-shrink-0" 
               />
-              <span class="font-medium text-sm truncate flex-1">{{ space.name }}</span>
+              <span class="font-normal text-sm truncate flex-1 text-gray-900 dark:text-gray-100">{{ space.name }}</span>
             </button>
             
             <!-- Context Menu Button -->
@@ -1568,8 +1568,8 @@ function handleNoteListResizeStart(e: MouseEvent) {
               type="button"
               @click.stop="toggleSpaceContextMenu($event, space.id)"
               @mousedown.stop
-              class="no-drag flex-shrink-0 p-1.5 rounded-lg opacity-100 md:opacity-0 md:group-hover/space:opacity-100 md:hover:bg-gray-200/80 md:dark:hover:bg-gray-700/80 active:bg-gray-200/80 dark:active:bg-gray-700/80 transition-all duration-200"
-              :class="showSpaceContextMenu === space.id ? 'bg-gray-200/80 dark:bg-gray-700/80' : ''"
+              class="no-drag flex-shrink-0 p-1 opacity-100 md:opacity-0 md:group-hover/space:opacity-100 hover:bg-gray-200 dark:hover:bg-gray-700 active:bg-gray-200 dark:active:bg-gray-700 transition-colors"
+              :class="showSpaceContextMenu === space.id ? 'bg-gray-200 dark:bg-gray-700' : ''"
             >
               <svg class="w-4 h-4 text-gray-500 dark:text-gray-400" fill="currentColor" viewBox="0 0 16 16">
                 <circle cx="8" cy="2" r="1.5"/>
@@ -1594,15 +1594,15 @@ function handleNoteListResizeStart(e: MouseEvent) {
                   v-if="showSpaceContextMenu === space.id"
                   data-space-context-menu
                   @click.stop
-                  class="fixed w-48 bg-white/95 dark:bg-gray-800/95 backdrop-blur-xl rounded-2xl border border-gray-200/60 dark:border-gray-700/60 shadow-2xl py-1.5 z-[9999]"
+                  class="fixed w-40 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 shadow-lg py-1 z-[9999]"
                   :style="getSpaceMenuStyle(space.id)"
                 >
                   <button
                     type="button"
                     @click="handleDeleteSpace(space.id)"
-                    class="w-full text-left px-4 py-2.5 text-sm text-red-600 dark:text-red-400 md:hover:bg-red-50 md:dark:hover:bg-red-900/20 active:bg-red-50 dark:active:bg-red-900/20 flex items-center gap-3"
+                    class="w-full text-left px-3 py-1.5 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700 active:bg-gray-200 dark:active:bg-gray-600 flex items-center gap-2"
                   >
-                    <UIcon name="i-heroicons-trash" class="w-5 h-5" />
+                    <UIcon name="i-heroicons-trash" class="w-4 h-4" />
                     <span>Delete</span>
                   </button>
                 </div>
@@ -1637,12 +1637,12 @@ function handleNoteListResizeStart(e: MouseEvent) {
             </div>
             
             <!-- New Section Button -->
-            <div class="pl-6 mt-1">
-              <div class="relative flex items-center gap-2 rounded-xl transition-all duration-200 hover:bg-gray-50/80 dark:hover:bg-gray-800/50 cursor-pointer group" @click="openCreateFolderModal(space.id)">
+            <div class="pl-6 mt-0.5">
+              <div class="relative flex items-center gap-2 transition-colors hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer group" @click="openCreateFolderModal(space.id)">
                 <div class="w-4" /> <!-- Spacer to align with sections -->
-                <div class="flex-1 flex items-center gap-2.5 py-2.5 pr-2 text-sm text-gray-500 group-hover:text-gray-900 dark:group-hover:text-gray-200 transition-colors">
-                  <UIcon name="i-heroicons-plus" class="w-4 h-4" />
-                  <span class="font-medium">New Section</span>
+                <div class="flex-1 flex items-center gap-2 py-1.5 pr-2 text-sm text-gray-600 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-gray-100 transition-colors">
+                  <UIcon name="i-heroicons-plus" class="w-3.5 h-3.5" />
+                  <span class="font-normal">New Section</span>
                 </div>
               </div>
             </div>
@@ -1656,28 +1656,28 @@ function handleNoteListResizeStart(e: MouseEvent) {
       </div>
       
       <!-- User Footer -->
-      <div class="p-4 border-t border-gray-200/50 dark:border-gray-800/50">
+      <div class="p-3 border-t border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800">
         <div class="flex items-center gap-2">
-          <div class="w-8 h-8 rounded-full bg-primary-500 flex items-center justify-center text-white font-bold">
+          <div class="w-7 h-7 bg-blue-600 dark:bg-blue-500 flex items-center justify-center text-white text-xs font-medium">
             {{ authStore.currentUser?.name?.[0] || 'U' }}
           </div>
           <div class="flex-1 min-w-0">
-            <div class="text-sm font-medium truncate">{{ authStore.currentUser?.name }}</div>
+            <div class="text-sm font-normal truncate text-gray-900 dark:text-gray-100">{{ authStore.currentUser?.name }}</div>
           </div>
-          <div class="flex items-center gap-1">
+          <div class="flex items-center gap-0.5">
             <NuxtLink
               to="/settings"
-              class="p-1.5 rounded-md hover:bg-gray-200/50 dark:hover:bg-gray-800/50 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+              class="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
               title="Settings"
             >
-              <UIcon name="i-heroicons-cog-6-tooth" class="w-5 h-5" />
+              <UIcon name="i-heroicons-cog-6-tooth" class="w-4 h-4" />
             </NuxtLink>
             <button
               @click="handleLogout"
-              class="p-1.5 rounded-md hover:bg-gray-200/50 dark:hover:bg-gray-800/50 text-gray-500 hover:text-red-600 dark:hover:text-red-400 transition-colors"
+              class="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
               title="Sign Out"
             >
-              <UIcon name="i-heroicons-arrow-right-on-rectangle" class="w-5 h-5" />
+              <UIcon name="i-heroicons-arrow-right-on-rectangle" class="w-4 h-4" />
             </button>
           </div>
         </div>
@@ -1687,35 +1687,35 @@ function handleNoteListResizeStart(e: MouseEvent) {
     <!-- Column 2: Note List (Middle) -->
     <aside 
       v-if="!isFullscreen && currentView === 'notebooks'"
-      class="hidden md:flex flex-col bg-white dark:bg-gray-900 border-r border-gray-200/60 dark:border-gray-800/60 flex-shrink-0 relative"
+      class="hidden md:flex flex-col bg-white dark:bg-gray-900 border-r border-gray-300 dark:border-gray-700 flex-shrink-0 relative"
       :style="{ width: `${noteListWidth}px` }"
     >
       <!-- Resize Handle -->
       <div
         @mousedown="handleNoteListResizeStart"
-        class="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-primary-500/30 z-10"
+        class="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-blue-500 z-10"
       />
 
       <!-- Header -->
-      <div class="h-14 flex items-center justify-between px-4 border-b border-gray-200/50 dark:border-gray-800/50">
+      <div class="h-12 flex items-center justify-between px-3 border-b border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
         <div class="flex items-center gap-2 overflow-hidden">
-          <span class="font-semibold text-lg truncate">
+          <span class="font-medium text-sm truncate text-gray-900 dark:text-gray-100">
             {{ selectedFolderId ? foldersStore.getFolderById(selectedFolderId)?.name : 'Select Section' }}
           </span>
           <UIcon 
             v-if="notesStore.isSyncing" 
             name="i-heroicons-arrow-path" 
-            class="w-4 h-4 animate-spin text-gray-400 flex-shrink-0" 
+            class="w-3.5 h-3.5 animate-spin text-gray-500 dark:text-gray-400 flex-shrink-0" 
             title="Syncing..."
           />
         </div>
         <button 
           v-if="selectedFolderId"
           @click="handleCreateNoteInFolder(selectedFolderId)"
-          class="p-1.5 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 text-primary-600 flex-shrink-0"
+          class="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400 flex-shrink-0"
           title="New Page"
         >
-          <UIcon name="i-heroicons-plus" class="w-5 h-5" />
+          <UIcon name="i-heroicons-plus" class="w-4 h-4" />
         </button>
       </div>
 
@@ -1734,7 +1734,7 @@ function handleNoteListResizeStart(e: MouseEvent) {
         </div>
         <div
           v-else
-          class="divide-y divide-gray-100 dark:divide-gray-800"
+          class="divide-y divide-gray-200 dark:divide-gray-700"
           ref="noteListRef"
         >
           <div 
@@ -1743,25 +1743,25 @@ function handleNoteListResizeStart(e: MouseEvent) {
             :data-note-id="note.id"
             :style="{ '--index': index, '--total-count': displayNotes.length }"
             @click="handleOpenNote(note.id)"
-            class="note-item group p-3 cursor-pointer transition-colors relative"
+            class="note-item group px-3 py-2 cursor-pointer transition-colors relative border-l-2"
             :class="{ 
-              'bg-primary-50 dark:bg-primary-900/20 border-l-4 border-primary-500': activeNote?.id === note.id,
-              'hover:bg-gray-50 dark:hover:bg-gray-800': activeNote?.id !== note.id
+              'bg-blue-50 dark:bg-blue-900/20 border-l-blue-600 dark:border-l-blue-400': activeNote?.id === note.id,
+              'border-l-transparent hover:bg-gray-50 dark:hover:bg-gray-800': activeNote?.id !== note.id
             }"
           >
-            <div class="font-medium text-sm truncate select-none pr-8">{{ note.title || 'Untitled Page' }}</div>
+            <div class="font-normal text-sm truncate select-none pr-8 text-gray-900 dark:text-gray-100">{{ note.title || 'Untitled Page' }}</div>
             <!-- Delete Button -->
             <button
               @click.stop="handleDeleteClick(note.id, $event)"
-              class="absolute top-3 right-3 p-1 rounded-md transition-colors"
+              class="absolute top-2 right-2 p-1 transition-colors"
               :class="noteToDelete === note.id 
                 ? 'opacity-100 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20' 
-                : 'opacity-30 group-hover:opacity-100 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'"
+                : 'opacity-0 group-hover:opacity-100 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'"
               :title="noteToDelete === note.id ? 'Click to confirm delete' : 'Delete note'"
             >
               <UIcon 
                 :name="noteToDelete === note.id ? 'i-heroicons-trash' : 'i-heroicons-x-mark'" 
-                class="w-4 h-4" 
+                class="w-3.5 h-3.5" 
               />
             </button>
           </div>
@@ -1774,10 +1774,10 @@ function handleNoteListResizeStart(e: MouseEvent) {
       <!-- Empty state / Home / Mobile folder notes -->
       <div v-if="!activeNote">
         <!-- Desktop empty state -->
-        <div v-if="!isMobileView" class="flex-1 flex items-start justify-center text-gray-400 pt-[50vh]">
+        <div v-if="!isMobileView" class="flex-1 flex items-start justify-center text-gray-500 dark:text-gray-400 pt-[50vh]">
           <div class="text-center">
-            <UIcon name="i-heroicons-pencil-square" class="w-16 h-16 mx-auto mb-4 opacity-50" />
-            <p>Select a page to start editing</p>
+            <UIcon name="i-heroicons-pencil-square" class="w-12 h-12 mx-auto mb-3 opacity-40" />
+            <p class="text-sm">Select a page to start editing</p>
           </div>
         </div>
 
@@ -1953,52 +1953,52 @@ function handleNoteListResizeStart(e: MouseEvent) {
       
       <template v-else>
         <!-- Editor Title Area -->
-        <div class="px-8 pt-6 pb-2 relative">
+        <div class="px-6 pt-4 pb-3 relative border-b border-gray-200 dark:border-gray-700">
           <!-- Desktop: Action Buttons / Mobile: Close Note -->
-          <div v-if="!isMobileView" class="absolute top-6 right-8 flex items-center gap-2 z-10">
+          <div v-if="!isMobileView" class="absolute top-4 right-6 flex items-center gap-1 z-10">
             <!-- Download PDF Button -->
             <button
               @click="downloadPDF"
-              class="p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+              class="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
               title="Download as PDF"
             >
               <UIcon 
                 name="i-heroicons-arrow-down-tray"
-                class="w-5 h-5" 
+                class="w-4 h-4" 
               />
             </button>
             <!-- Focus Mode Button -->
             <button
               @click="toggleFocusMode"
-              class="p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+              class="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
               :title="isFullscreen ? 'Show Sidebars' : 'Hide Sidebars'"
             >
               <UIcon 
                 :name="isFullscreen ? 'i-heroicons-arrows-pointing-in' : 'i-heroicons-arrows-pointing-out'" 
-                class="w-5 h-5" 
+                class="w-4 h-4" 
               />
             </button>
           </div>
           <button
             v-else
             @click="handleCloseActiveNote"
-            class="absolute top-6 right-8 p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition-colors z-10"
+            class="absolute top-4 right-6 p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors z-10"
             title="Close note"
           >
             <UIcon 
               name="i-heroicons-x-mark"
-              class="w-5 h-5" 
+              class="w-4 h-4" 
             />
           </button>
           
           <input
             v-model="activeNote.title"
-            class="w-full text-3xl font-bold bg-transparent border-none outline-none placeholder-gray-300 dark:placeholder-gray-600 py-3 leading-normal"
-            :class="isMobileView ? 'pr-12' : 'pr-40'"
+            class="w-full text-2xl font-semibold bg-transparent border-none outline-none placeholder-gray-400 dark:placeholder-gray-500 py-2 leading-tight text-gray-900 dark:text-gray-100"
+            :class="isMobileView ? 'pr-12' : 'pr-32'"
             placeholder="Page Title"
             @input="handleTitleChange"
           />
-          <div class="text-xs text-gray-400 mt-1 flex items-center gap-2">
+          <div class="text-xs text-gray-500 dark:text-gray-400 mt-1 flex items-center gap-2">
             <ClientOnly>
               <div class="flex items-center gap-2">
                 <template v-if="activeNote">
@@ -2357,13 +2357,13 @@ function handleNoteListResizeStart(e: MouseEvent) {
               >
                 <div 
                   v-if="showDeleteSpaceModal"
-                  class="relative bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-sm w-full p-5 border border-red-200 dark:border-red-900"
+                  class="relative bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 shadow-lg max-w-sm w-full p-5"
                   @click.stop
                 >
                   <!-- Header -->
                   <div class="flex items-center gap-3 mb-3">
-                    <div class="flex-shrink-0 w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
-                      <UIcon name="i-heroicons-exclamation-triangle" class="w-5 h-5 text-red-600 dark:text-red-400" />
+                    <div class="flex-shrink-0 w-8 h-8 bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
+                      <UIcon name="i-heroicons-exclamation-triangle" class="w-4 h-4 text-red-600 dark:text-red-400" />
                     </div>
                     <div class="flex-1">
                       <h3 class="text-base font-bold text-gray-900 dark:text-white">
@@ -2385,7 +2385,7 @@ function handleNoteListResizeStart(e: MouseEvent) {
                   
                   <!-- Warning Content -->
                   <div class="mb-4">
-                    <div class="bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800 rounded-lg p-3 mb-3">
+                    <div class="bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800 p-3 mb-3">
                       <p class="text-xs font-medium text-red-800 dark:text-red-300 mb-1.5">
                         ⚠️ Warning: Permanent Data Loss
                       </p>

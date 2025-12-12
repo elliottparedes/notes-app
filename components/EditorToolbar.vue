@@ -256,7 +256,7 @@ const toolbarGroups = [
 <template>
   <div v-if="editor" class="sticky top-0 z-20">
     <div
-      class="flex flex-wrap items-center gap-1 px-2 py-1.5 bg-white/80 dark:bg-gray-900/80 border-b border-gray-200 dark:border-gray-700 backdrop-blur-sm"
+      class="flex flex-wrap items-center gap-0.5 px-2 py-1 bg-white dark:bg-gray-900 border-b border-gray-300 dark:border-gray-700"
     >
       <div v-for="(group, index) in toolbarGroups" :key="group.name" class="flex items-center gap-0.5">
         <!-- Only render group if at least one item is visible -->
@@ -267,10 +267,10 @@ const toolbarGroups = [
               type="button"
               @click="item.action"
               :disabled="item.isLoading?.()"
-              class="p-1.5 rounded-md transition-all duration-200 flex items-center justify-center"
+              class="p-1.5 transition-colors flex items-center justify-center"
               :class="[
                 item.isActive?.() 
-                  ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300' 
+                  ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' 
                   : (item.color || 'text-gray-600 dark:text-gray-400') + ' hover:bg-gray-100 dark:hover:bg-gray-800',
                 item.isLoading?.() ? 'opacity-80 cursor-wait pr-2 pl-1.5 gap-1.5 w-auto' : 'min-w-[28px] h-[28px]'
               ]"
@@ -289,7 +289,7 @@ const toolbarGroups = [
           </template>
           
           <!-- Separator -->
-          <div v-if="index < toolbarGroups.length - 1 && toolbarGroups.slice(index + 1).some(g => g.items.some(i => !i.isHidden?.()))" class="w-px h-4 bg-gray-200 dark:bg-gray-700 mx-1.5 flex-shrink-0"></div>
+          <div v-if="index < toolbarGroups.length - 1 && toolbarGroups.slice(index + 1).some(g => g.items.some(i => !i.isHidden?.()))" class="w-px h-5 bg-gray-300 dark:bg-gray-600 mx-1 flex-shrink-0"></div>
         </template>
       </div>
     </div>
@@ -297,7 +297,7 @@ const toolbarGroups = [
     <!-- AskAI Prompt Box -->
     <div
       v-if="showAskAIPrompt"
-      class="px-4 py-3 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700"
+      class="px-3 py-2 bg-white dark:bg-gray-900 border-b border-gray-300 dark:border-gray-700"
     >
       <div class="flex items-start gap-2">
         <div class="flex-1">
@@ -305,28 +305,28 @@ const toolbarGroups = [
             v-model="askAIPrompt"
             type="text"
             placeholder="Ask AI to modify your note (e.g., 'Make this more concise', 'Add bullet points', 'Rewrite in a professional tone')"
-            class="ask-ai-input w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500 dark:focus:ring-purple-400"
+            class="ask-ai-input w-full px-2.5 py-1.5 text-sm border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:focus:ring-blue-400"
             @keyup.enter="submitAskAI"
             @keyup.escape="cancelAskAI"
           />
         </div>
-        <div class="flex items-center gap-2">
+        <div class="flex items-center gap-1.5">
           <button
             @click="submitAskAI"
             :disabled="!askAIPrompt.trim() || isAskingAI"
-            class="px-4 py-2 text-sm font-medium text-white bg-purple-600 dark:bg-purple-500 rounded-md hover:bg-purple-700 dark:hover:bg-purple-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+            class="px-3 py-1.5 text-xs font-medium text-white bg-blue-600 dark:bg-blue-500 hover:bg-blue-700 dark:hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5"
           >
             <UIcon 
               v-if="isAskingAI" 
               name="i-heroicons-arrow-path" 
-              class="w-4 h-4 animate-spin" 
+              class="w-3.5 h-3.5 animate-spin" 
             />
             <span v-else>Send</span>
           </button>
           <button
             @click="cancelAskAI"
             :disabled="isAskingAI"
-            class="px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 rounded-md hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            class="px-2.5 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             Cancel
           </button>
