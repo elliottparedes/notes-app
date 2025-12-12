@@ -137,15 +137,30 @@ watch(showFolderDropdown, (show) => {
   }
 });
 
+// Helper to check if we're on mobile (client-side only)
+const isMobileView = computed(() => {
+  if (!process.client) return false;
+  return window.innerWidth < 768;
+});
+
 // Redirect to dashboard and open tab
 onMounted(async () => {
-  // Redirect to dashboard and open this note in a tab
+  // Redirect to dashboard (or mobile home) and open this note in a tab
   try {
     await notesStore.openTab(noteId.value);
-    router.push('/dashboard');
+    // On mobile, redirect to mobile home; on desktop, redirect to dashboard
+    if (isMobileView.value) {
+      router.push('/mobile/home');
+    } else {
+      router.push('/dashboard');
+    }
   } catch (error) {
     console.error('Error opening note:', error);
-    router.push('/dashboard');
+    if (isMobileView.value) {
+      router.push('/mobile/home');
+    } else {
+      router.push('/dashboard');
+    }
   }
 });
 

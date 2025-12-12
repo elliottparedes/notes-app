@@ -1,40 +1,41 @@
 <script setup lang="ts">
 const router = useRouter();
 const route = useRoute();
-const authStore = useAuthStore();
-const notesStore = useNotesStore();
-const foldersStore = useFoldersStore();
-const spacesStore = useSpacesStore();
 
 // Determine active route
 const activeRoute = computed(() => {
   const path = route.path;
-  if (path === '/dashboard') return 'home';
-  if (path === '/settings') return 'settings';
-  if (path.startsWith('/notes/')) return 'notes';
+  if (path === '/mobile/home' || path === '/dashboard') return 'home';
+  if (path === '/mobile/search') return 'search';
+  if (path === '/mobile/ai-chat') return 'ai-chat';
+  if (path === '/mobile/storage') return 'home'; // Storage shows home as active
   return 'home';
 });
 
-// Navigation items (mobile IA: Home, Me)
+// Navigation items (mobile IA: Home, Search, AI Chat)
 const navItems = [
   {
     id: 'home',
     label: 'Home',
     icon: 'i-heroicons-home',
-    route: '/dashboard',
+    route: '/mobile/home',
     badge: null
   },
   {
-    id: 'settings',
-    label: 'Me',
-    icon: 'i-heroicons-user-circle',
-    route: '/settings',
+    id: 'search',
+    label: 'Search',
+    icon: 'i-heroicons-magnifying-glass',
+    route: '/mobile/search',
+    badge: null
+  },
+  {
+    id: 'ai-chat',
+    label: 'AI',
+    icon: 'i-heroicons-sparkles',
+    route: '/mobile/ai-chat',
     badge: null
   }
 ];
-
-const emit = defineEmits<{
-}>();
 
 function handleNavClick(item: typeof navItems[0]) {
   if (item.route) {
@@ -50,23 +51,12 @@ function handleNavClick(item: typeof navItems[0]) {
         v-for="item in navItems"
         :key="item.id"
         @click="handleNavClick(item)"
-        :class="[
-          'relative flex flex-col items-center justify-center gap-1.5 flex-1 h-full rounded-2xl transition-all duration-300 active:scale-95',
-          item.isPrimary 
-            ? 'mx-2' 
-            : ''
-        ]"
+        class="relative flex flex-col items-center justify-center gap-1 flex-1 h-full transition-all duration-300 active:scale-95"
       >
         <!-- Active indicator background -->
         <div
-          v-if="activeRoute === item.id && !item.isPrimary"
-          class="absolute inset-0 bg-primary-50 dark:bg-primary-900/30 rounded-2xl transition-all duration-300"
-        />
-        
-        <!-- Active indicator dot -->
-        <div
-          v-if="activeRoute === item.id && !item.isPrimary"
-          class="absolute top-1.5 w-1 h-1 bg-primary-600 dark:bg-primary-400 rounded-full transition-all duration-300"
+          v-if="activeRoute === item.id"
+          class="absolute inset-0 bg-blue-50 dark:bg-blue-900/30 rounded-2xl transition-all duration-300"
         />
         
         <!-- Icon container -->
@@ -75,11 +65,9 @@ function handleNavClick(item: typeof navItems[0]) {
             :name="item.icon" 
             :class="[
               'transition-all duration-300',
-              item.isPrimary
-                ? 'w-8 h-8 text-primary-600 dark:text-primary-400'
-                : activeRoute === item.id
-                  ? 'w-6 h-6 text-primary-600 dark:text-primary-400'
-                  : 'w-6 h-6 text-gray-500 dark:text-gray-400'
+              activeRoute === item.id
+                ? 'w-6 h-6 text-blue-600 dark:text-blue-400'
+                : 'w-6 h-6 text-gray-500 dark:text-gray-400'
             ]"
           />
           
@@ -96,21 +84,13 @@ function handleNavClick(item: typeof navItems[0]) {
         <span 
           :class="[
             'text-[11px] font-medium transition-all duration-300 relative z-10',
-            activeRoute === item.id && !item.isPrimary
-              ? 'text-primary-600 dark:text-primary-400'
-              : item.isPrimary
-                ? 'text-primary-600 dark:text-primary-400 font-semibold'
-                : 'text-gray-500 dark:text-gray-400'
+            activeRoute === item.id
+              ? 'text-blue-600 dark:text-blue-400'
+              : 'text-gray-500 dark:text-gray-400'
           ]"
         >
           {{ item.label }}
         </span>
-        
-        <!-- Primary button special styling -->
-        <div
-          v-if="item.isPrimary"
-          class="absolute inset-0 bg-gradient-to-br from-primary-500 to-primary-600 rounded-2xl opacity-0 hover:opacity-10 active:opacity-20 transition-opacity duration-200 pointer-events-none"
-        />
       </button>
     </div>
   </nav>

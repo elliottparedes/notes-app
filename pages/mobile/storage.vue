@@ -1,0 +1,431 @@
+<script setup lang="ts">
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
+import { useRouter } from 'vue-router';
+import { useFilesStore, type FileItem } from '~/stores/files';
+import { useAuthStore } from '~/stores/auth';
+import { useToast } from '~/composables/useToast';
+
+const router = useRouter();
+const filesStore = useFilesStore();
+const authStore = useAuthStore();
+const toast = useToast();
+
+const fileInputRef = ref<HTMLInputElement | null>(null);
+const showCreateFolderModal = ref(false);
+const newFolderName = ref('');
+const isCreatingFolder = ref(false);
+const isUploading = ref(false);
+const folders = ref<Array<{ path: string; name: string }>>([]);
+const foldersLoading = ref(false);
+
+// Format file size
+function formatFileSize(bytes: number): string {
+  if (bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
+}
+
+// Get file icon
+function getFileIcon(file: FileItem): string {
+  if (!file.mime_type) return 'i-heroicons-document';
+  if (file.mime_type.startsWith('image/')) return 'i-heroicons-photo';
+  if (file.mime_type.startsWith('video/')) return 'i-heroicons-video-camera';
+  if (file.mime_type.includes('pdf')) return 'i-heroicons-document-text';
+  return 'i-heroicons-document';
+}
+
+// Upload files
+async function uploadFiles(files: File[]) {
+  if (files.length === 0) return;
+  
+  isUploading.value = true;
+  try {
+    for (const file of files) {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('folder_path', filesStore.currentFolder);
+      
+      await $fetch('/api/files', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${authStore.token}`
+        },
+        body: formData
+      });
+    }
+    
+    await filesStore.fetchFiles();
+    toast.success(`Uploaded ${files.length} file(s)`);
+  } catch (error: any) {
+    console.error('Upload error:', error);
+    toast.error(error.data?.message || 'Failed to upload files');
+  } finally {
+    isUploading.value = false;
+    if (fileInputRef.value) {
+      fileInputRef.value.value = '';
+    }
+  }
+}
+
+function handleFileInput(event: Event) {
+  const target = event.target as HTMLInputElement;
+  if (target.files) {
+    uploadFiles(Array.from(target.files));
+  }
+}
+
+function handleDrop(event: DragEvent) {
+  event.preventDefault();
+  if (event.dataTransfer?.files) {
+    uploadFiles(Array.from(event.dataTransfer.files));
+  }
+}
+
+function handleDragOver(event: DragEvent) {
+  event.preventDefault();
+}
+
+async function handleCreateFolder() {
+  if (!newFolderName.value.trim() || isCreatingFolder.value) return;
+  
+  isCreatingFolder.value = true;
+  try {
+    await $fetch('/api/files/folders', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${authStore.token}`
+      },
+      body: {
+        folder_name: newFolderName.value.trim(),
+        parent_path: filesStore.currentFolder
+      }
+    });
+    
+    await Promise.all([
+      filesStore.fetchFiles(filesStore.currentFolder),
+      fetchFolders()
+    ]);
+    showCreateFolderModal.value = false;
+    newFolderName.value = '';
+    toast.success('Folder created');
+  } catch (error: any) {
+    toast.error(error.data?.message || 'Failed to create folder');
+  } finally {
+    isCreatingFolder.value = false;
+  }
+}
+
+async function fetchFolders() {
+  foldersLoading.value = true;
+  try {
+    const response = await $fetch<{ folders: Array<{ path: string; name: string }> }>(
+      `/api/files/folders?parent=${encodeURIComponent(filesStore.currentFolder)}`,
+      {
+        headers: { Authorization: `Bearer ${authStore.token}` },
+      }
+    );
+    folders.value = response.folders;
+  } catch (error) {
+    console.error('Failed to fetch folders:', error);
+    folders.value = [];
+  } finally {
+    foldersLoading.value = false;
+  }
+}
+
+async function navigateToFolder(folderPath: string) {
+  filesStore.currentFolder = folderPath;
+  await Promise.all([
+    filesStore.fetchFiles(folderPath),
+    fetchFolders()
+  ]);
+}
+
+function getParentFolder() {
+  if (filesStore.currentFolder === '/') return null;
+  const parts = filesStore.currentFolder.split('/').filter(Boolean);
+  if (parts.length <= 1) return '/';
+  return '/' + parts.slice(0, -1).join('/');
+}
+
+async function goToParentFolder() {
+  const parent = getParentFolder();
+  if (parent !== null) {
+    await navigateToFolder(parent);
+  }
+}
+
+// Breadcrumbs
+const breadcrumbs = computed(() => {
+  if (filesStore.currentFolder === '/') return [];
+  const parts = filesStore.currentFolder.split('/').filter(Boolean);
+  const crumbs: Array<{ path: string; name: string }> = [];
+  let currentPath = '';
+  parts.forEach((part) => {
+    currentPath += '/' + part;
+    crumbs.push({ path: currentPath, name: part });
+  });
+  return crumbs;
+});
+
+// Helper to check if we're on mobile (client-side only)
+const isMobileView = computed(() => {
+  if (!process.client) return false;
+  return window.innerWidth < 768;
+});
+
+// Responsive routing - redirect to dashboard if screen becomes desktop
+watch(isMobileView, (isMobile) => {
+  if (!isMobile && process.client) {
+    // Screen became desktop size, redirect to dashboard with storage view
+    router.replace('/dashboard?view=storage');
+  }
+}, { immediate: false });
+
+// Load files on mount
+onMounted(async () => {
+  // Redirect if on desktop
+  if (!isMobileView.value) {
+    router.replace('/dashboard?view=storage');
+    return;
+  }
+
+  try {
+    await Promise.all([
+      filesStore.fetchFiles(),
+      fetchFolders()
+    ]);
+  } catch (error) {
+    console.error('Failed to load files:', error);
+    toast.error('Failed to load files');
+  }
+
+  // Listen for window resize
+  const handleResize = () => {
+    if (window.innerWidth >= 768) {
+      // Screen became desktop, redirect to storage view
+      router.replace('/dashboard?view=storage');
+    }
+  };
+
+  window.addEventListener('resize', handleResize);
+  onUnmounted(() => {
+    window.removeEventListener('resize', handleResize);
+  });
+});
+
+// Watch for folder changes
+watch(() => filesStore.currentFolder, async (newFolder, oldFolder) => {
+  // Only fetch if folder actually changed (not on initial mount)
+  if (oldFolder !== undefined) {
+    await fetchFolders();
+  }
+});
+</script>
+
+<template>
+  <div class="flex flex-col h-screen bg-white dark:bg-gray-900 md:hidden">
+    <!-- Top Nav -->
+    <div class="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
+      <div class="flex items-center gap-3">
+        <button
+          @click="router.push('/mobile/home')"
+          class="p-1.5 text-gray-600 dark:text-gray-400"
+        >
+          <UIcon name="i-heroicons-arrow-left" class="w-5 h-5" />
+        </button>
+        <h1 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Storage</h1>
+      </div>
+      
+      <div class="flex items-center gap-2">
+        <button
+          @click="fileInputRef?.click()"
+          class="p-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 active:scale-95 transition"
+          :disabled="isUploading"
+        >
+          <UIcon 
+            :name="isUploading ? 'i-heroicons-arrow-path' : 'i-heroicons-plus'" 
+            class="w-5 h-5"
+            :class="{ 'animate-spin': isUploading }"
+          />
+        </button>
+        <button
+          @click="showCreateFolderModal = true"
+          class="p-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 active:scale-95 transition"
+        >
+          <UIcon name="i-heroicons-folder-plus" class="w-5 h-5" />
+        </button>
+      </div>
+    </div>
+
+    <!-- Breadcrumbs -->
+    <div v-if="breadcrumbs.length > 0" class="px-4 py-2 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
+      <div class="flex items-center gap-2 overflow-x-auto scrollbar-hide">
+        <button
+          @click="goToParentFolder()"
+          class="flex items-center gap-1 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
+        >
+          <UIcon name="i-heroicons-home" class="w-4 h-4" />
+        </button>
+        <UIcon name="i-heroicons-chevron-right" class="w-3 h-3 text-gray-400" />
+        <button
+          v-for="crumb in breadcrumbs"
+          :key="crumb.path"
+          @click="navigateToFolder(crumb.path)"
+          class="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 whitespace-nowrap"
+        >
+          {{ crumb.name }}
+        </button>
+      </div>
+    </div>
+
+    <!-- Content -->
+    <div 
+      class="flex-1 overflow-y-auto pb-20"
+      @drop="handleDrop"
+      @dragover="handleDragOver"
+    >
+      <!-- Empty State -->
+      <div v-if="folders.length === 0 && filesStore.files.length === 0 && !filesStore.loading && !foldersLoading" class="flex flex-col items-center justify-center h-full p-8 text-center">
+        <div class="w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center mb-4">
+          <UIcon name="i-heroicons-folder" class="w-8 h-8 text-gray-400" />
+        </div>
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">No files yet</h3>
+        <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">Upload files or create folders to get started</p>
+        <button
+          @click="fileInputRef?.click()"
+          class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 active:scale-95 transition"
+        >
+          Upload Files
+        </button>
+      </div>
+
+      <!-- Files List -->
+      <div v-else class="p-4 space-y-2">
+        <!-- Folders -->
+        <button
+          v-for="folder in folders"
+          :key="folder.path"
+          @click="navigateToFolder(folder.path)"
+          class="w-full flex items-center gap-3 p-3 rounded-xl bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-700/50 active:scale-[0.98] transition"
+        >
+          <UIcon name="i-heroicons-folder" class="w-6 h-6 text-blue-500" />
+          <div class="flex-1 text-left min-w-0">
+            <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+              {{ folder.name }}
+            </p>
+          </div>
+          <UIcon name="i-heroicons-chevron-right" class="w-5 h-5 text-gray-400" />
+        </button>
+
+        <!-- Files -->
+        <button
+          v-for="file in filesStore.files"
+          :key="file.id"
+          @click="window.open(file.download_url || file.presigned_url, '_blank')"
+          class="w-full flex items-center gap-3 p-3 rounded-xl bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-700/50 active:scale-[0.98] transition"
+        >
+          <UIcon :name="getFileIcon(file)" class="w-6 h-6 text-gray-500" />
+          <div class="flex-1 text-left min-w-0">
+            <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+              {{ file.file_name }}
+            </p>
+            <p class="text-xs text-gray-500 dark:text-gray-400">
+              {{ formatFileSize(file.file_size) }}
+            </p>
+          </div>
+        </button>
+      </div>
+
+      <!-- Loading State -->
+      <div v-if="filesStore.loading || foldersLoading" class="flex items-center justify-center py-20">
+        <UIcon name="i-heroicons-arrow-path" class="w-8 h-8 text-gray-400 animate-spin" />
+      </div>
+    </div>
+
+    <!-- Hidden File Input -->
+    <input
+      ref="fileInputRef"
+      type="file"
+      multiple
+      class="hidden"
+      @change="handleFileInput"
+    />
+
+    <!-- Create Folder Modal -->
+    <ClientOnly>
+      <Teleport to="body">
+        <Transition
+          enter-active-class="transition-opacity duration-200"
+          enter-from-class="opacity-0"
+          enter-to-class="opacity-100"
+          leave-active-class="transition-opacity duration-200"
+          leave-from-class="opacity-100"
+          leave-to-class="opacity-0"
+        >
+          <div 
+            v-if="showCreateFolderModal" 
+            class="fixed inset-0 z-50 overflow-y-auto"
+            @click.self="showCreateFolderModal = false"
+          >
+            <div class="fixed inset-0 bg-black/50 transition-opacity"></div>
+            <div class="flex min-h-full items-center justify-center p-4">
+              <div 
+                class="relative bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 shadow-lg max-w-sm w-full p-5 rounded-lg"
+                @click.stop
+              >
+                <h3 class="text-base font-semibold mb-3 text-gray-900 dark:text-white">Create New Folder</h3>
+                <input
+                  v-model="newFolderName"
+                  type="text"
+                  placeholder="Folder Name"
+                  class="mb-3 w-full px-3 py-2 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-sm text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-blue-500 rounded"
+                  autofocus
+                  @keyup.enter="handleCreateFolder"
+                />
+                <div class="grid grid-cols-2 gap-2 pt-2">
+                  <button
+                    type="button"
+                    @click="showCreateFolderModal = false"
+                    class="px-3 py-2 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-sm font-normal border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 rounded"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    @click="handleCreateFolder"
+                    :disabled="isCreatingFolder"
+                    class="px-3 py-2 bg-blue-600 dark:bg-blue-500 text-white text-sm font-normal border border-blue-700 dark:border-blue-600 hover:bg-blue-700 dark:hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed rounded flex items-center justify-center gap-2"
+                  >
+                    <UIcon 
+                      v-if="isCreatingFolder" 
+                      name="i-heroicons-arrow-path" 
+                      class="w-4 h-4 animate-spin" 
+                    />
+                    <span>Create</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </Transition>
+      </Teleport>
+    </ClientOnly>
+
+    <!-- Mobile Bottom Navigation -->
+    <MobileBottomNav />
+  </div>
+</template>
+
+<style scoped>
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+</style>
+

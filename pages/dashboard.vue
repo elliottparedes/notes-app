@@ -44,6 +44,15 @@ const showSearchModal = ref(false);
 const currentView = ref<'notebooks' | 'storage'>('notebooks');
 const showViewDropdown = ref(false);
 
+// Check for view query parameter on mount
+watch(() => route.query.view, (view) => {
+  if (view === 'storage') {
+    currentView.value = 'storage';
+  } else if (view === 'notebooks') {
+    currentView.value = 'notebooks';
+  }
+}, { immediate: true });
+
 // Provide view switching function for FileStorage component
 function switchToNotebooks() {
   currentView.value = 'notebooks';
@@ -1330,8 +1339,23 @@ function handleGlobalKeydown(event: KeyboardEvent) {
   }
 }
 
+// Watch for screen size changes and redirect accordingly
+watch(isMobileView, (isMobile) => {
+  if (isMobile && process.client && route.path === '/dashboard') {
+    // Screen became mobile, redirect to mobile home
+    router.replace('/mobile/home');
+  }
+}, { immediate: false });
+
 onMounted(async () => {
   isMounted.value = true;
+  
+  // Redirect mobile users to the new mobile home page
+  if (isMobileView.value && route.path === '/dashboard') {
+    router.replace('/mobile/home');
+    return;
+  }
+  
   await loadData();
   await notesStore.loadTabsFromStorage(); // Ensure tabs are loaded
   
@@ -1348,6 +1372,19 @@ onMounted(async () => {
   
   // Add keyboard shortcut listener
   window.addEventListener('keydown', handleGlobalKeydown);
+
+  // Listen for window resize to handle responsive routing
+  const handleResize = () => {
+    if (window.innerWidth < 768 && route.path === '/dashboard') {
+      // Screen became mobile, redirect
+      router.replace('/mobile/home');
+    }
+  };
+
+  window.addEventListener('resize', handleResize);
+  onUnmounted(() => {
+    window.removeEventListener('resize', handleResize);
+  });
 });
 
 onUnmounted(() => {
