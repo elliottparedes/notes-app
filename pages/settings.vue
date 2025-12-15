@@ -110,7 +110,7 @@ function goBack() {
 
 <template>
   <div class="min-h-screen bg-white dark:bg-gray-900">
-    <div class="max-w-4xl mx-auto px-4 pt-6 pb-16 sm:px-6 lg:px-8">
+    <div class="max-w-6xl mx-auto px-4 pt-6 pb-16 sm:px-6 lg:px-8">
       <!-- Header -->
       <div class="mb-6">
         <button
