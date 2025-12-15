@@ -189,15 +189,51 @@ async function confirmDeleteSpace() {
   isDeletingSpace.value = true;
   
   try {
-    await spacesStore.deleteSpace(deletingSpaceId.value);
+    const spaceIdToDelete = deletingSpaceId.value;
+
+    // Get all folders in the space to be deleted
+    const foldersInSpace = foldersStore.folders.filter(f => f.space_id === spaceIdToDelete);
+    const folderIdsInSpace = foldersInSpace.map(f => f.id);
+
+    // Get all notes that are in these folders or directly in the space (if root notes are allowed)
+    const notesInSpace = notesStore.notes.filter(n => 
+      (n.folder_id && folderIdsInSpace.includes(n.folder_id)) || 
+      (n.space_id === spaceIdToDelete && !n.folder_id) // Assuming notes can directly belong to a space
+    );
+
+    // Check if the active note is in this space BEFORE deletion/closing
+    const isActiveNoteInSpace = activeNote.value && notesInSpace.some(n => n.id === activeNote.value?.id);
+
+    // Close tabs for all notes in the deleted space
+    notesInSpace.forEach(note => {
+      if (notesStore.openTabs.includes(note.id)) {
+        notesStore.closeTab(note.id);
+      }
+    });
+
+    // If the active note was in this space, force clear the active tab
+    if (isActiveNoteInSpace) {
+      notesStore.activeTabId = null;
+      notesStore.saveTabsToStorage();
+    }
+
+    // If the currently selected folder is in the deleted space, deselect it
+    if (selectedFolderId.value && folderIdsInSpace.includes(selectedFolderId.value)) {
+      selectedFolderId.value = null;
+    }
+    
+    await spacesStore.deleteSpace(spaceIdToDelete);
     toast.success('Space deleted successfully');
+    
+    // After space is deleted, refetch folders and notes to update UI
+    await Promise.all([
+      foldersStore.fetchFolders(null), // Fetch all folders to ensure UI is consistent
+      notesStore.fetchNotes() // Refresh all notes
+    ]);
+
     showDeleteSpaceModal.value = false;
     deletingSpaceId.value = null;
     
-    // Refetch folders if we deleted the current space
-    if (spacesStore.currentSpaceId) {
-      await foldersStore.fetchFolders(undefined, true);
-    }
   } catch (error: any) {
     toast.error(error.data?.message || error.message || 'Failed to delete space');
   } finally {
@@ -773,6 +809,44 @@ async function handleSelectSpace(spaceId: number) {
     expandedSpaceIds.value.add(spaceId);
     // Also set as current space for context, but don't collapse others
     spacesStore.setCurrentSpace(spaceId);
+  }
+}
+
+async function handleDeleteFolder(folderId: number) {
+  try {
+    // Check if active note is in this folder BEFORE deletion/closing
+    const isActiveNoteInFolder = activeNote.value && activeNote.value.folder_id === folderId;
+
+    // If the deleted folder is the currently selected one, deselect it
+    if (selectedFolderId.value === folderId) {
+      selectedFolderId.value = null;
+    }
+    
+    // Find all notes in this folder to close their tabs
+    const notesInFolder = notesStore.notes.filter(n => n.folder_id === folderId);
+    
+    notesInFolder.forEach(note => {
+      if (notesStore.openTabs.includes(note.id)) {
+        notesStore.closeTab(note.id);
+      }
+    });
+
+    // If the active note was in this folder, force clear the active tab
+    // because closeTab() might have auto-switched to another tab
+    if (isActiveNoteInFolder) {
+      notesStore.activeTabId = null;
+      notesStore.saveTabsToStorage();
+    }
+
+    await foldersStore.deleteFolder(folderId);
+    
+    // Refresh notes to remove deleted notes from the list
+    await notesStore.fetchNotes();
+    
+    toast.success('Section deleted');
+  } catch (error) {
+    console.error('Failed to delete folder:', error);
+    toast.error('Failed to delete section');
   }
 }
 
@@ -1671,7 +1745,7 @@ function handleNoteListResizeStart(e: MouseEvent) {
                 :open-menu-id="openFolderContextMenuId"
                 @select="handleSelectFolder"
                 @create-note="handleCreateNoteInFolder"
-                @delete="(id) => foldersStore.deleteFolder(id)"
+                @delete="handleDeleteFolder"
                 @rename="(id) => console.log('Rename folder', id)"
                 @update:openMenuId="openFolderContextMenuId = $event"
               />
