@@ -155,6 +155,8 @@ watch(messages, () => {
   });
 }, { deep: true });
 
+const isInputFocused = ref(false);
+
 async function sendMessage() {
   if (!inputMessage.value.trim() || isLoading.value) return;
 
@@ -338,13 +340,18 @@ onMounted(() => {
     </div>
 
     <!-- Input Area -->
-    <div class="px-4 pt-3 pb-20 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
+    <div 
+      class="px-4 pt-3 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 transition-all duration-200"
+      :class="isInputFocused ? 'pb-4' : 'pb-20'"
+    >
       <div class="flex items-end gap-2">
         <div class="flex-1 relative">
           <input
             ref="inputRef"
             v-model="inputMessage"
             @keydown="handleKeydown"
+            @focus="isInputFocused = true"
+            @blur="isInputFocused = false"
             type="text"
             placeholder="Ask a question..."
             :disabled="isLoading"
@@ -371,7 +378,7 @@ onMounted(() => {
     </div>
 
     <!-- Mobile Bottom Navigation -->
-    <MobileBottomNav />
+    <MobileBottomNav v-show="!isInputFocused" />
   </div>
 </template>
 

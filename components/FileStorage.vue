@@ -52,16 +52,16 @@ const uploadProgress = ref<UploadProgress[]>([]);
 
 // Breadcrumb navigation
 const breadcrumbs = computed(() => {
-  if (filesStore.currentFolder === '/') return [];
+  const crumbs: Array<{ path: string; name: string }> = [{ path: '/', name: 'Storage' }];
   
-  const parts = filesStore.currentFolder.split('/').filter(Boolean);
-  const crumbs: Array<{ path: string; name: string }> = [];
-  
-  let currentPath = '';
-  parts.forEach((part, index) => {
-    currentPath += '/' + part;
-    crumbs.push({ path: currentPath, name: part });
-  });
+  if (filesStore.currentFolder !== '/') {
+    const parts = filesStore.currentFolder.split('/').filter(Boolean);
+    let currentPath = '';
+    parts.forEach((part) => {
+      currentPath += '/' + part;
+      crumbs.push({ path: currentPath, name: part });
+    });
+  }
   
   return crumbs;
 });
@@ -1119,87 +1119,84 @@ onMounted(() => {
       </div>
     </div>
 
-    <!-- Breadcrumbs and Actions Bar -->
+    <!-- Breadcrumbs Bar -->
     <div class="px-3 py-3 border-b border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
-      <!-- Breadcrumbs -->
-      <div v-if="breadcrumbs.length > 0" class="flex items-center gap-2 mb-4">
+      <div class="flex items-center gap-2">
+        <template v-for="(crumb, index) in breadcrumbs" :key="crumb.path">
+          <UIcon v-if="index > 0" name="i-heroicons-chevron-right" class="w-3 h-3 text-gray-400" />
+          <button
+            @click="navigateToFolder(crumb.path)"
+            class="flex items-center gap-1 text-sm transition-colors"
+            :class="index === breadcrumbs.length - 1 
+              ? 'text-gray-900 dark:text-white font-medium' 
+              : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'"
+          >
+            <UIcon v-if="index === 0" name="i-heroicons-home" class="w-4 h-4" />
+            <span v-else>{{ crumb.name }}</span>
+          </button>
+        </template>
+      </div>
+    </div>
+
+    <!-- Actions Toolbar -->
+    <div class="px-4 py-3 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <input
+          ref="fileInputRef"
+          type="file"
+          multiple
+          class="hidden"
+          @change="handleFileSelect"
+        />
+        <!-- Back Button - Subtle icon button -->
         <button
-          @click="navigateToFolder('/')"
-          class="flex items-center gap-1 text-sm transition-colors text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
+          v-if="parentFolderPath !== null"
+          @click="navigateToFolder(parentFolderPath!)"
+          class="flex items-center justify-center w-8 h-8 transition-colors hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 border border-gray-300 dark:border-gray-700 rounded-lg"
+          title="Go back"
         >
-          <span>Storage</span>
-          <UIcon name="i-heroicons-chevron-right" class="w-3 h-3" />
+          <UIcon name="i-heroicons-arrow-left" class="w-4 h-4" />
         </button>
         <button
-          v-for="(crumb, index) in breadcrumbs"
-          :key="crumb.path"
-          @click="navigateToFolder(crumb.path)"
-          class="flex items-center gap-1 text-sm transition-colors"
-          :class="index === breadcrumbs.length - 1 
-            ? 'text-gray-900 dark:text-white font-medium' 
-            : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'"
+          @click="fileInputRef?.click()"
+          :disabled="filesStore.storagePercentage >= 100"
+          class="px-3 py-1.5 bg-blue-600 dark:bg-blue-500 text-white text-sm font-normal border border-blue-700 dark:border-blue-600 hover:bg-blue-700 dark:hover:bg-blue-600 active:bg-blue-800 dark:active:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5 rounded-lg"
         >
-          <span>{{ crumb.name }}</span>
-          <UIcon v-if="index < breadcrumbs.length - 1" name="i-heroicons-chevron-right" class="w-3 h-3" />
+          <UIcon name="i-heroicons-plus" class="w-4 h-4" />
+          Upload
+        </button>
+        <button
+          @click="showCreateFolderModal = true"
+          class="px-3 py-1.5 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-sm font-normal border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 active:bg-gray-100 dark:active:bg-gray-600 transition-colors flex items-center gap-1.5 rounded-lg"
+        >
+          <UIcon name="i-heroicons-folder-plus" class="w-4 h-4" />
+          New Folder
+        </button>
+        
+        <!-- Divider if selection actions exist -->
+        <div v-if="selectedFiles.size > 0 || selectedFolders.size > 0" class="h-6 w-px bg-gray-300 dark:bg-gray-700 mx-1"></div>
+
+        <button
+          v-if="selectedFiles.size > 0"
+          @click.stop="downloadSelectedFiles"
+          class="px-3 py-1.5 bg-white dark:bg-gray-800 text-blue-600 dark:text-blue-400 text-sm font-normal border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 active:bg-gray-100 dark:active:bg-gray-600 transition-colors flex items-center gap-1.5 rounded-lg"
+        >
+          <UIcon name="i-heroicons-arrow-down-tray" class="w-4 h-4" />
+          Download ({{ selectedFiles.size }})
+        </button>
+        <button
+          v-if="selectedFiles.size > 0 || selectedFolders.size > 0"
+          @click="deleteSelected"
+          class="px-3 py-1.5 bg-white dark:bg-gray-800 text-red-600 dark:text-red-400 text-sm font-normal border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 active:bg-gray-100 dark:active:bg-gray-600 transition-colors flex items-center gap-1.5 rounded-lg"
+        >
+          <UIcon name="i-heroicons-trash" class="w-4 h-4" />
+          Delete ({{ selectedFiles.size + selectedFolders.size }})
         </button>
       </div>
-
-      <!-- Actions -->
-      <div class="flex items-center justify-between">
-        <div class="flex items-center gap-3">
-          <input
-            ref="fileInputRef"
-            type="file"
-            multiple
-            class="hidden"
-            @change="handleFileSelect"
-          />
-          <!-- Back Button - Subtle icon button -->
-          <button
-            v-if="parentFolderPath !== null"
-            @click="navigateToFolder(parentFolderPath!)"
-            class="flex items-center justify-center w-8 h-8 transition-colors hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 border border-gray-300 dark:border-gray-600"
-            title="Go back"
-          >
-            <UIcon name="i-heroicons-arrow-left" class="w-4 h-4" />
-          </button>
-          <button
-            @click="fileInputRef?.click()"
-            :disabled="filesStore.storagePercentage >= 100"
-            class="px-3 py-1.5 bg-blue-600 dark:bg-blue-500 text-white text-sm font-normal border border-blue-700 dark:border-blue-600 hover:bg-blue-700 dark:hover:bg-blue-600 active:bg-blue-800 dark:active:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5"
-          >
-            <UIcon name="i-heroicons-plus" class="w-4 h-4" />
-            Upload
-          </button>
-          <button
-            @click="showCreateFolderModal = true"
-            class="px-3 py-1.5 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-sm font-normal border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 active:bg-gray-100 dark:active:bg-gray-600 transition-colors flex items-center gap-1.5"
-          >
-            <UIcon name="i-heroicons-folder-plus" class="w-4 h-4" />
-            New Folder
-          </button>
-          <button
-            v-if="selectedFiles.size > 0"
-            @click.stop="downloadSelectedFiles"
-            class="px-3 py-1.5 bg-white dark:bg-gray-800 text-blue-600 dark:text-blue-400 text-sm font-normal border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 active:bg-gray-100 dark:active:bg-gray-600 transition-colors flex items-center gap-1.5"
-          >
-            <UIcon name="i-heroicons-arrow-down-tray" class="w-4 h-4" />
-            Download ({{ selectedFiles.size }})
-          </button>
-          <button
-            v-if="selectedFiles.size > 0 || selectedFolders.size > 0"
-            @click="deleteSelected"
-            class="px-3 py-1.5 bg-white dark:bg-gray-800 text-red-600 dark:text-red-400 text-sm font-normal border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 active:bg-gray-100 dark:active:bg-gray-600 transition-colors flex items-center gap-1.5"
-          >
-            <UIcon name="i-heroicons-trash" class="w-4 h-4" />
-            Delete ({{ selectedFiles.size + selectedFolders.size }})
-          </button>
-        </div>
-        
-        <!-- Storage quota - minimal -->
-        <div class="text-sm text-gray-500 dark:text-gray-400">
-          {{ filesStore.storageUsedMB }} MB / {{ filesStore.storageQuotaMB }} MB
-        </div>
+      
+      <!-- Storage quota -->
+      <div class="text-sm text-gray-500 dark:text-gray-400">
+        {{ filesStore.storageUsedMB }} MB / {{ filesStore.storageQuotaMB }} MB
       </div>
     </div>
 

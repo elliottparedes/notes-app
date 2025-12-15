@@ -17,6 +17,7 @@ const isCreatingFolder = ref(false);
 const isUploading = ref(false);
 const folders = ref<Array<{ path: string; name: string }>>([]);
 const foldersLoading = ref(false);
+const showViewDropdown = ref(false);
 
 // Format file size
 function formatFileSize(bytes: number): string {
@@ -159,9 +160,9 @@ async function goToParentFolder() {
 
 // Breadcrumbs
 const breadcrumbs = computed(() => {
-  if (filesStore.currentFolder === '/') return [];
+  const crumbs: Array<{ path: string; name: string }> = [{ path: '/', name: 'Storage' }]; // Always include root
+  if (filesStore.currentFolder === '/') return crumbs;
   const parts = filesStore.currentFolder.split('/').filter(Boolean);
-  const crumbs: Array<{ path: string; name: string }> = [];
   let currentPath = '';
   parts.forEach((part) => {
     currentPath += '/' + part;
@@ -211,8 +212,28 @@ onMounted(async () => {
   };
 
   window.addEventListener('resize', handleResize);
+
+  // Click outside logic for dropdown
+  const handleClickOutside = (event: MouseEvent) => {
+    const target = event.target as HTMLElement;
+    if (!target.closest('[data-view-dropdown]')) {
+      showViewDropdown.value = false;
+    }
+  };
+  
+  watch(() => showViewDropdown.value, (isOpen) => {
+    if (isOpen) {
+      setTimeout(() => {
+        document.addEventListener('click', handleClickOutside);
+      }, 0);
+    } else {
+      document.removeEventListener('click', handleClickOutside);
+    }
+  });
+
   onUnmounted(() => {
     window.removeEventListener('resize', handleResize);
+    document.removeEventListener('click', handleClickOutside); // Add this cleanup
   });
 });
 
@@ -229,21 +250,57 @@ watch(() => filesStore.currentFolder, async (newFolder, oldFolder) => {
   <div class="flex flex-col h-screen bg-white dark:bg-gray-900 md:hidden">
     <!-- Top Nav -->
     <div class="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
-      <div class="flex items-center gap-3">
-        <button
-          @click="router.push('/mobile/home')"
-          class="p-1.5 text-gray-600 dark:text-gray-400"
-        >
-          <UIcon name="i-heroicons-arrow-left" class="w-5 h-5" />
-        </button>
-        <h1 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Storage</h1>
-      </div>
+      <div class="relative" data-view-dropdown>
+            <button
+              @click.stop="showViewDropdown = !showViewDropdown"
+              class="flex items-center gap-1.5 font-medium text-sm text-gray-900 dark:text-gray-100"
+            >
+              <span>Storage</span>
+              <UIcon 
+                name="i-heroicons-chevron-down" 
+                class="w-4 h-4 transition-transform"
+                :class="{ 'rotate-180': showViewDropdown }"
+              />
+            </button>
+            
+            <Transition
+              enter-active-class="transition-opacity duration-100"
+              enter-from-class="opacity-0"
+              enter-to-class="opacity-100"
+              leave-active-class="transition-opacity duration-100"
+              leave-from-class="opacity-100"
+              leave-to-class="opacity-0"
+            >
+              <div
+                v-if="showViewDropdown"
+                class="absolute top-full left-0 mt-1 w-40 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 shadow-lg py-1 z-50 rounded-lg"
+                @click.stop
+              >
+              <button
+                @click="router.push('/mobile/home'); showViewDropdown = false"
+                class="w-full text-left px-3 py-1.5 text-sm transition-colors text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
+              >
+                <UIcon name="i-heroicons-book-open" class="w-4 h-4" />
+                <span>Notebooks</span>
+              </button>
+              <button
+                @click="showViewDropdown = false"
+                class="w-full text-left px-3 py-1.5 text-sm transition-colors bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 font-medium flex items-center gap-2"
+              >
+                <UIcon name="i-heroicons-folder" class="w-4 h-4" />
+                <span>Storage</span>
+              </button>
+            </div>
+          </Transition>
+        </div>
       
-      <div class="flex items-center gap-2">
+      <!-- Right Actions -->
+      <div class="flex items-center gap-1">
         <button
           @click="fileInputRef?.click()"
-          class="p-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 active:scale-95 transition"
+          class="p-1.5 rounded-lg text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 active:scale-95 transition"
           :disabled="isUploading"
+          title="Upload file"
         >
           <UIcon 
             :name="isUploading ? 'i-heroicons-arrow-path' : 'i-heroicons-plus'" 
@@ -253,7 +310,8 @@ watch(() => filesStore.currentFolder, async (newFolder, oldFolder) => {
         </button>
         <button
           @click="showCreateFolderModal = true"
-          class="p-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 active:scale-95 transition"
+          class="p-1.5 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 active:scale-95 transition"
+          title="New folder"
         >
           <UIcon name="i-heroicons-folder-plus" class="w-5 h-5" />
         </button>
@@ -263,21 +321,16 @@ watch(() => filesStore.currentFolder, async (newFolder, oldFolder) => {
     <!-- Breadcrumbs -->
     <div v-if="breadcrumbs.length > 0" class="px-4 py-2 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
       <div class="flex items-center gap-2 overflow-x-auto scrollbar-hide">
-        <button
-          @click="goToParentFolder()"
-          class="flex items-center gap-1 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
-        >
-          <UIcon name="i-heroicons-home" class="w-4 h-4" />
-        </button>
-        <UIcon name="i-heroicons-chevron-right" class="w-3 h-3 text-gray-400" />
-        <button
-          v-for="crumb in breadcrumbs"
-          :key="crumb.path"
-          @click="navigateToFolder(crumb.path)"
-          class="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 whitespace-nowrap"
-        >
-          {{ crumb.name }}
-        </button>
+        <template v-for="(crumb, index) in breadcrumbs" :key="crumb.path">
+          <UIcon v-if="index > 0" name="i-heroicons-chevron-right" class="w-3 h-3 text-gray-400" />
+          <button
+            @click="navigateToFolder(crumb.path)"
+            class="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 whitespace-nowrap flex items-center"
+          >
+            <UIcon v-if="index === 0" name="i-heroicons-home" class="w-4 h-4" />
+            <span v-else>{{ crumb.name }}</span>
+          </button>
+        </template>
       </div>
     </div>
 

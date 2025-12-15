@@ -21,9 +21,6 @@ const showSettingsMenu = ref(false);
 // Expanded spaces
 const expandedSpaceIds = ref<Set<number>>(new Set());
 
-// Expanded folders (to show notes inside)
-const expandedFolderIds = ref<Set<number>>(new Set());
-
 // Folder menu state
 const openFolderMenuId = ref<number | null>(null);
 const showCreateFolderModal = ref(false);
@@ -102,11 +99,7 @@ function getFolderNotes(folderId: number) {
 }
 
 function toggleFolder(folderId: number) {
-  if (expandedFolderIds.value.has(folderId)) {
-    expandedFolderIds.value.delete(folderId);
-  } else {
-    expandedFolderIds.value.add(folderId);
-  }
+  foldersStore.toggleFolder(folderId);
 }
 
 // Get ordered notes for a folder
@@ -440,7 +433,7 @@ onMounted(() => {
                       class="flex-1 flex items-center gap-2 text-left"
                     >
                       <UIcon 
-                        :name="expandedFolderIds.has(folder.id) ? 'i-heroicons-chevron-down' : 'i-heroicons-chevron-right'" 
+                        :name="foldersStore.expandedFolderIds.has(folder.id) ? 'i-heroicons-chevron-down' : 'i-heroicons-chevron-right'" 
                         class="w-3.5 h-3.5 text-gray-500 dark:text-gray-400"
                       />
                       <UIcon name="i-heroicons-folder" class="w-4 h-4 text-gray-500 dark:text-gray-400" />
@@ -497,7 +490,7 @@ onMounted(() => {
                   </div>
 
                   <!-- Notes inside folder -->
-                  <div v-show="expandedFolderIds.has(folder.id)" class="pl-6 pr-2 pb-2 space-y-1">
+                  <div v-show="foldersStore.expandedFolderIds.has(folder.id)" class="pl-6 pr-2 pb-2 space-y-1">
                     <div v-if="getOrderedNotesForFolder(folder.id).length === 0" class="px-2 py-1 text-xs text-gray-400">
                       No notes yet
                     </div>
