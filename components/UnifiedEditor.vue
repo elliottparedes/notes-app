@@ -736,6 +736,41 @@ const TableExit = Extension.create({
   }
 })
 
+// Custom extension to create code block on Enter after typing ```
+const CodeBlockOnEnter = Extension.create({
+  name: 'codeBlockOnEnter',
+  
+  addKeyboardShortcuts() {
+    return {
+      'Enter': ({ editor }) => {
+        const { state } = editor
+        const { selection } = state
+        const { $from, empty } = selection
+        
+        if (!empty || $from.parent.type.name === 'codeBlock') return false
+        
+        const textBefore = $from.parent.textContent
+        const match = textBefore.match(/^```([a-z]*)?$/)
+        
+        if (match) {
+          const lang = match[1]
+          
+          // Run chain: clear the line, set code block
+          editor.chain()
+            .focus()
+            .deleteRange({ from: $from.start(), to: $from.end() })
+            .setCodeBlock({ language: lang })
+            .run()
+            
+          return true
+        }
+        
+        return false
+      }
+    }
+  }
+})
+
 const props = defineProps<{
   modelValue?: string;
   initialContent?: string;
@@ -887,6 +922,7 @@ const baseExtensions = [
   Gapcursor,
   TableExit,
   MarkdownPaste,
+  CodeBlockOnEnter,
   SearchHighlight,
   Placeholder.configure({
     placeholder: props.placeholder || 'Start writing...'
@@ -1798,6 +1834,18 @@ async function uploadFiles(files: File[]) {
 .collaborative-editor :deep(.ProseMirror table td p),
 .collaborative-editor :deep(.ProseMirror table th p) {
   min-height: 1.5em; /* Ensure empty cells have height */
+  margin: 0;
+}
+
+/* Fix for cursor visibility in empty task items */
+.unified-editor :deep(.ProseMirror ul[data-type="taskList"] li[data-type="taskItem"] div),
+.collaborative-editor :deep(.ProseMirror ul[data-type="taskList"] li[data-type="taskItem"] div) {
+  flex: 1;
+}
+
+.unified-editor :deep(.ProseMirror ul[data-type="taskList"] li[data-type="taskItem"] p),
+.collaborative-editor :deep(.ProseMirror ul[data-type="taskList"] li[data-type="taskItem"] p) {
+  min-height: 1.5em;
   margin: 0;
 }
 </style>
