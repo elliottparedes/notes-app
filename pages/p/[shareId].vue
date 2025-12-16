@@ -65,7 +65,7 @@ useHead({
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-4 flex-1 min-w-0">
             <div class="relative flex-shrink-0">
-              <img src="/swan-unfold.png" alt="Unfold Notes" class="w-10 h-10 flex-shrink-0 transition-transform duration-300 hover:scale-110" />
+              <img src="/note_book_logo.png" alt="Unfold Notes" class="w-10 h-10 flex-shrink-0 transition-transform duration-300 hover:scale-110" />
             </div>
             <div class="flex-1 min-w-0">
               <h1 class="text-lg font-semibold text-gray-900 dark:text-white truncate transition-colors duration-200">
@@ -155,7 +155,7 @@ useHead({
         <footer class="mt-16 pt-8 border-t border-gray-200 dark:border-gray-800 animate-fade-in">
           <div class="flex flex-wrap items-center justify-between gap-4 text-sm text-gray-500 dark:text-gray-400">
             <div class="flex items-center gap-2">
-              <img src="/swan-unfold.png" alt="Unfold Notes" class="w-5 h-5" />
+              <img src="/note_book_logo.png" alt="Unfold Notes" class="w-5 h-5" />
               <span>Published with Unfold Notes</span>
             </div>
             <div class="flex items-center gap-4">

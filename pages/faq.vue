@@ -127,7 +127,7 @@ function toggleFaq(index: number) {
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="flex justify-between items-center h-16">
           <NuxtLink to="/" class="flex items-center gap-2">
-            <img src="/swan-unfold.png" alt="Unfold Notes" class="w-8 h-8" />
+            <img src="/note_book_logo.png" alt="Unfold Notes" class="w-8 h-8" />
             <span class="text-xl font-bold text-gray-900 dark:text-white">Unfold Notes</span>
           </NuxtLink>
           
@@ -135,19 +135,19 @@ function toggleFaq(index: number) {
             <NuxtLink to="/features" class="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">Features</NuxtLink>
             <NuxtLink to="/use-cases" class="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">Use Cases</NuxtLink>
             <NuxtLink to="/about" class="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">About</NuxtLink>
-            <NuxtLink to="/faq" class="text-primary-600 dark:text-primary-400 font-medium">FAQ</NuxtLink>
+            <NuxtLink to="/faq" class="text-indigo dark:text-primary-400 font-medium">FAQ</NuxtLink>
           </div>
           
           <div class="flex items-center gap-3">
-            <UButton to="/login" variant="ghost" size="sm">Sign In</UButton>
-            <UButton to="/signup" color="primary" size="sm">Get Started</UButton>
+            <UButton to="/login" variant="ghost" size="sm" class="!text-indigo-600 dark:!text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/10">Sign In</UButton>
+            <UButton to="/signup" size="sm" class="!bg-indigo-600 hover:!bg-indigo-700 text-white dark:!bg-indigo-500 dark:hover:!bg-indigo-600">Get Started</UButton>
           </div>
         </div>
       </div>
     </nav>
 
     <!-- Header -->
-    <section class="pt-20 pb-12 px-4 sm:px-6 lg:px-8 bg-gradient-to-br from-primary-50 to-teal-50 dark:from-gray-800 dark:to-gray-900">
+    <section class="pt-20 pb-12 px-4 sm:px-6 lg:px-8 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-gray-800 dark:to-gray-900">
       <div class="max-w-4xl mx-auto text-center">
         <h1 class="text-5xl md:text-6xl font-bold text-gray-900 dark:text-white mb-6">
           Frequently Asked Questions
@@ -208,10 +208,10 @@ function toggleFaq(index: number) {
           Feel free to reach out or explore our other pages to learn more
         </p>
         <div class="flex flex-col sm:flex-row gap-4 justify-center">
-          <UButton to="/about" variant="outline" size="lg">
+          <UButton to="/about" variant="outline" size="lg" class="!text-indigo-600 dark:!text-indigo-400 !ring-indigo-600 dark:!ring-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/10">
             Learn More
           </UButton>
-          <UButton to="/signup" color="primary" size="lg">
+          <UButton to="/signup" size="lg" class="!bg-indigo-600 hover:!bg-indigo-700 text-white dark:!bg-indigo-500 dark:hover:!bg-indigo-600">
             Get Started
           </UButton>
         </div>
@@ -224,7 +224,7 @@ function toggleFaq(index: number) {
         <div class="grid md:grid-cols-4 gap-8 mb-8">
           <div>
             <div class="flex items-center gap-2 mb-4">
-              <img src="/swan-unfold.png" alt="Unfold Notes" class="w-6 h-6" />
+              <img src="/note_book_logo.png" alt="Unfold Notes" class="w-6 h-6" />
               <span class="text-white font-bold">Unfold Notes</span>
             </div>
             <p class="text-sm">Organize your thoughts with a modern note-taking app.</p>

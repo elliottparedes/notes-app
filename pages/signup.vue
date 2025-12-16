@@ -96,7 +96,7 @@ async function handleSignup() {
     <!-- Show loading state while checking auth (only if token exists) -->
     <div v-if="checkingAuth" class="min-h-screen flex items-center justify-center bg-white dark:bg-gray-900">
       <div class="text-center">
-        <UIcon name="i-heroicons-arrow-path" class="w-8 h-8 animate-spin mx-auto text-primary-600 mb-4" />
+        <UIcon name="i-heroicons-arrow-path" class="w-8 h-8 animate-spin mx-auto text-indigo-600 mb-4" />
         <p class="text-sm text-gray-600 dark:text-gray-400">Checking authentication...</p>
       </div>
     </div>
@@ -111,8 +111,8 @@ async function handleSignup() {
       </div>
       
       <!-- Gradient Orbs -->
-      <div class="absolute top-20 left-20 w-96 h-96 bg-primary-500/20 rounded-full blur-3xl"></div>
-      <div class="absolute bottom-20 right-20 w-96 h-96 bg-teal-500/20 rounded-full blur-3xl"></div>
+      <div class="absolute top-20 left-20 w-96 h-96 bg-indigo-500/20 rounded-full blur-3xl"></div>
+      <div class="absolute bottom-20 right-20 w-96 h-96 bg-indigo-500/20 rounded-full blur-3xl"></div>
       
       <div class="relative z-10 flex flex-col justify-center px-12 xl:px-16 text-white">
         <h1 class="text-4xl xl:text-5xl font-bold mb-6 leading-tight">
@@ -125,8 +125,8 @@ async function handleSignup() {
         
         <div class="space-y-6">
           <div class="flex items-start space-x-4">
-            <div class="flex-shrink-0 w-12 h-12 rounded-xl bg-emerald-500/20 backdrop-blur-sm flex items-center justify-center">
-              <svg class="w-6 h-6 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div class="flex-shrink-0 w-12 h-12 rounded-xl bg-indigo-500/20 backdrop-blur-sm flex items-center justify-center">
+              <svg class="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
               </svg>
             </div>
@@ -137,8 +137,8 @@ async function handleSignup() {
           </div>
           
           <div class="flex items-start space-x-4">
-            <div class="flex-shrink-0 w-12 h-12 rounded-xl bg-teal-500/20 backdrop-blur-sm flex items-center justify-center">
-              <svg class="w-6 h-6 text-teal-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div class="flex-shrink-0 w-12 h-12 rounded-xl bg-indigo-500/20 backdrop-blur-sm flex items-center justify-center">
+              <svg class="w-6 h-6 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/>
               </svg>
             </div>
@@ -158,8 +158,8 @@ async function handleSignup() {
         <!-- Logo -->
         <div class="flex justify-center mb-8">
           <div class="relative">
-            <div class="absolute inset-0 bg-gradient-to-br from-primary-400 via-emerald-500 to-teal-600 rounded-3xl blur-xl opacity-30"></div>
-            <img src="/swan-unfold.png" alt="Unfold Notes" class="relative w-20 h-20 drop-shadow-lg" />
+            <div class="absolute inset-0 bg-gradient-to-br from-blue-400 via-indigo-500 to-violet-600 rounded-3xl blur-xl opacity-30"></div>
+            <img src="/note_book_logo.png" alt="Unfold Notes" class="relative w-20 h-20 drop-shadow-lg" />
           </div>
         </div>
 
@@ -184,6 +184,7 @@ async function handleSignup() {
                 :disabled="loading"
                 class="w-full"
                 icon="i-heroicons-user"
+                color="indigo"
               />
             </div>
 
@@ -199,6 +200,7 @@ async function handleSignup() {
                 :disabled="loading"
                 class="w-full"
                 icon="i-heroicons-envelope"
+                color="indigo"
               />
             </div>
 
@@ -214,6 +216,7 @@ async function handleSignup() {
                 :disabled="loading"
                 class="w-full"
                 icon="i-heroicons-lock-closed"
+                color="indigo"
               />
               <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
                 Must be at least 6 characters long
@@ -226,7 +229,7 @@ async function handleSignup() {
               :loading="loading"
               :disabled="loading"
               class="w-full justify-center font-semibold"
-              color="primary"
+              color="indigo"
             >
               <span v-if="!loading">Create Account</span>
               <span v-else>Creating account...</span>
@@ -241,7 +244,7 @@ async function handleSignup() {
         <div class="mt-6 text-center">
           <p class="text-sm text-gray-600 dark:text-gray-400">
             Already have an account?
-            <NuxtLink to="/login" class="font-semibold text-primary-600 hover:text-primary-500 dark:text-primary-400 dark:hover:text-primary-300 ml-1 transition-colors">
+            <NuxtLink to="/login" class="font-semibold text-indigo-600 hover:text-indigo-500 dark:text-indigo-400 dark:hover:text-indigo-300 ml-1 transition-colors">
               Sign in →
             </NuxtLink>
           </p>

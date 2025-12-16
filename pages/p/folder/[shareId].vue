@@ -100,7 +100,7 @@ useHead({
         <div class="flex items-center justify-between max-w-[1920px] mx-auto">
           <div class="flex items-center gap-4">
             <div class="relative">
-              <img src="/swan-unfold.png" alt="Unfold Notes" class="w-9 h-9 flex-shrink-0" />
+              <img src="/note_book_logo.png" alt="Unfold Notes" class="w-9 h-9 flex-shrink-0" />
             </div>
             <div>
               <h1 class="text-2xl font-semibold text-gray-900 dark:text-white tracking-tight">

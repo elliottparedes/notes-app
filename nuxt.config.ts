@@ -82,32 +82,32 @@ export default defineNuxtConfig({
       prefer_related_applications: false,
       icons: [
         {
-          src: '/swan-unfold-white.png',
+          src: '/note_book_logo.png',
           sizes: '192x192',
           type: 'image/png',
           purpose: 'any'
         },
         {
-          src: '/swan-unfold-white.png',
+          src: '/note_book_logo.png',
           sizes: '512x512',
           type: 'image/png',
           purpose: 'any'
         },
         {
-          src: '/swan-unfold-white.png',
+          src: '/note_book_logo.png',
           sizes: '512x512',
           type: 'image/png',
           purpose: 'maskable'
         },
         // Fallback to original if white version doesn't exist
         {
-          src: '/swan-unfold.png',
+          src: '/note_book_logo.png',
           sizes: '192x192',
           type: 'image/png',
           purpose: 'any'
         },
         {
-          src: '/swan-unfold.png',
+          src: '/note_book_logo.png',
           sizes: '512x512',
           type: 'image/png',
           purpose: 'any'

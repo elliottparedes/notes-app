@@ -74,27 +74,27 @@ setPageSEO({
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="flex justify-between items-center h-16">
           <NuxtLink to="/" class="flex items-center gap-2">
-            <img src="/swan-unfold.png" alt="Unfold Notes" class="w-8 h-8" />
+            <img src="/note_book_logo.png" alt="Unfold Notes" class="w-8 h-8" />
             <span class="text-xl font-bold text-gray-900 dark:text-white">Unfold Notes</span>
           </NuxtLink>
           
           <div class="hidden md:flex items-center gap-6">
-            <NuxtLink to="/features" class="text-primary-600 dark:text-primary-400 font-medium">Features</NuxtLink>
+            <NuxtLink to="/features" class="text-indigo-600 dark:text-indigo-400 font-medium">Features</NuxtLink>
             <NuxtLink to="/use-cases" class="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">Use Cases</NuxtLink>
             <NuxtLink to="/about" class="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">About</NuxtLink>
             <NuxtLink to="/faq" class="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">FAQ</NuxtLink>
           </div>
           
           <div class="flex items-center gap-3">
-            <UButton to="/login" variant="ghost" size="sm">Sign In</UButton>
-            <UButton to="/signup" color="primary" size="sm">Get Started</UButton>
+            <UButton to="/login" variant="ghost" size="sm" class="!text-indigo-600 dark:!text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/10">Sign In</UButton>
+            <UButton to="/signup" size="sm" class="!bg-indigo-600 hover:!bg-indigo-700 text-white dark:!bg-indigo-500 dark:hover:!bg-indigo-600">Get Started</UButton>
           </div>
         </div>
       </div>
     </nav>
 
     <!-- Page Header -->
-    <section class="pt-20 pb-12 px-4 sm:px-6 lg:px-8 bg-gradient-to-br from-primary-50 to-teal-50 dark:from-gray-800 dark:to-gray-900">
+    <section class="pt-20 pb-12 px-4 sm:px-6 lg:px-8 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-gray-800 dark:to-gray-900">
       <div class="max-w-4xl mx-auto text-center">
         <h1 class="text-5xl md:text-6xl font-bold text-gray-900 dark:text-white mb-6">
           Powerful Features for Modern Note-Taking
@@ -111,8 +111,8 @@ setPageSEO({
         <!-- Feature 1: Rich Text Editor -->
         <div class="grid md:grid-cols-2 gap-12 items-center">
           <div>
-            <div class="w-12 h-12 bg-primary-100 dark:bg-primary-900 rounded-lg flex items-center justify-center mb-4">
-              <UIcon name="i-heroicons-document-text" class="w-6 h-6 text-primary-600 dark:text-primary-400" />
+            <div class="w-12 h-12 bg-indigo-100 dark:bg-indigo-900 rounded-lg flex items-center justify-center mb-4">
+              <UIcon name="i-heroicons-document-text" class="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
             </div>
             <h2 class="text-3xl font-bold text-gray-900 dark:text-white mb-4">Rich Text Editor</h2>
             <p class="text-lg text-gray-600 dark:text-gray-400 mb-4">
@@ -120,15 +120,15 @@ setPageSEO({
             </p>
             <ul class="space-y-2 text-gray-600 dark:text-gray-400">
               <li class="flex items-start gap-2">
-                <UIcon name="i-heroicons-check" class="w-5 h-5 text-primary-600 dark:text-primary-400 flex-shrink-0 mt-0.5" />
+                <UIcon name="i-heroicons-check" class="w-5 h-5 text-indigo-600 dark:text-indigo-400 flex-shrink-0 mt-0.5" />
                 <span>Full rich text formatting (bold, italic, headings, lists)</span>
               </li>
               <li class="flex items-start gap-2">
-                <UIcon name="i-heroicons-check" class="w-5 h-5 text-primary-600 dark:text-primary-400 flex-shrink-0 mt-0.5" />
+                <UIcon name="i-heroicons-check" class="w-5 h-5 text-indigo-600 dark:text-indigo-400 flex-shrink-0 mt-0.5" />
                 <span>Tables, code blocks, and blockquotes</span>
               </li>
               <li class="flex items-start gap-2">
-                <UIcon name="i-heroicons-check" class="w-5 h-5 text-primary-600 dark:text-primary-400 flex-shrink-0 mt-0.5" />
+                <UIcon name="i-heroicons-check" class="w-5 h-5 text-indigo-600 dark:text-indigo-400 flex-shrink-0 mt-0.5" />
                 <span>Keyboard shortcuts for power users</span>
               </li>
             </ul>
@@ -153,15 +153,15 @@ setPageSEO({
             </p>
             <ul class="space-y-2 text-gray-600 dark:text-gray-400">
               <li class="flex items-start gap-2">
-                <UIcon name="i-heroicons-check" class="w-5 h-5 text-primary-600 dark:text-primary-400 flex-shrink-0 mt-0.5" />
+                <UIcon name="i-heroicons-check" class="w-5 h-5 text-indigo-600 dark:text-indigo-400 flex-shrink-0 mt-0.5" />
                 <span>Generate notes from prompts</span>
               </li>
               <li class="flex items-start gap-2">
-                <UIcon name="i-heroicons-check" class="w-5 h-5 text-primary-600 dark:text-primary-400 flex-shrink-0 mt-0.5" />
+                <UIcon name="i-heroicons-check" class="w-5 h-5 text-indigo-600 dark:text-indigo-400 flex-shrink-0 mt-0.5" />
                 <span>Polish and improve existing content</span>
               </li>
               <li class="flex items-start gap-2">
-                <UIcon name="i-heroicons-check" class="w-5 h-5 text-primary-600 dark:text-primary-400 flex-shrink-0 mt-0.5" />
+                <UIcon name="i-heroicons-check" class="w-5 h-5 text-indigo-600 dark:text-indigo-400 flex-shrink-0 mt-0.5" />
                 <span>Get writing suggestions and improvements</span>
               </li>
             </ul>
@@ -180,15 +180,15 @@ setPageSEO({
             </p>
             <ul class="space-y-2 text-gray-600 dark:text-gray-400">
               <li class="flex items-start gap-2">
-                <UIcon name="i-heroicons-check" class="w-5 h-5 text-primary-600 dark:text-primary-400 flex-shrink-0 mt-0.5" />
+                <UIcon name="i-heroicons-check" class="w-5 h-5 text-indigo-600 dark:text-indigo-400 flex-shrink-0 mt-0.5" />
                 <span>Create nested folders and spaces</span>
               </li>
               <li class="flex items-start gap-2">
-                <UIcon name="i-heroicons-check" class="w-5 h-5 text-primary-600 dark:text-primary-400 flex-shrink-0 mt-0.5" />
+                <UIcon name="i-heroicons-check" class="w-5 h-5 text-indigo-600 dark:text-indigo-400 flex-shrink-0 mt-0.5" />
                 <span>Tag notes for easy categorization</span>
               </li>
               <li class="flex items-start gap-2">
-                <UIcon name="i-heroicons-check" class="w-5 h-5 text-primary-600 dark:text-primary-400 flex-shrink-0 mt-0.5" />
+                <UIcon name="i-heroicons-check" class="w-5 h-5 text-indigo-600 dark:text-indigo-400 flex-shrink-0 mt-0.5" />
                 <span>Full-text search across all your notes</span>
               </li>
             </ul>
@@ -213,15 +213,15 @@ setPageSEO({
             </p>
             <ul class="space-y-2 text-gray-600 dark:text-gray-400">
               <li class="flex items-start gap-2">
-                <UIcon name="i-heroicons-check" class="w-5 h-5 text-primary-600 dark:text-primary-400 flex-shrink-0 mt-0.5" />
+                <UIcon name="i-heroicons-check" class="w-5 h-5 text-indigo-600 dark:text-indigo-400 flex-shrink-0 mt-0.5" />
                 <span>Upload images, documents, and files</span>
               </li>
               <li class="flex items-start gap-2">
-                <UIcon name="i-heroicons-check" class="w-5 h-5 text-primary-600 dark:text-primary-400 flex-shrink-0 mt-0.5" />
+                <UIcon name="i-heroicons-check" class="w-5 h-5 text-indigo-600 dark:text-indigo-400 flex-shrink-0 mt-0.5" />
                 <span>Organize all your attachments in one place</span>
               </li>
               <li class="flex items-start gap-2">
-                <UIcon name="i-heroicons-check" class="w-5 h-5 text-primary-600 dark:text-primary-400 flex-shrink-0 mt-0.5" />
+                <UIcon name="i-heroicons-check" class="w-5 h-5 text-indigo-600 dark:text-indigo-400 flex-shrink-0 mt-0.5" />
                 <span>500MB free storage per user</span>
               </li>
             </ul>
@@ -231,17 +231,17 @@ setPageSEO({
     </section>
 
     <!-- CTA -->
-    <section class="py-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-r from-primary-600 via-emerald-600 to-teal-600">
+    <section class="py-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600">
       <div class="max-w-4xl mx-auto text-center">
         <h2 class="text-4xl font-bold text-white mb-6">Ready to Get Started?</h2>
-        <p class="text-xl text-primary-100 mb-8">
+        <p class="text-xl text-blue-100 mb-8">
           Start organizing your thoughts with Unfold Notes today
         </p>
         <div class="flex flex-col sm:flex-row gap-4 justify-center">
-          <UButton to="/signup" size="lg" variant="solid" class="font-semibold px-6 bg-white text-primary-600 hover:bg-gray-100">
+          <UButton to="/signup" size="lg" variant="solid" class="font-semibold px-6 bg-white text-indigo-600 hover:bg-gray-100">
             Get Started Free
           </UButton>
-          <UButton to="/login" size="lg" variant="outline" class="font-semibold px-6 border-white text-white hover:bg-white/10">
+          <UButton to="/login" size="lg" variant="outline" class="font-semibold px-6 border-white text-indigo-600 dark:text-indigo-400 ring-1 ring-indigo-600 dark:ring-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/10">
             Sign In
           </UButton>
         </div>
@@ -254,7 +254,7 @@ setPageSEO({
         <div class="grid md:grid-cols-4 gap-8 mb-8">
           <div>
             <div class="flex items-center gap-2 mb-4">
-              <img src="/swan-unfold.png" alt="Unfold Notes" class="w-6 h-6" />
+              <img src="/note_book_logo.png" alt="Unfold Notes" class="w-6 h-6" />
               <span class="text-white font-bold">Unfold Notes</span>
             </div>
             <p class="text-sm">Organize your thoughts with a modern note-taking app.</p>

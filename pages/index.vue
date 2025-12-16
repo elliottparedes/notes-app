@@ -72,7 +72,7 @@ onMounted(() => {
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="flex justify-between items-center h-16">
           <div class="flex items-center gap-2">
-            <img src="/swan-unfold.png" alt="Unfold Notes" class="w-8 h-8" />
+            <img src="/note_book_logo.png" alt="Unfold Notes" class="w-8 h-8" />
             <span class="text-xl font-bold text-gray-900 dark:text-white">Unfold Notes</span>
           </div>
           
@@ -92,10 +92,10 @@ onMounted(() => {
           </div>
           
           <div class="flex items-center gap-3">
-            <UButton to="/login" variant="ghost" size="sm">
+            <UButton to="/login" variant="ghost" size="sm" class="text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/10">
               Sign In
             </UButton>
-            <UButton to="/signup" color="primary" size="sm">
+            <UButton to="/signup" size="sm" class="bg-indigo-600 hover:bg-indigo-700 text-white dark:bg-indigo-500 dark:hover:bg-indigo-600">
               Get Started
             </UButton>
           </div>
@@ -109,7 +109,7 @@ onMounted(() => {
         <div class="text-center">
           <h1 class="text-5xl md:text-6xl lg:text-7xl font-bold text-gray-900 dark:text-white mb-6 leading-tight">
             Unfold Your
-            <span class="bg-gradient-to-r from-primary-600 to-teal-600 bg-clip-text text-transparent">
+            <span class="bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
               Thinking
             </span>
           </h1>
@@ -117,10 +117,10 @@ onMounted(() => {
             A modern note-taking app that works everywhere. Organize your thoughts with AI-powered features and beautiful organization. Free forever with 500MB storage included.
           </p>
           <div class="flex flex-col sm:flex-row gap-4 justify-center">
-            <UButton to="/signup" size="lg" color="primary" class="font-semibold px-6">
+            <UButton to="/signup" size="lg" class="font-semibold px-6 bg-indigo-600 hover:bg-indigo-700 text-white dark:bg-indigo-500 dark:hover:bg-indigo-600">
               Start Free
             </UButton>
-            <UButton to="/login" size="lg" variant="outline" class="font-semibold px-6">
+            <UButton to="/login" size="lg" variant="outline" class="font-semibold px-6 text-indigo-600 dark:text-indigo-400 ring-1 ring-indigo-600 dark:ring-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/10">
               Sign In
             </UButton>
           </div>
@@ -132,8 +132,8 @@ onMounted(() => {
       
       <!-- Background decoration -->
       <div class="absolute inset-0 -z-10 overflow-hidden">
-        <div class="absolute top-0 left-1/4 w-96 h-96 bg-primary-200 dark:bg-primary-900 rounded-full blur-3xl opacity-30"></div>
-        <div class="absolute bottom-0 right-1/4 w-96 h-96 bg-teal-200 dark:bg-teal-900 rounded-full blur-3xl opacity-30"></div>
+        <div class="absolute top-0 left-1/4 w-96 h-96 bg-indigo-200 dark:bg-indigo-900 rounded-full blur-3xl opacity-30"></div>
+        <div class="absolute bottom-0 right-1/4 w-96 h-96 bg-indigo-200 dark:bg-indigo-900 rounded-full blur-3xl opacity-30"></div>
       </div>
     </section>
 
@@ -153,12 +153,12 @@ onMounted(() => {
         <div class="max-w-4xl mx-auto">
           <div class="relative bg-white dark:bg-gray-900 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
             <!-- Decorative gradient accent -->
-            <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-purple-500 via-primary-500 to-teal-500"></div>
+            <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-violet-500"></div>
             
             <div class="p-8 md:p-12">
               <div class="flex flex-col items-center text-center">
                 <!-- Icon -->
-                <div class="w-16 h-16 bg-gradient-to-br from-purple-500 to-teal-500 rounded-2xl flex items-center justify-center mb-6 shadow-lg">
+                <div class="w-16 h-16 bg-gradient-to-br from-blue-500 to-violet-500 rounded-2xl flex items-center justify-center mb-6 shadow-lg">
                   <UIcon name="i-heroicons-sparkles" class="w-8 h-8 text-white" />
                 </div>
                 
@@ -174,13 +174,13 @@ onMounted(() => {
                 
                 <!-- Feature highlights -->
                 <div class="flex flex-col sm:flex-row gap-4 w-full max-w-xl justify-center">
-                  <div class="flex flex-col items-center p-6 bg-gradient-to-br from-teal-50 to-teal-100 dark:from-teal-900/20 dark:to-teal-800/20 rounded-xl border border-teal-200 dark:border-teal-800/50 flex-1">
-                    <UIcon name="i-heroicons-document-plus" class="w-8 h-8 text-teal-600 dark:text-teal-400 mb-3" />
+                  <div class="flex flex-col items-center p-6 bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 rounded-xl border border-blue-200 dark:border-blue-800/50 flex-1">
+                    <UIcon name="i-heroicons-document-plus" class="w-8 h-8 text-indigo-600 dark:text-indigo-400 mb-3" />
                     <span class="text-base font-semibold text-gray-900 dark:text-white">Content Generation</span>
                     <p class="text-sm text-gray-600 dark:text-gray-400 text-center mt-1">Create notes instantly with AI</p>
                   </div>
-                  <div class="flex flex-col items-center p-6 bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 rounded-xl border border-purple-200 dark:border-purple-800/50 flex-1">
-                    <UIcon name="i-heroicons-pencil-square" class="w-8 h-8 text-purple-600 dark:text-purple-400 mb-3" />
+                  <div class="flex flex-col items-center p-6 bg-gradient-to-br from-indigo-50 to-indigo-100 dark:from-indigo-900/20 dark:to-indigo-800/20 rounded-xl border border-indigo-200 dark:border-indigo-800/50 flex-1">
+                    <UIcon name="i-heroicons-pencil-square" class="w-8 h-8 text-indigo-600 dark:text-indigo-400 mb-3" />
                     <span class="text-base font-semibold text-gray-900 dark:text-white">Writing Polish</span>
                     <p class="text-sm text-gray-600 dark:text-gray-400 text-center mt-1">Refine and improve your writing</p>
                   </div>
@@ -206,7 +206,7 @@ onMounted(() => {
         
         <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
           <div class="flex items-start gap-3">
-            <UIcon name="i-heroicons-document-text" class="w-6 h-6 text-primary-600 dark:text-primary-400 flex-shrink-0 mt-1" />
+            <UIcon name="i-heroicons-document-text" class="w-6 h-6 text-indigo-600 dark:text-indigo-400 flex-shrink-0 mt-1" />
             <div>
               <h3 class="font-semibold text-gray-900 dark:text-white mb-1">Rich Text Editor</h3>
               <p class="text-sm text-gray-600 dark:text-gray-400">Beautiful, distraction-free editing experience</p>
@@ -214,7 +214,7 @@ onMounted(() => {
           </div>
           
           <div class="flex items-start gap-3">
-            <UIcon name="i-heroicons-folder" class="w-6 h-6 text-primary-600 dark:text-primary-400 flex-shrink-0 mt-1" />
+            <UIcon name="i-heroicons-folder" class="w-6 h-6 text-indigo-600 dark:text-indigo-400 flex-shrink-0 mt-1" />
             <div>
               <h3 class="font-semibold text-gray-900 dark:text-white mb-1">Organize with Spaces</h3>
               <p class="text-sm text-gray-600 dark:text-gray-400">Folders and spaces for perfect organization</p>
@@ -222,7 +222,7 @@ onMounted(() => {
           </div>
           
           <div class="flex items-start gap-3">
-            <UIcon name="i-heroicons-paper-clip" class="w-6 h-6 text-primary-600 dark:text-primary-400 flex-shrink-0 mt-1" />
+            <UIcon name="i-heroicons-paper-clip" class="w-6 h-6 text-indigo-600 dark:text-indigo-400 flex-shrink-0 mt-1" />
             <div>
               <h3 class="font-semibold text-gray-900 dark:text-white mb-1">File Attachments</h3>
               <p class="text-sm text-gray-600 dark:text-gray-400">Attach files, images, and documents</p>
@@ -230,7 +230,7 @@ onMounted(() => {
           </div>
           
           <div class="flex items-start gap-3">
-            <UIcon name="i-heroicons-magnifying-glass" class="w-6 h-6 text-primary-600 dark:text-primary-400 flex-shrink-0 mt-1" />
+            <UIcon name="i-heroicons-magnifying-glass" class="w-6 h-6 text-indigo-600 dark:text-indigo-400 flex-shrink-0 mt-1" />
             <div>
               <h3 class="font-semibold text-gray-900 dark:text-white mb-1">Fast Search</h3>
               <p class="text-sm text-gray-600 dark:text-gray-400">Find anything instantly with full-text search</p>
@@ -238,7 +238,7 @@ onMounted(() => {
           </div>
           
           <div class="flex items-start gap-3">
-            <UIcon name="i-heroicons-moon" class="w-6 h-6 text-primary-600 dark:text-primary-400 flex-shrink-0 mt-1" />
+            <UIcon name="i-heroicons-moon" class="w-6 h-6 text-indigo-600 dark:text-indigo-400 flex-shrink-0 mt-1" />
             <div>
               <h3 class="font-semibold text-gray-900 dark:text-white mb-1">Dark Mode</h3>
               <p class="text-sm text-gray-600 dark:text-gray-400">Easy on the eyes, day or night</p>
@@ -246,7 +246,7 @@ onMounted(() => {
           </div>
           
           <div class="flex items-start gap-3">
-            <UIcon name="i-heroicons-globe-alt" class="w-6 h-6 text-primary-600 dark:text-primary-400 flex-shrink-0 mt-1" />
+            <UIcon name="i-heroicons-globe-alt" class="w-6 h-6 text-indigo-600 dark:text-indigo-400 flex-shrink-0 mt-1" />
             <div>
               <h3 class="font-semibold text-gray-900 dark:text-white mb-1">Publish & Share</h3>
               <p class="text-sm text-gray-600 dark:text-gray-400">Share your notes with anyone via public links</p>
@@ -254,7 +254,7 @@ onMounted(() => {
           </div>
           
           <div class="flex items-start gap-3">
-            <UIcon name="i-heroicons-device-phone-mobile" class="w-6 h-6 text-primary-600 dark:text-primary-400 flex-shrink-0 mt-1" />
+            <UIcon name="i-heroicons-device-phone-mobile" class="w-6 h-6 text-indigo-600 dark:text-indigo-400 flex-shrink-0 mt-1" />
             <div>
               <h3 class="font-semibold text-gray-900 dark:text-white mb-1">PWA Support</h3>
               <p class="text-sm text-gray-600 dark:text-gray-400">Install on any device, works like a native app</p>
@@ -263,7 +263,7 @@ onMounted(() => {
         </div>
         
         <div class="text-center mt-12">
-          <UButton to="/features" size="lg" variant="outline">
+          <UButton to="/features" size="lg" variant="outline" color="indigo">
             View All Features →
           </UButton>
         </div>
@@ -271,16 +271,16 @@ onMounted(() => {
     </section>
 
     <!-- CTA Section -->
-    <section class="py-24 px-4 sm:px-6 lg:px-8 bg-gradient-to-r from-primary-600 via-emerald-600 to-teal-600">
+    <section class="py-24 px-4 sm:px-6 lg:px-8 bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600">
       <div class="max-w-4xl mx-auto text-center">
         <h2 class="text-4xl md:text-5xl font-bold text-white mb-6">
           Ready to Unfold Your Thinking?
         </h2>
-        <p class="text-xl text-primary-100 mb-8">
+        <p class="text-xl text-indigo-100 mb-8">
           Join thousands of users organizing their thoughts with Unfold Notes
         </p>
         <div class="flex flex-col sm:flex-row gap-4 justify-center">
-          <UButton to="/signup" size="lg" variant="solid" class="font-semibold px-6 bg-white text-primary-600 hover:bg-gray-100">
+          <UButton to="/signup" size="lg" variant="solid" class="font-semibold px-6 bg-white text-indigo-600 hover:bg-gray-100">
             Get Started Free
           </UButton>
           <UButton to="/login" size="lg" variant="outline" class="font-semibold px-6 border-white text-white hover:bg-white/10">
@@ -296,7 +296,7 @@ onMounted(() => {
         <div class="grid md:grid-cols-4 gap-8 mb-8">
           <div>
             <div class="flex items-center gap-2 mb-4">
-              <img src="/swan-unfold.png" alt="Unfold Notes" class="w-6 h-6" />
+              <img src="/note_book_logo.png" alt="Unfold Notes" class="w-6 h-6" />
               <span class="text-white font-bold">Unfold Notes</span>
             </div>
             <p class="text-sm">

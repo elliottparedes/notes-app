@@ -15,7 +15,7 @@ interface AuthState {
 export const useAuthStore = defineStore('auth', {
   state: (): AuthState => ({
     user: null,
-    token: null,
+    token: useCookie<string | null>('auth_token').value || null,
     loading: false,
     error: null,
     initialized: false,
@@ -43,13 +43,15 @@ export const useAuthStore = defineStore('auth', {
           body: data
         });
 
+        const tokenCookie = useCookie('auth_token', { maxAge: 60 * 60 * 24 * 30 }); // 30 days
+        tokenCookie.value = response.token;
+        
         this.user = response.user;
         this.token = response.token;
         this.initialized = true;
         
-        // Store token and user in localStorage for offline access
+        // Store user in localStorage for offline access
         if (process.client) {
-          localStorage.setItem('auth_token', response.token);
           localStorage.setItem('session_version', Date.now().toString());
           localStorage.setItem('cached_user', JSON.stringify(response.user));
         }
@@ -91,14 +93,16 @@ export const useAuthStore = defineStore('auth', {
           body: data
         });
 
+        const tokenCookie = useCookie('auth_token', { maxAge: 60 * 60 * 24 * 30 }); // 30 days
+        tokenCookie.value = response.token;
+
         this.user = response.user;
         this.token = response.token;
         this.initialized = true;
         this.needsPasswordReset = response.usedTemporaryPassword || false;
         
-        // Store token, user, and password reset flag in localStorage for offline access
+        // Store user and password reset flag in localStorage for offline access
         if (process.client) {
-          localStorage.setItem('auth_token', response.token);
           localStorage.setItem('session_version', Date.now().toString());
           localStorage.setItem('cached_user', JSON.stringify(response.user));
           if (response.usedTemporaryPassword) {
@@ -139,6 +143,9 @@ export const useAuthStore = defineStore('auth', {
     },
 
     async logout(): Promise<void> {
+      const tokenCookie = useCookie('auth_token');
+      tokenCookie.value = null;
+      
       this.user = null;
       this.token = null;
       this.initialized = false;
@@ -156,10 +163,12 @@ export const useAuthStore = defineStore('auth', {
         });
         
         // Clear auth-related items
-        localStorage.removeItem('auth_token');
         localStorage.removeItem('session_version');
         localStorage.removeItem('cached_user');
         localStorage.removeItem('needs_password_reset');
+        // Legacy cleanup
+        localStorage.removeItem('auth_token'); 
+        
         sessionStorage.clear();
         
         // Add timestamp to force fresh state on next login
@@ -176,10 +185,7 @@ export const useAuthStore = defineStore('auth', {
     },
 
     async fetchCurrentUser(): Promise<void> {
-      if (!this.token && process.client) {
-        this.token = localStorage.getItem('auth_token');
-      }
-
+      // Token is initialized in state from cookie
       if (!this.token) {
         this.initialized = true;
         return;
@@ -229,11 +235,13 @@ export const useAuthStore = defineStore('auth', {
           // Only clear token on actual auth errors (invalid token)
           this.user = null;
           this.token = null;
+          const tokenCookie = useCookie('auth_token');
+          tokenCookie.value = null;
           
           if (process.client) {
-            localStorage.removeItem('auth_token');
             localStorage.removeItem('session_version');
             localStorage.removeItem('cached_user');
+            localStorage.removeItem('auth_token');
           }
         } else {
           // Network/server error - keep token and cached user for offline access
@@ -254,17 +262,17 @@ export const useAuthStore = defineStore('auth', {
 
       // Create initialization promise
       this.initPromise = (async () => {
+        // Token is already in state from cookie (handled by Nuxt useCookie in state)
+        
         if (process.client) {
-          const token = localStorage.getItem('auth_token');
           const needsReset = localStorage.getItem('needs_password_reset');
           const cachedUser = localStorage.getItem('cached_user');
           
-          if (token) {
-            this.token = token;
+          if (this.token) {
             this.needsPasswordReset = needsReset === 'true';
             
             // Load cached user immediately for instant offline access
-            if (cachedUser) {
+            if (cachedUser && !this.user) {
               try {
                 this.user = JSON.parse(cachedUser);
               } catch (e) {
@@ -292,6 +300,8 @@ export const useAuthStore = defineStore('auth', {
           }
         } else {
           // Server side - mark as initialized
+          // If we have a token (from cookie), we might want to fetch user? 
+          // For now, assume initialized to allow middleware to redirect based on token presence
           this.initialized = true;
         }
       })();

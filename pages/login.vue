@@ -11,7 +11,7 @@ useHead({
     {
       rel: 'preload',
       as: 'image',
-      href: '/swan-unfold.png',
+      href: '/note_book_logo.png',
       fetchpriority: 'high'
     }
   ]
@@ -168,7 +168,7 @@ async function handleLogin() {
     <!-- Show loading state while checking auth (only if token exists) -->
     <div v-if="checkingAuth" class="min-h-screen flex items-center justify-center bg-white dark:bg-gray-900">
       <div class="text-center">
-        <UIcon name="i-heroicons-arrow-path" class="w-8 h-8 animate-spin mx-auto text-primary-600 mb-4" />
+        <UIcon name="i-heroicons-arrow-path" class="w-8 h-8 animate-spin mx-auto text-indigo-600 mb-4" />
         <p class="text-sm text-gray-600 dark:text-gray-400">Checking authentication...</p>
       </div>
     </div>
@@ -183,8 +183,8 @@ async function handleLogin() {
       </div>
       
       <!-- Gradient Orbs -->
-      <div class="absolute top-20 left-20 w-96 h-96 bg-primary-500/20 rounded-full blur-3xl"></div>
-      <div class="absolute bottom-20 right-20 w-96 h-96 bg-teal-500/20 rounded-full blur-3xl"></div>
+      <div class="absolute top-20 left-20 w-96 h-96 bg-indigo-500/20 rounded-full blur-3xl"></div>
+      <div class="absolute bottom-20 right-20 w-96 h-96 bg-indigo-500/20 rounded-full blur-3xl"></div>
       
       <div class="relative z-10 flex flex-col justify-center px-12 xl:px-16 text-white">
         <h1 class="text-4xl xl:text-5xl font-bold mb-6 leading-tight">
@@ -197,8 +197,8 @@ async function handleLogin() {
         
         <div class="space-y-6">
           <div class="flex items-start space-x-4">
-            <div class="flex-shrink-0 w-12 h-12 rounded-xl bg-teal-500/20 backdrop-blur-sm flex items-center justify-center">
-              <svg class="w-6 h-6 text-teal-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div class="flex-shrink-0 w-12 h-12 rounded-xl bg-indigo-500/20 backdrop-blur-sm flex items-center justify-center">
+              <svg class="w-6 h-6 dark:text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
               </svg>
             </div>
@@ -209,8 +209,8 @@ async function handleLogin() {
           </div>
           
           <div class="flex items-start space-x-4">
-            <div class="flex-shrink-0 w-12 h-12 rounded-xl bg-emerald-500/20 backdrop-blur-sm flex items-center justify-center">
-              <svg class="w-6 h-6 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div class="flex-shrink-0 w-12 h-12 rounded-xl bg-indigo-500/20 backdrop-blur-sm flex items-center justify-center">
+              <svg class="w-6 h-6 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
               </svg>
             </div>
@@ -221,8 +221,8 @@ async function handleLogin() {
           </div>
           
           <div class="flex items-start space-x-4">
-            <div class="flex-shrink-0 w-12 h-12 rounded-xl bg-indigo-500/20 backdrop-blur-sm flex items-center justify-center">
-              <svg class="w-6 h-6 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div class="flex-shrink-0 w-12 h-12 rounded-xl bg-violet-500/20 backdrop-blur-sm flex items-center justify-center">
+              <svg class="w-6 h-6 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
               </svg>
             </div>
@@ -241,10 +241,10 @@ async function handleLogin() {
         <!-- Logo -->
         <div class="flex justify-center mb-8">
           <div class="relative">
-            <div class="absolute inset-0 bg-gradient-to-br from-primary-400 via-emerald-500 to-teal-600 rounded-3xl blur-xl opacity-30"></div>
+            <div class="absolute inset-0 bg-gradient-to-br from-blue-400 via-indigo-500 to-violet-600 rounded-3xl blur-xl opacity-30"></div>
             <img 
               v-if="!logoError"
-              src="/swan-unfold.png" 
+              src="/note_book_logo.png" 
               alt="Unfold Notes" 
               class="relative w-20 h-20 drop-shadow-lg" 
               loading="eager"
@@ -254,7 +254,7 @@ async function handleLogin() {
             />
             <div 
               v-else
-              class="relative w-20 h-20 rounded-3xl bg-gradient-to-br from-primary-400 via-emerald-500 to-teal-600 flex items-center justify-center text-white font-bold text-2xl"
+              class="relative w-20 h-20 rounded-3xl bg-gradient-to-br from-blue-400 via-indigo-500 to-violet-600 flex items-center justify-center text-white font-bold text-2xl"
             >
               UN
             </div>
@@ -282,6 +282,7 @@ async function handleLogin() {
                 :disabled="loading"
                 class="w-full"
                 icon="i-heroicons-envelope"
+                :ui="{ color: { white: { outline: 'shadow-sm bg-white dark:bg-gray-900 text-gray-900 dark:text-white ring-1 ring-inset ring-gray-300 dark:ring-gray-700 focus:ring-2 focus:!ring-indigo-500 dark:focus:!ring-indigo-400' }, gray: { outline: 'shadow-sm bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white ring-1 ring-inset ring-gray-300 dark:ring-gray-700 focus:ring-2 focus:!ring-indigo-500 dark:focus:!ring-indigo-400' } } }"
               />
             </div>
 
@@ -293,7 +294,7 @@ async function handleLogin() {
                 <button
                   type="button"
                   @click.stop.prevent="openForgotPassword"
-                  class="text-sm font-medium text-primary-600 hover:text-primary-500 dark:text-primary-400 dark:hover:text-primary-300 transition-colors cursor-pointer relative z-10 hover:underline"
+                  class="text-sm font-medium text-indigo-600 hover:text-indigo-500 dark:dark:text-indigo-400 dark:hover:text-indigo-300 transition-colors cursor-pointer relative z-10 hover:underline"
                   :disabled="loading"
                   tabindex="-1"
                 >
@@ -308,6 +309,7 @@ async function handleLogin() {
                 :disabled="loading"
                 class="w-full"
                 icon="i-heroicons-lock-closed"
+                :ui="{ color: { white: { outline: 'shadow-sm bg-white dark:bg-gray-900 text-gray-900 dark:text-white ring-1 ring-inset ring-gray-300 dark:ring-gray-700 focus:ring-2 focus:!ring-indigo-500 dark:focus:!ring-indigo-400' }, gray: { outline: 'shadow-sm bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white ring-1 ring-inset ring-gray-300 dark:ring-gray-700 focus:ring-2 focus:!ring-indigo-500 dark:focus:!ring-indigo-400' } } }"
               />
             </div>
 
@@ -316,8 +318,7 @@ async function handleLogin() {
               size="xl"
               :loading="loading"
               :disabled="loading"
-              class="w-full justify-center font-semibold"
-              color="primary"
+              class="w-full justify-center font-semibold bg-indigo-600 hover:bg-indigo-700 text-white dark:bg-indigo-500 dark:hover:bg-indigo-600"
             >
               <span v-if="!loading">Sign In</span>
               <span v-else>Signing in...</span>
@@ -328,7 +329,7 @@ async function handleLogin() {
         <div class="mt-6 text-center">
           <p class="text-sm text-gray-600 dark:text-gray-400">
             Don't have an account?
-            <NuxtLink to="/signup" class="font-semibold text-primary-600 hover:text-primary-500 dark:text-primary-400 dark:hover:text-primary-300 ml-1 transition-colors">
+            <NuxtLink to="/signup" class="font-semibold text-indigo-600 hover:text-indigo-500 dark:dark:text-indigo-400 dark:hover:text-indigo-300 ml-1 transition-colors">
               Sign up for free →
             </NuxtLink>
           </p>
