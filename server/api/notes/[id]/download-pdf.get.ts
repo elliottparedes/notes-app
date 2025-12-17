@@ -139,10 +139,10 @@ export default defineEventHandler(async (event) => {
       box-sizing: border-box;
     }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji', sans-serif;
       line-height: 1.6;
       color: #333;
-      padding: 60px 80px;
+      padding: 20px 40px;
       max-width: 800px;
       margin: 0 auto;
       background: #fff;
@@ -151,6 +151,16 @@ export default defineEventHandler(async (event) => {
       border-bottom: 2px solid #e5e7eb;
       padding-bottom: 20px;
       margin-bottom: 30px;
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      page-break-after: avoid;
+      break-after: avoid;
+    }
+    p, ul, ol, pre, blockquote, table, img, .metadata-item {
+      page-break-inside: avoid;
+      break-inside: avoid;
     }
     h1 {
       font-size: 2.5em;
@@ -318,10 +328,10 @@ export default defineEventHandler(async (event) => {
       const pdf = await page.pdf({
         format: 'A4',
         margin: {
-          top: '20mm',
-          right: '20mm',
-          bottom: '20mm',
-          left: '20mm',
+          top: '15mm',
+          right: '15mm',
+          bottom: '15mm',
+          left: '15mm',
         },
         printBackground: true,
         preferCSSPageSize: false,

@@ -1857,7 +1857,7 @@ function handleNoteListResizeStart(e: MouseEvent) {
             <!-- Delete Button -->
             <button
               @click.stop="handleDeleteClick(note.id, $event)"
-              class="absolute top-2 right-2 p-1 transition-colors"
+              class="absolute top-1/2 right-2 -translate-y-1/2 p-1.5 rounded-md transition-colors flex items-center justify-center"
               :class="noteToDelete === note.id 
                 ? 'opacity-100 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20' 
                 : 'opacity-0 group-hover:opacity-100 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'"
@@ -1865,7 +1865,7 @@ function handleNoteListResizeStart(e: MouseEvent) {
             >
               <UIcon 
                 :name="noteToDelete === note.id ? 'i-heroicons-trash' : 'i-heroicons-x-mark'" 
-                class="w-3.5 h-3.5" 
+                class="w-4 h-4" 
               />
             </button>
           </div>

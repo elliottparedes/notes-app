@@ -415,9 +415,7 @@ onMounted(() => {
 
     <!-- Content -->
     <div class="flex-1 overflow-y-auto pb-6">
-      <div class="px-4 pt-6 pb-4">
-        <h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-50 mb-4">Home</h1>
-        
+      <div class="px-4 pt-4 pb-4">
         <!-- Search Bar -->
         <div class="relative">
           <UIcon name="i-heroicons-magnifying-glass" class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
