@@ -10,7 +10,7 @@ export default defineEventHandler(async (event) => {
   try {
     // Get all folders for the user, optionally filtered by space_id
     const folders = await executeQuery<Folder[]>(`
-      SELECT id, user_id, name, parent_id, space_id, created_at, updated_at
+      SELECT id, user_id, name, icon, parent_id, space_id, created_at, updated_at
       FROM folders
       WHERE user_id = ?${spaceId ? ' AND space_id = ?' : ''}
       ORDER BY created_at ASC

@@ -27,7 +27,16 @@ function handleSelect() {
       class="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex items-center gap-2"
       style="padding-left: 16px;"
     >
-      <UIcon name="i-heroicons-folder" class="w-4 h-4 text-blue-500 flex-shrink-0" />
+      <img 
+        v-if="folder.icon && (folder.icon.includes('/') || folder.icon.startsWith('http'))"
+        :src="folder.icon"
+        class="w-4 h-4 object-contain rounded-sm flex-shrink-0"
+      />
+      <UIcon 
+        v-else
+        :name="folder.icon ? `i-lucide-${folder.icon}` : 'i-heroicons-folder'"
+        class="w-4 h-4 text-blue-500 flex-shrink-0"
+      />
       <span class="truncate">{{ folder.name }}</span>
     </button>
   </div>

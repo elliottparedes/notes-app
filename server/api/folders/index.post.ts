@@ -60,13 +60,13 @@ export default defineEventHandler(async (event) => {
 
     // Create the folder (always root-level, parent_id is NULL)
     const result: any = await executeQuery(`
-      INSERT INTO folders (user_id, space_id, name, parent_id, created_at, updated_at)
-      VALUES (?, ?, ?, NULL, NOW(), NOW())
-    `, [userId, spaceId, body.name.trim()]);
+      INSERT INTO folders (user_id, space_id, name, icon, parent_id, created_at, updated_at)
+      VALUES (?, ?, ?, ?, NULL, NOW(), NOW())
+    `, [userId, spaceId, body.name.trim(), body.icon || null]);
 
     // Fetch the created folder
     const folders = await executeQuery<Folder[]>(`
-      SELECT id, user_id, space_id, name, parent_id, created_at, updated_at
+      SELECT id, user_id, space_id, name, icon, parent_id, created_at, updated_at
       FROM folders
       WHERE id = ?
     `, [result.insertId]);

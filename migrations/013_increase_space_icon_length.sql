@@ -1,0 +1,1 @@
+ALTER TABLE spaces MODIFY COLUMN icon TEXT;

@@ -337,13 +337,21 @@ export async function cleanupOldTempFiles(
         try {
           await client.removeObject(config.bucket, obj.name);
           deletedCount++;
-          console.log(`Cleaned up old temp file: ${obj.name} (age: ${Math.round(age / 3600000)} hours)`);
-        } catch (error) {
-          console.error(`Failed to cleanup old temp file ${obj.name}:`, error);
-        }
-      }
-    }
-  }
-  
-  return deletedCount;
-}
+                    console.log(`Cleaned up old temp file: ${obj.name} (age: ${Math.round(age / 3600000)} hours)`);
+                  } catch (error) {
+                    console.error(`Failed to cleanup old temp file ${obj.name}:`, error);
+                  }
+                }
+              }
+            }
+          
+            return deletedCount;
+          }
+          
+          export async function getFileStream(objectName: string): Promise<NodeJS.ReadableStream> {
+            const config = getConfig();
+            const client = getMinioClient();
+            return await client.getObject(config.bucket, objectName);
+          }
+          
+          

@@ -1,15 +1,27 @@
 <script setup lang="ts">
+import { useAuthStore } from '~/stores/auth';
+
 const props = defineProps<{
   modelValue?: string | null;
   searchPlaceholder?: string;
+  allowUpload?: boolean;
 }>();
 
 const emit = defineEmits<{
   (e: 'update:modelValue', value: string | null): void;
 }>();
 
+const authStore = useAuthStore();
 const searchQuery = ref('');
 const showPicker = ref(false);
+const mode = ref<'select' | 'upload'>('select');
+const isUploading = ref(false);
+const uploadError = ref<string | null>(null);
+
+function isUrl(value: string | null | undefined): boolean {
+  if (!value) return false;
+  return value.includes('/') || value.startsWith('http');
+}
 
 // Validated list of popular Lucide icons that actually exist
 // Icons are stored in the database as strings (e.g., "folder", "home", etc.)
@@ -83,6 +95,38 @@ function clearIcon() {
   showPicker.value = false;
 }
 
+async function handleFileUpload(event: Event) {
+  const input = event.target as HTMLInputElement;
+  if (!input.files?.length) return;
+
+  const file = input.files[0];
+  isUploading.value = true;
+  uploadError.value = null;
+
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const { url } = await $fetch<{ url: string }>('/api/folders/upload-icon', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${authStore.token}`
+      },
+      body: formData
+    });
+
+    selectedIcon.value = url;
+    showPicker.value = false;
+  } catch (error: any) {
+    console.error('Upload failed:', error);
+    uploadError.value = error.message || 'Failed to upload icon';
+  } finally {
+    isUploading.value = false;
+    // Reset input
+    input.value = '';
+  }
+}
+
 // Close picker when clicking outside
 onMounted(() => {
   const handleClickOutside = (e: MouseEvent) => {
@@ -112,8 +156,14 @@ onMounted(() => {
           : 'border-dashed border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-900'"
         title="Select icon"
       >
+        <img 
+          v-if="isUrl(selectedIcon)" 
+          :src="selectedIcon!" 
+          class="w-8 h-8 object-contain"
+          alt="Selected icon"
+        />
         <UIcon 
-          v-if="selectedIcon" 
+          v-else-if="selectedIcon" 
           :name="`i-lucide-${selectedIcon}`" 
           class="w-5 h-5 text-primary-600 dark:text-primary-400"
         />
@@ -158,67 +208,124 @@ onMounted(() => {
         class="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl z-50 overflow-hidden"
         @click.stop
       >
-        <!-- Search Bar -->
-        <div class="p-3 border-b border-gray-200 dark:border-gray-700">
-          <div class="relative">
-            <UIcon 
-              name="i-heroicons-magnifying-glass" 
-              class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400"
-            />
-            <input
-              v-model="searchQuery"
-              type="text"
-              :placeholder="searchPlaceholder || 'Search icons...'"
-              class="w-full pl-9 pr-4 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
-              autofocus
-            />
-          </div>
+        <!-- Mode Switcher -->
+        <div v-if="allowUpload" class="flex border-b border-gray-200 dark:border-gray-700">
+          <button
+            type="button"
+            @click="mode = 'select'"
+            class="flex-1 py-2 text-sm font-medium transition-colors"
+            :class="mode === 'select' 
+              ? 'text-primary-600 dark:text-primary-400 bg-gray-50 dark:bg-gray-800 border-b-2 border-primary-500' 
+              : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'"
+          >
+            Library
+          </button>
+          <button
+            type="button"
+            @click="mode = 'upload'"
+            class="flex-1 py-2 text-sm font-medium transition-colors"
+            :class="mode === 'upload' 
+              ? 'text-primary-600 dark:text-primary-400 bg-gray-50 dark:bg-gray-800 border-b-2 border-primary-500' 
+              : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'"
+          >
+            Upload
+          </button>
         </div>
 
-        <!-- Icons Grid -->
-        <div class="max-h-80 overflow-y-auto p-3">
-          <div 
-            v-if="filteredIcons.length === 0"
-            class="text-center py-8 text-gray-500 dark:text-gray-400 text-sm"
-          >
-            <UIcon name="i-heroicons-magnifying-glass" class="w-8 h-8 mx-auto mb-2 opacity-50" />
-            <p>No icons found</p>
-            <p class="text-xs mt-1">Try a different search term</p>
-          </div>
-          <div 
-            v-else
-            class="grid grid-cols-8 gap-2"
-          >
-            <button
-              v-for="icon in filteredIcons"
-              :key="icon.name"
-              @click="selectIcon(icon.name)"
-              class="group relative flex items-center justify-center w-10 h-10 rounded-lg transition-all hover:bg-primary-100 dark:hover:bg-primary-900/30 hover:scale-110"
-              :class="selectedIcon === icon.name 
-                ? 'bg-primary-500 dark:bg-primary-600 ring-2 ring-primary-300 dark:ring-primary-700' 
-                : 'bg-gray-50 dark:bg-gray-900 hover:border-primary-300 dark:hover:border-primary-700 border border-gray-200 dark:border-gray-700'"
-              :title="icon.name"
-            >
+        <!-- Library Mode -->
+        <template v-if="mode === 'select'">
+          <!-- Search Bar -->
+          <div class="p-3 border-b border-gray-200 dark:border-gray-700">
+            <div class="relative">
               <UIcon 
-                :name="`i-lucide-${icon.name}`"
-                class="w-5 h-5 transition-colors"
-                :class="selectedIcon === icon.name 
-                  ? 'text-white' 
-                  : 'text-gray-600 dark:text-gray-400 group-hover:text-primary-600 dark:group-hover:text-primary-400'"
+                name="i-heroicons-magnifying-glass" 
+                class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400"
               />
-              <!-- Checkmark for selected icon -->
-              <div
-                v-if="selectedIcon === icon.name"
-                class="absolute -top-1 -right-1 w-4 h-4 bg-primary-600 dark:bg-primary-500 rounded-full flex items-center justify-center border-2 border-white dark:border-gray-800"
-              >
-                <UIcon name="i-heroicons-check" class="w-2.5 h-2.5 text-white" />
-              </div>
-            </button>
+              <input
+                v-model="searchQuery"
+                type="text"
+                :placeholder="searchPlaceholder || 'Search icons...'"
+                class="w-full pl-9 pr-4 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
+                :autofocus="true"
+              />
+            </div>
           </div>
-        </div>
+
+          <!-- Icons Grid -->
+          <div class="max-h-80 overflow-y-auto p-3">
+            <div 
+              v-if="filteredIcons.length === 0"
+              class="text-center py-8 text-gray-500 dark:text-gray-400 text-sm"
+            >
+              <UIcon name="i-heroicons-magnifying-glass" class="w-8 h-8 mx-auto mb-2 opacity-50" />
+              <p>No icons found</p>
+              <p class="text-xs mt-1">Try a different search term</p>
+            </div>
+            <div 
+              v-else
+              class="grid grid-cols-8 gap-2"
+            >
+              <button
+                v-for="icon in filteredIcons"
+                :key="icon.name"
+                @click="selectIcon(icon.name)"
+                class="group relative flex items-center justify-center w-10 h-10 rounded-lg transition-all hover:bg-primary-100 dark:hover:bg-primary-900/30 hover:scale-110"
+                :class="selectedIcon === icon.name 
+                  ? 'bg-primary-500 dark:bg-primary-600 ring-2 ring-primary-300 dark:ring-primary-700' 
+                  : 'bg-gray-50 dark:bg-gray-900 hover:border-primary-300 dark:hover:border-primary-700 border border-gray-200 dark:border-gray-700'"
+                :title="icon.name"
+              >
+                <UIcon 
+                  :name="`i-lucide-${icon.name}`"
+                  class="w-5 h-5 transition-colors"
+                  :class="selectedIcon === icon.name 
+                    ? 'text-white' 
+                    : 'text-gray-600 dark:text-gray-400 group-hover:text-primary-600 dark:group-hover:text-primary-400'"
+                />
+                <!-- Checkmark for selected icon -->
+                <div
+                  v-if="selectedIcon === icon.name"
+                  class="absolute -top-1 -right-1 w-4 h-4 bg-primary-600 dark:bg-primary-500 rounded-full flex items-center justify-center border-2 border-white dark:border-gray-800"
+                >
+                  <UIcon name="i-heroicons-check" class="w-2.5 h-2.5 text-white" />
+                </div>
+              </button>
+            </div>
+          </div>
+        </template>
+
+        <!-- Upload Mode -->
+        <template v-else>
+          <div class="p-6 flex flex-col items-center justify-center text-center">
+            <div 
+              class="w-full border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-6 hover:bg-gray-50 dark:hover:bg-gray-900/50 transition-colors cursor-pointer relative"
+            >
+              <input 
+                type="file" 
+                @change="handleFileUpload" 
+                accept="image/*"
+                class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                :disabled="isUploading"
+              />
+              <div v-if="isUploading" class="space-y-2">
+                <UIcon name="i-heroicons-arrow-path" class="w-8 h-8 mx-auto animate-spin text-primary-500" />
+                <p class="text-sm font-medium text-gray-900 dark:text-white">Uploading...</p>
+              </div>
+              <div v-else class="space-y-2">
+                <UIcon name="i-heroicons-cloud-arrow-up" class="w-10 h-10 mx-auto text-gray-400" />
+                <p class="text-sm font-medium text-gray-900 dark:text-white">Click to upload</p>
+                <p class="text-xs text-gray-500">SVG, PNG, JPG, WEBP (max 2MB)</p>
+              </div>
+            </div>
+            
+            <p v-if="uploadError" class="mt-2 text-sm text-red-600 dark:text-red-400">
+              {{ uploadError }}
+            </p>
+          </div>
+        </template>
 
         <!-- Footer -->
-        <div class="px-3 py-2 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 text-xs text-gray-500 dark:text-gray-400 text-center">
+        <div v-if="mode === 'select'" class="px-3 py-2 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 text-xs text-gray-500 dark:text-gray-400 text-center">
           {{ filteredIcons.length }} icon{{ filteredIcons.length !== 1 ? 's' : '' }} available
         </div>
       </div>

@@ -86,34 +86,27 @@ const showDeleteSpaceModal = ref(false);
 const deletingSpaceId = ref<number | null>(null);
 const isDeletingSpace = ref(false);
 
+function isUrl(value: string | null | undefined): boolean {
+  if (!value) return false;
+  return value.includes('/') || value.startsWith('http');
+}
+
+function openEditSpaceModal(space: Space) {
+  editingSpace.value = space;
+  showSpaceModal.value = true;
+  showSpaceContextMenu.value = null;
+}
+
 function startSpaceRename(space: Space) {
-  editingSpaceId.value = space.id;
-  editingSpaceName.value = space.name;
-  nextTick(() => {
-    spaceRenameInputRef.value?.focus();
-  });
+  openEditSpaceModal(space);
 }
 
 async function saveSpaceRename() {
-  if (editingSpaceId.value === null) return;
-  
-  const newName = editingSpaceName.value.trim();
-  if (newName) {
-    try {
-      await spacesStore.updateSpace(editingSpaceId.value, { name: newName });
-    } catch (error) {
-      console.error('Failed to rename space:', error);
-      toast.error('Failed to rename notebook');
-    }
-  }
-  
-  editingSpaceId.value = null;
-  editingSpaceName.value = '';
+  // Deprecated in favor of modal
 }
 
 function cancelSpaceRename() {
-  editingSpaceId.value = null;
-  editingSpaceName.value = '';
+  // Deprecated in favor of modal
 }
 
 function toggleSpaceContextMenu(event: MouseEvent, spaceId: number) {
@@ -758,6 +751,16 @@ const isFullscreen = ref(false);
 // Space Modal State
 const showSpaceModal = ref(false);
 const editingSpace = ref<Space | null>(null);
+
+// Folder Edit Modal State
+const showFolderEditModal = ref(false);
+const editingFolder = ref<any>(null);
+
+function openEditFolderModal(folder: any) {
+  editingFolder.value = folder;
+  showFolderEditModal.value = true;
+  openFolderContextMenuId.value = null;
+}
 
 // Initialize expanded state with current space if available
 watch(() => spacesStore.currentSpaceId, (newId) => {
@@ -1656,17 +1659,23 @@ function handleNoteListResizeStart(e: MouseEvent) {
               @click="handleSelectSpace(space.id)"
               @dblclick="startSpaceRename(space)"
               @dragenter="handleSpaceDragOver(space.id)"
-              class="space-button flex-1 flex items-center gap-1.5 px-2 py-1.5 transition-colors text-left min-w-0"
+              class="space-button flex-1 flex items-center gap-2 px-2 py-2.5 transition-colors text-left min-w-0"
             >
               <UIcon 
                 :name="expandedSpaceIds.has(space.id) ? 'i-heroicons-chevron-down' : 'i-heroicons-chevron-right'" 
-                class="w-3.5 h-3.5 text-gray-500 dark:text-gray-400 flex-shrink-0"
+                class="w-4 h-4 text-gray-500 dark:text-gray-400 flex-shrink-0"
+              />
+              <img 
+                v-if="isUrl(space.icon)" 
+                :src="space.icon!" 
+                class="w-5 h-5 object-contain rounded-sm flex-shrink-0"
               />
               <UIcon 
+                v-else
                 :name="space.icon ? `i-lucide-${space.icon}` : 'i-heroicons-book-open'" 
-                class="w-4 h-4 text-gray-700 dark:text-gray-300 flex-shrink-0" 
+                class="w-5 h-5 text-gray-700 dark:text-gray-300 flex-shrink-0" 
               />
-              <span class="font-normal text-sm truncate flex-1 text-gray-900 dark:text-gray-100">{{ space.name }}</span>
+              <span class="font-normal text-sm lg:text-base truncate flex-1 text-gray-900 dark:text-gray-100">{{ space.name }}</span>
             </button>
             
             <!-- Context Menu Button -->
@@ -1706,6 +1715,14 @@ function handleNoteListResizeStart(e: MouseEvent) {
                 >
                   <button
                     type="button"
+                    @click="openEditSpaceModal(space)"
+                    class="w-full text-left px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 active:bg-gray-200 dark:active:bg-gray-600 flex items-center gap-2"
+                  >
+                    <UIcon name="i-heroicons-pencil" class="w-4 h-4" />
+                    <span>Edit</span>
+                  </button>
+                  <button
+                    type="button"
                     @click="handleDeleteSpace(space.id)"
                     class="w-full text-left px-3 py-1.5 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700 active:bg-gray-200 dark:active:bg-gray-600 flex items-center gap-2"
                   >
@@ -1738,6 +1755,7 @@ function handleNoteListResizeStart(e: MouseEvent) {
                 @select="handleSelectFolder"
                 @create-note="handleCreateNoteInFolder"
                 @delete="handleDeleteFolder"
+                @edit="openEditFolderModal"
                 @rename="(id) => console.log('Rename folder', id)"
                 @update:openMenuId="openFolderContextMenuId = $event"
               />
@@ -2420,6 +2438,13 @@ function handleNoteListResizeStart(e: MouseEvent) {
       :space="editingSpace"
       @created="spacesStore.fetchSpaces"
       @updated="spacesStore.fetchSpaces"
+    />
+
+    <!-- Folder Edit Modal -->
+    <FolderEditModal
+      v-if="showFolderEditModal && editingFolder"
+      v-model="showFolderEditModal"
+      :folder="editingFolder"
     />
 
     <!-- Search Modal -->

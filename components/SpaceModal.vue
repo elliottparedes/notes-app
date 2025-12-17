@@ -179,6 +179,7 @@ onMounted(() => {
                   <IconPicker
                     v-model="spaceIcon"
                     search-placeholder="Search icons..."
+                    allow-upload
                   />
 
                   <!-- Space Name -->

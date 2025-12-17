@@ -31,9 +31,22 @@ const expandedSpaceIds = ref<Set<number>>(new Set());
 // Folder menu state
 const openFolderMenuId = ref<number | null>(null);
 const showCreateFolderModal = ref(false);
+const showEditFolderModal = ref(false);
+const editingFolder = ref<any>(null); // Type 'any' to avoid complex imports, cast when using
 const newFolderName = ref('');
 const targetSpaceIdForFolderCreation = ref<number | undefined>(undefined);
 const isCreatingFolder = ref(false);
+
+function isUrl(value: string | null | undefined): boolean {
+  if (!value) return false;
+  return value.includes('/') || value.startsWith('http');
+}
+
+function openEditFolderModal(folder: any) {
+  editingFolder.value = folder;
+  showEditFolderModal.value = true;
+  openFolderMenuId.value = null;
+}
 
 // Perform search
 async function performSearch(query: string) {
@@ -551,7 +564,16 @@ onMounted(() => {
                         :name="foldersStore.expandedFolderIds.has(folder.id) ? 'i-heroicons-chevron-down' : 'i-heroicons-chevron-right'" 
                         class="w-4 h-4 text-gray-500 dark:text-gray-400"
                       />
-                      <UIcon name="i-heroicons-folder" class="w-5 h-5 text-gray-500 dark:text-gray-400" />
+                      <img 
+                        v-if="isUrl(folder.icon)" 
+                        :src="folder.icon" 
+                        class="w-5 h-5 object-contain rounded-sm"
+                      />
+                      <UIcon 
+                        v-else
+                        :name="folder.icon ? `i-lucide-${folder.icon}` : 'i-heroicons-folder'" 
+                        class="w-5 h-5 text-gray-500 dark:text-gray-400" 
+                      />
                       <span class="text-base text-gray-700 dark:text-gray-300">{{ folder.name }}</span>
                       <span v-if="getFolderNotes(folder.id).length > 0" class="text-xs text-gray-400">
                         ({{ getFolderNotes(folder.id).length }})
@@ -591,6 +613,13 @@ onMounted(() => {
                           >
                             <UIcon name="i-heroicons-plus" class="w-5 h-5" />
                             <span>Add note</span>
+                          </button>
+                          <button
+                            @click="openEditFolderModal(folder)"
+                            class="w-full text-left px-4 py-3 text-base text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-3"
+                          >
+                            <UIcon name="i-heroicons-pencil" class="w-5 h-5" />
+                            <span>Edit</span>
                           </button>
                           <button
                             @click="handleDeleteFolder(folder.id)"
@@ -692,6 +721,13 @@ onMounted(() => {
         </Transition>
       </Teleport>
     </ClientOnly>
+
+    <!-- Folder Edit Modal -->
+    <FolderEditModal
+      v-if="showEditFolderModal && editingFolder"
+      v-model="showEditFolderModal"
+      :folder="editingFolder"
+    />
 
     <!-- Backdrop for folder menu -->
     <div

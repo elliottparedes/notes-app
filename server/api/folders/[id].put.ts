@@ -18,7 +18,7 @@ export default defineEventHandler(async (event) => {
   try {
     // Verify folder exists and belongs to user
     const folders = await executeQuery<Folder[]>(`
-      SELECT id, user_id, space_id, name, parent_id
+      SELECT id, user_id, space_id, name, icon, parent_id
       FROM folders
       WHERE id = ? AND user_id = ?
     `, [folderId, userId]);
@@ -62,6 +62,11 @@ export default defineEventHandler(async (event) => {
       values.push(body.name.trim());
     }
 
+    if (body.icon !== undefined) {
+      updates.push('icon = ?');
+      values.push(body.icon);
+    }
+
     if (body.space_id !== undefined) {
       // Check if space exists and belongs to user
       const spaces = await executeQuery<any[]>(`
@@ -95,7 +100,7 @@ export default defineEventHandler(async (event) => {
 
     // Fetch and return updated folder
     const updatedFolders = await executeQuery<Folder[]>(`
-      SELECT id, user_id, space_id, name, parent_id, created_at, updated_at
+      SELECT id, user_id, space_id, name, icon, parent_id, created_at, updated_at
       FROM folders
       WHERE id = ?
     `, [folderId]);
