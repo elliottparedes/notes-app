@@ -59,6 +59,23 @@ export default defineEventHandler(async (event) => {
       day: 'numeric'
     });
 
+    // Process note content to ensure custom nodes like NoteLink render correctly
+    let processedContent = noteContent;
+    
+    // Robust replacement for NoteLink spans that might be empty
+    // This regex is safer and won't cut off content if labels have special characters
+    processedContent = processedContent.replace(/<span[^>]+class="[^"]*note-link[^"]*"[^>]*>(.*?)<\/span>/g, (match, inner) => {
+      // If it already has content, just return the match
+      if (inner && inner.trim()) return match;
+      
+      // If empty, try to extract the label from the data-label attribute
+      const labelMatch = match.match(/data-label="([^"]*)"/);
+      if (labelMatch && labelMatch[1]) {
+        return match.replace('><', `>${labelMatch[1]}<`);
+      }
+      return match;
+    });
+
     // Determine if we're in a serverless environment
     const isServerless = process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.VERCEL || process.env.NETLIFY;
     
@@ -133,163 +150,210 @@ export default defineEventHandler(async (event) => {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${escapeHtml(noteTitle)}</title>
   <style>
+    :root {
+      --primary: #4f46e5;
+      --primary-light: #eef2ff;
+      --text-main: #1f2937;
+      --text-muted: #6b7280;
+      --border: #e5e7eb;
+      --bg-soft: #f9fafb;
+    }
     * {
       margin: 0;
       padding: 0;
       box-sizing: border-box;
     }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji', sans-serif;
-      line-height: 1.6;
-      color: #333;
-      padding: 20px 40px;
-      max-width: 800px;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      line-height: 1.7;
+      color: var(--text-main);
+      padding: 40px 50px;
+      max-width: 850px;
       margin: 0 auto;
       background: #fff;
     }
     .header {
-      border-bottom: 2px solid #e5e7eb;
-      padding-bottom: 20px;
-      margin-bottom: 30px;
-      page-break-inside: avoid;
-      break-inside: avoid;
-    }
-    h1, h2, h3, h4, h5, h6 {
-      page-break-after: avoid;
-      break-after: avoid;
-    }
-    p, ul, ol, pre, blockquote, table, img, .metadata-item {
-      page-break-inside: avoid;
-      break-inside: avoid;
+      margin-bottom: 40px;
+      padding-bottom: 24px;
+      border-bottom: 1px solid var(--border);
+      position: relative;
     }
     h1 {
-      font-size: 2.5em;
-      font-weight: 700;
-      margin-bottom: 10px;
-      color: #111;
+      font-size: 2.75rem;
+      font-weight: 800;
+      line-height: 1.2;
+      margin-bottom: 16px;
+      color: #111827;
+      letter-spacing: -0.02em;
     }
     .metadata {
       display: flex;
       flex-wrap: wrap;
-      gap: 20px;
-      font-size: 0.9em;
-      color: #6b7280;
-      margin-top: 10px;
+      gap: 24px;
+      font-size: 0.85rem;
+      color: var(--text-muted);
     }
     .metadata-item {
       display: flex;
       align-items: center;
-      gap: 5px;
+      gap: 6px;
+    }
+    .metadata-label {
+      font-weight: 600;
+      color: #9ca3af;
+      text-transform: uppercase;
+      font-size: 0.7rem;
+      letter-spacing: 0.02em;
     }
     .tags {
       display: flex;
       flex-wrap: wrap;
-      gap: 8px;
-      margin-top: 10px;
+      gap: 6px;
+      margin-top: 16px;
     }
     .tag {
-      background: #f3f4f6;
-      padding: 4px 12px;
-      border-radius: 12px;
-      font-size: 0.85em;
-      color: #374151;
+      background: var(--primary-light);
+      padding: 2px 10px;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--primary);
     }
     .content {
-      font-size: 1em;
-      line-height: 1.8;
+      font-size: 1.05rem;
     }
     .content h1, .content h2, .content h3 {
-      margin-top: 1.5em;
-      margin-bottom: 0.5em;
-      font-weight: 600;
+      margin-top: 2rem;
+      margin-bottom: 0.75rem;
+      font-weight: 700;
+      color: #111827;
+      line-height: 1.3;
     }
-    .content h1 {
-      font-size: 2em;
-    }
-    .content h2 {
-      font-size: 1.5em;
-    }
-    .content h3 {
-      font-size: 1.25em;
-    }
+    .content h1 { font-size: 1.8rem; }
+    .content h2 { font-size: 1.5rem; }
+    .content h3 { font-size: 1.25rem; }
+    
     .content p {
-      margin-bottom: 1em;
+      margin-bottom: 1.25rem;
     }
     .content ul, .content ol {
-      margin-left: 2em;
-      margin-bottom: 1em;
+      margin-left: 1.5rem;
+      margin-bottom: 1.25rem;
     }
     .content li {
-      margin-bottom: 0.5em;
+      margin-bottom: 0.5rem;
+      padding-left: 0.25rem;
     }
     .content blockquote {
-      border-left: 4px solid #d1d5db;
-      padding-left: 1em;
-      margin: 1em 0;
-      color: #6b7280;
+      border-left: 4px solid var(--primary);
+      background: var(--bg-soft);
+      padding: 1.25rem 1.5rem;
+      margin: 1.5rem 0;
+      border-radius: 0 8px 8px 0;
+      color: #4b5563;
       font-style: italic;
     }
     .content code {
-      background: #f3f4f6;
-      padding: 2px 6px;
+      background: var(--bg-soft);
+      padding: 0.2rem 0.4rem;
       border-radius: 4px;
-      font-family: 'Courier New', monospace;
+      font-family: 'JetBrains Mono', 'Fira Code', monospace;
       font-size: 0.9em;
+      color: #eb5757;
+      border: 1px solid #eee;
     }
     .content pre {
-      background: #f3f4f6;
-      padding: 1em;
-      border-radius: 8px;
+      background: #1e293b;
+      color: #f8fafc;
+      padding: 1.5rem;
+      border-radius: 12px;
       overflow-x: auto;
-      margin: 1em 0;
+      margin: 1.5rem 0;
+      font-size: 0.9rem;
+      line-height: 1.5;
     }
     .content pre code {
       background: none;
       padding: 0;
+      border: none;
+      color: inherit;
     }
     .content table {
       width: 100%;
-      border-collapse: collapse;
-      margin: 1em 0;
+      border-collapse: separate;
+      border-spacing: 0;
+      margin: 2rem 0;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
     }
     .content table th,
     .content table td {
-      border: 1px solid #d1d5db;
-      padding: 0.75em;
+      padding: 12px 16px;
       text-align: left;
+      border-bottom: 1px solid var(--border);
     }
     .content table th {
-      background: #f9fafb;
-      font-weight: 600;
+      background: var(--bg-soft);
+      font-weight: 700;
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      letter-spacing: 0.02em;
+    }
+    .content table tr:last-child td {
+      border-bottom: none;
     }
     .content img {
       max-width: 100%;
       height: auto;
-      margin: 1em 0;
-      border-radius: 8px;
+      margin: 2rem 0;
+      border-radius: 12px;
+      box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
     }
     .content a {
-      color: #2563eb;
-      text-decoration: underline;
+      color: var(--primary);
+      text-decoration: none;
+      font-weight: 500;
+      border-bottom: 1px solid var(--primary-light);
+    }
+    .content .note-link {
+      color: var(--primary) !important;
+      font-weight: 600;
+      text-decoration: none !important;
+      display: inline-block;
+      background: var(--primary-light);
+      padding: 0 6px;
+      border-radius: 4px;
     }
     .content hr {
       border: none;
-      border-top: 1px solid #e5e7eb;
-      margin: 2em 0;
+      border-top: 1px solid var(--border);
+      margin: 3rem 0;
     }
     .footer {
-      margin-top: 40px;
-      padding-top: 20px;
-      border-top: 1px solid #e5e7eb;
-      font-size: 0.85em;
+      margin-top: 60px;
+      padding-top: 24px;
+      border-top: 1px solid var(--border);
+      font-size: 0.75rem;
       color: #9ca3af;
-      text-align: center;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
     }
+    
     @media print {
       body {
-        padding: 40px 60px;
+        padding: 0;
+      }
+      .header {
+        border-bottom-width: 2px;
       }
     }
+    
+    /* Page break control */
+    h1, h2, h3 { page-break-after: avoid; }
+    pre, blockquote, table, img { page-break-inside: avoid; }
   </style>
 </head>
 <body>
@@ -297,11 +361,11 @@ export default defineEventHandler(async (event) => {
     <h1>${escapeHtml(noteTitle)}</h1>
     <div class="metadata">
       <div class="metadata-item">
-        <span>Created:</span>
+        <span class="metadata-label">Created</span>
         <span>${escapeHtml(createdAt)}</span>
       </div>
       <div class="metadata-item">
-        <span>Updated:</span>
+        <span class="metadata-label">Modified</span>
         <span>${escapeHtml(updatedAt)}</span>
       </div>
     </div>
@@ -312,13 +376,12 @@ export default defineEventHandler(async (event) => {
     ` : ''}
   </div>
   <div class="content">
-    ${noteContent}
+    ${processedContent}
   </div>
   <div class="footer">
-    Generated from Notes App
+    <span>Generated on ${new Date().toLocaleDateString()}</span>
   </div>
-</body>
-</html>
+</body></html>
       `;
 
       // Set content and wait for any images/fonts to load

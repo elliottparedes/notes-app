@@ -191,13 +191,14 @@ onUnmounted(() => {
         </div>
       </div>
       <UnifiedEditor
-        v-else
-        :key="activeNote.id"
-        :model-value="activeNote.content"
-        @update:model-value="handleContentChange"
+        v-if="activeNote"
+        v-model="activeNote.content"
         :note-id="activeNote.id"
         :editable="true"
-        :initial-content="activeNote.content"
+        :placeholder="'Start writing...'"
+        :is-collaborative="false"
+        @update:model-value="handleContentChange"
+        @note-link-clicked="(id) => router.push(`/mobile/notes/${id}`)"
       />
     </div>
 

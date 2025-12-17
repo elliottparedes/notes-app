@@ -7,10 +7,9 @@ import { useFoldersStore } from '~/stores/folders';
 import { useSpacesStore } from '~/stores/spaces';
 import { useSharedNotesStore } from '~/stores/sharedNotes';
 import { useToast } from '~/composables/useToast';
-import type { Note, CreateNoteDto, CreateFolderDto, Space } from '~/models';
+import { useNoteNavigation } from '~/composables/useNoteNavigation';
+import type { Note, Space } from '~/models';
 import Sortable from 'sortablejs';
-// UnifiedEditor is auto-imported by Nuxt, but we can import explicit type if needed
-// MobileBottomNav is auto-imported
 
 const route = useRoute();
 const router = useRouter();
@@ -20,6 +19,7 @@ const foldersStore = useFoldersStore();
 const spacesStore = useSpacesStore();
 const sharedNotesStore = useSharedNotesStore();
 const toast = useToast();
+const { navigateToNote } = useNoteNavigation();
 
 // Initial loading state
 const isMounted = ref(false);
@@ -902,7 +902,7 @@ async function handleMobileCreate() {
 }
 
 // Handle note selection from search modal
-async function handleSearchNoteSelected(note: Note, searchQuery?: string) {
+async function handleSearchNoteSelected(note: Note | { id: string }, searchQuery?: string) {
   isLoadingNoteFromSearch.value = true;
   noteJustSelectedFromSearch.value = true;
   
@@ -910,54 +910,9 @@ async function handleSearchNoteSelected(note: Note, searchQuery?: string) {
   searchQueryForHighlight.value = searchQuery || null;
   
   try {
-    // Get the folder for this note
-    if (note.folder_id) {
-      const folder = foldersStore.getFolderById(note.folder_id);
-      
-      if (folder) {
-        const spaceId = folder.space_id;
-        
-        // Expand the space (notebook) if not already expanded
-        if (!expandedSpaceIds.value.has(spaceId)) {
-          expandedSpaceIds.value.add(spaceId);
-        }
-        
-        // Set as current space
-        spacesStore.setCurrentSpace(spaceId);
-        
-        // Ensure folders are loaded for this space
-        await foldersStore.fetchFolders(spaceId, true);
-        
-        // Select the folder (section)
-        selectedFolderId.value = folder.id;
-        
-        // Wait a bit for UI to update
-        await nextTick();
-        
-        // Open the note
-        await handleOpenNote(note.id);
-      } else {
-        // Folder not found, try to fetch it
-        await foldersStore.fetchFolders(null, true);
-        const folder = foldersStore.getFolderById(note.folder_id);
-        if (folder) {
-          const spaceId = folder.space_id;
-          if (!expandedSpaceIds.value.has(spaceId)) {
-            expandedSpaceIds.value.add(spaceId);
-          }
-          spacesStore.setCurrentSpace(spaceId);
-          selectedFolderId.value = folder.id;
-          await nextTick();
-          await handleOpenNote(note.id);
-        } else {
-          // Fallback: just open the note
-          await handleOpenNote(note.id);
-        }
-      }
-    } else {
-      // Note has no folder, just open it
-      await handleOpenNote(note.id);
-    }
+    await navigateToNote(note, expandedSpaceIds.value, (folderId) => {
+      selectedFolderId.value = folderId;
+    });
   } catch (error) {
     console.error('Failed to navigate to note from search:', error);
     toast.error('Failed to open note');

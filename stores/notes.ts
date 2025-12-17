@@ -284,7 +284,7 @@ export const useNotesStore = defineStore('notes', {
       }
     },
 
-    async fetchNote(id: string): Promise<void> {
+    async fetchNote(id: string): Promise<Note | null> {
       this.loading = true;
       this.error = null;
 
@@ -315,6 +315,8 @@ export const useNotesStore = defineStore('notes', {
         if (process.client) {
           await updateCachedNote(response);
         }
+
+        return response;
       } catch (err: unknown) {
         this.error = err instanceof Error ? err.message : 'Failed to fetch note';
         throw err;

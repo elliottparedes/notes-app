@@ -939,19 +939,18 @@ onUnmounted(() => {
         <div class="max-w-5xl mx-auto py-6 px-4 md:px-6">
           <ClientOnly>
             <template #default>
-              <UnifiedEditor
-                ref="tiptapEditorRef"
-                v-model="editForm.content"
-                placeholder="Start writing..."
-                :editable="!isLocked"
-                :show-toolbar="showEditorToolbar"
-                :note-id="noteId"
-                :is-collaborative="false"
-                :is-polishing="isPolishing"
-                :is-asking-a-i="isAskingAI"
-                @request-polish="polishNote"
-                @request-ask-ai="askAINote"
-              />
+            <UnifiedEditor
+              v-model="editForm.content"
+              :note-id="noteId"
+              :editable="true"
+              :placeholder="'Start writing...'"
+              :is-collaborative="false"
+              :is-polishing="isPolishing"
+              :is-asking-a-i="isAskingAI"
+              @request-polish="polishNote"
+              @request-ask-ai="askAINote"
+              @note-link-clicked="(id) => router.push(`/notes/${id}`)"
+            />
             </template>
           </ClientOnly>
         </div>

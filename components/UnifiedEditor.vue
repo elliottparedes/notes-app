@@ -38,7 +38,13 @@ import { WebsocketProvider } from 'y-websocket'
 import * as Y from 'yjs'
 import ydocManager from '~/utils/ydocManager.client'
 import { YouTube } from './YouTubeExtension'
+import { NoteLink } from './NoteLinkExtension'
+import NoteSuggestionList from './NoteSuggestionList.vue'
 import EditorToolbar from './EditorToolbar.vue'
+import { VueRenderer } from '@tiptap/vue-3'
+import tippy from 'tippy.js'
+import 'tippy.js/dist/tippy.css'
+import { useNotesStore } from '~/stores/notes'
 
 // Custom mark for highlighting text with user colors that fade to normal
 const UserHighlight = Mark.create({
@@ -792,7 +798,82 @@ const emit = defineEmits<{
   (e: 'attachmentUploaded', attachment: any): void;
   (e: 'request-polish'): void;
   (e: 'request-ask-ai', prompt: string): void;
+  (e: 'note-link-clicked', noteId: string): void;
 }>();
+
+const notesStore = useNotesStore()
+
+const suggestionConfig = {
+  items: ({ query }: { query: string }) => {
+    return notesStore.notes
+      .filter(item => 
+        (item.title || 'Untitled Note').toLowerCase().includes(query.toLowerCase())
+      )
+      .slice(0, 10)
+  },
+
+  render: () => {
+    let component: any
+    let popup: any
+
+    return {
+      onStart: (props: any) => {
+        component = new VueRenderer(NoteSuggestionList, {
+          props,
+          editor: props.editor,
+        })
+
+        if (!props.clientRect) {
+          return
+        }
+
+        popup = tippy('body', {
+          getReferenceClientRect: props.clientRect,
+          appendTo: () => document.body,
+          content: component.element,
+          showOnCreate: true,
+          interactive: true,
+          trigger: 'manual',
+          placement: 'bottom-start',
+          theme: 'light-border', // Use a theme that we can control or reset
+          arrow: false,
+          offset: [0, 8],
+          maxWidth: 'none',
+        })
+      },
+
+      onUpdate(props: any) {
+        component.updateProps(props)
+
+        if (!props.clientRect) {
+          return
+        }
+
+        popup[0].setProps({
+          getReferenceClientRect: props.clientRect,
+        })
+      },
+
+      onKeyDown(props: any) {
+        if (props.event.key === 'Escape') {
+          popup[0].hide()
+          return true
+        }
+
+        return component.ref?.onKeyDown(props)
+      },
+
+      onExit() {
+        if (popup && popup[0]) {
+          popup[0].destroy()
+        }
+        if (component) {
+          component.destroy()
+        }
+      },
+    }
+  },
+}
 
 function handlePolish() {
   console.log('[UnifiedEditor] Polish event received from toolbar, emitting request-polish to parent');
@@ -808,8 +889,9 @@ function handleAskAI(prompt: string) {
 const editorContainer = ref<HTMLElement | null>(null)
 const isUploadingFile = ref(false)
 const fileInputRef = ref<HTMLInputElement | null>(null)
+const isSuppressingUpdate = ref(true) // Flag to prevent updates during content load
 
-// Modals state
+// Editor configuration
 const showLinkModal = ref(false)
 const linkUrl = ref('')
 const showImageModal = ref(false)
@@ -919,6 +1001,12 @@ const baseExtensions = [
       class: 'w-full aspect-video rounded-lg'
     }
   }),
+  NoteLink.configure({
+    suggestion: suggestionConfig,
+    HTMLAttributes: {
+      class: 'note-link text-blue-600 dark:text-blue-400 font-medium cursor-pointer bg-blue-50 dark:bg-blue-900/30 px-1 rounded transition-colors hover:bg-blue-100 dark:hover:bg-blue-900/50'
+    }
+  }),
   Gapcursor,
   TableExit,
   MarkdownPaste,
@@ -961,6 +1049,11 @@ const editor = useEditor({
   onBeforeCreate() {
   },
   onCreate: ({ editor }) => {
+    // Enable updates after a short delay to prevent saving the initial content load
+    setTimeout(() => {
+      isSuppressingUpdate.value = false;
+    }, 500);
+
     // Scroll to first match when editor is created if search query exists
     if (props.searchQuery) {
       // Set highlighting
@@ -976,17 +1069,45 @@ const editor = useEditor({
       spellcheck: 'true',
       class: 'prose dark:prose-invert max-w-none focus:outline-none min-h-[calc(100vh-200px)] px-6 py-4'
     },
+    handleDOMEvents: {
+      click: (view, event) => {
+        const target = event.target as HTMLElement
+        // Check if the clicked element is a note-link or inside one
+        const noteLink = target.closest('.note-link')
+        if (noteLink) {
+          const noteId = noteLink.getAttribute('data-id')
+          if (noteId) {
+            console.log('[UnifiedEditor] Note link clicked:', noteId)
+            emit('note-link-clicked', noteId)
+            return true
+          }
+        }
+        return false
+      }
+    },
     // Removed handleTextInput - let the TaskItem plugin handle [] pattern detection
     // The plugin's handleTextInput will run and can return true to prevent other handlers
   },
   extensions: baseExtensions,
-  onUpdate: ({ editor }) => {
+  onUpdate: ({ editor, transaction }) => {
+    // Skip if we are explicitly suppressing updates (e.g. during note switch)
+    // OR if the document didn't actually change (prevents loops)
+    if (isSuppressingUpdate.value || !transaction.docChanged) {
+      return
+    }
+
+    // ONLY emit updates if they originated from a user transaction (not setContent)
+    const isProgrammatic = transaction.getMeta('addToHistory') === false || 
+                          transaction.getMeta('isProgrammatic') === true;
+    
+    if (isProgrammatic && !props.isCollaborative) {
+      return
+    }
+
     const html = editor.getHTML()
     if (props.isCollaborative) {
-      // For collaborative notes, emit update:content
       emit('update:content', html)
     } else {
-      // For regular notes, emit update:modelValue (v-model)
       emit('update:modelValue', html)
     }
   }
@@ -1013,15 +1134,22 @@ defineExpose({
 // Watch for external changes to content (only for regular notes)
 // For collaborative notes, Y.Doc handles syncing
 if (!props.isCollaborative) {
-  watch(() => props.modelValue, (newValue) => {
-    if (!editor.value) return;
+  watch(() => props.modelValue, (newValue, oldValue) => {
+    if (!editor.value || isSuppressingUpdate.value) return;
     
+    // If the content is exactly the same, do nothing
     const currentContent = editor.value.getHTML();
+    if (newValue === currentContent) return;
+
     const isFocused = editor.value.isFocused;
     
-    // Only update if content actually changed and editor is not focused
-    if (newValue !== currentContent && !isFocused) {
-      editor.value.commands.setContent(newValue || '', { emitUpdate: false })
+    // Only update if editor is not focused (prevents cursor jumping while typing)
+    // AND if we're not in the middle of a note change (which is handled by noteId watcher)
+    if (!isFocused) {
+      editor.value.chain()
+        .setContent(newValue || '', { emitUpdate: false })
+        .setMeta('isProgrammatic', true)
+        .run();
     }
   })
 }
@@ -1123,6 +1251,19 @@ watch(() => props.noteId, (newNoteId) => {
   // Reset scroll tracking when switching to a different note
   if (hasScrolledForSearch.value?.noteId !== newNoteId) {
     hasScrolledForSearch.value = null
+  }
+
+  // FORCE reload content if noteId changed and it's not collaborative
+  if (!props.isCollaborative && editor.value) {
+    isSuppressingUpdate.value = true;
+    editor.value.chain()
+      .setContent(props.modelValue || '', { emitUpdate: false })
+      .setMeta('isProgrammatic', true)
+      .run();
+    // Use nextTick or a short timeout to re-enable updates after the content is set
+    setTimeout(() => {
+      isSuppressingUpdate.value = false;
+    }, 100);
   }
 })
 
@@ -1841,6 +1982,23 @@ async function uploadFiles(files: File[]) {
 .unified-editor :deep(.ProseMirror ul[data-type="taskList"] li[data-type="taskItem"] div),
 .collaborative-editor :deep(.ProseMirror ul[data-type="taskList"] li[data-type="taskItem"] div) {
   flex: 1;
+}
+
+.unified-editor :deep(.note-link) {
+  pointer-events: auto !important;
+  display: inline-block;
+  cursor: pointer !important;
+}
+
+/* Tippy Reset */
+:global(.tippy-box[data-theme~='light-border']) {
+  background-color: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+:global(.tippy-content) {
+  padding: 0 !important;
 }
 
 .unified-editor :deep(.ProseMirror ul[data-type="taskList"] li[data-type="taskItem"] p),
