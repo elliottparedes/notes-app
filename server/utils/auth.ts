@@ -1,6 +1,6 @@
 import bcrypt from 'bcrypt';
 import type { H3Event } from 'h3';
-import { verifyToken, extractTokenFromHeader } from './jwt';
+import { verifyToken, extractTokenFromEvent } from './jwt';
 
 const SALT_ROUNDS = 10;
 
@@ -16,8 +16,13 @@ export async function comparePassword(
 }
 
 export async function requireAuth(event: H3Event): Promise<number> {
-  const authHeader = getHeader(event, 'authorization');
-  const token = extractTokenFromHeader(authHeader);
+  const token = extractTokenFromEvent(event);
+  if (!token) {
+    throw createError({
+      statusCode: 401,
+      message: 'No token provided'
+    });
+  }
   const payload = verifyToken(token);
   return payload.userId;
 }

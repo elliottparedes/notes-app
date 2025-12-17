@@ -2,6 +2,7 @@ export interface User {
   id: number;
   email: string;
   name: string | null;
+  profile_picture_url: string | null;
   folder_order: string[] | null;
   storage_used: number;
   created_at: Date;

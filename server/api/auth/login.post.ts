@@ -20,8 +20,9 @@ export default defineEventHandler(async (event): Promise<AuthResponse> => {
       folder_order: string | null;
       temporary_password: string | null;
       temporary_password_expires_at: Date | null;
+      profile_picture_url: string | null;
     }>>(
-      'SELECT id, email, name, password_hash, temporary_password, temporary_password_expires_at, folder_order, created_at, updated_at FROM users WHERE email = ?',
+      'SELECT id, email, name, profile_picture_url, password_hash, temporary_password, temporary_password_expires_at, folder_order, created_at, updated_at FROM users WHERE email = ?',
       [body.email]
     );
 
@@ -82,6 +83,7 @@ export default defineEventHandler(async (event): Promise<AuthResponse> => {
       id: userWithPassword.id,
       email: userWithPassword.email,
       name: userWithPassword.name,
+      profile_picture_url: userWithPassword.profile_picture_url,
       folder_order: parseJsonField<string[]>(userWithPassword.folder_order),
       created_at: userWithPassword.created_at,
       updated_at: userWithPassword.updated_at

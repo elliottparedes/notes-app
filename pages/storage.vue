@@ -468,7 +468,7 @@ function initNoteSortable() {
       animation: 200, // Smooth animation
       ghostClass: 'bg-primary-50', // Class for the drag placeholder
       draggable: '.note-item',
-      delay: 150, // Delay before drag starts (prevents accidental drags on click)
+      delay: 75, // Delay before drag starts (prevents accidental drags on click)
       delayOnTouchOnly: false, // Apply delay to both touch and mouse
       distance: 10, // Require 10px movement before drag starts (prevents accidental drags)
       onEnd: (evt) => {
@@ -496,7 +496,7 @@ function initSortables() {
       animation: 150,
       draggable: '.space-item',
       handle: '.space-button', // Drag by the button itself
-      delay: 150, // Delay before drag starts (prevents accidental drags on click)
+      delay: 75, // Delay before drag starts (prevents accidental drags on click)
       delayOnTouchOnly: false, // Apply delay to both touch and mouse
       distance: 10, // Require 10px movement before drag starts (prevents accidental drags)
       onStart: () => {
@@ -520,7 +520,7 @@ function initSortables() {
       group: 'folders',
       animation: 150,
       draggable: '.folder-item',
-      delay: 150, // Delay before drag starts (prevents accidental drags on click)
+      delay: 75, // Delay before drag starts (prevents accidental drags on click)
       delayOnTouchOnly: false, // Apply delay to both touch and mouse
       distance: 10, // Require 10px movement before drag starts (prevents accidental drags)
       onEnd: (evt) => {

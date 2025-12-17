@@ -315,6 +315,39 @@ export const useAuthStore = defineStore('auth', {
       if (process.client) {
         localStorage.removeItem('needs_password_reset');
       }
+    },
+
+    async updateProfile(data: { name?: string, profile_picture_url?: string }): Promise<void> {
+      if (!this.token) return;
+
+      this.loading = true;
+      this.error = null;
+
+      try {
+        const response = await $fetch<User>('/api/user/profile', {
+          method: 'PUT',
+          headers: {
+            Authorization: `Bearer ${this.token}`
+          },
+          body: data
+        });
+
+        this.user = response;
+        
+        // Update cached user
+        if (process.client) {
+          localStorage.setItem('cached_user', JSON.stringify(response));
+        }
+      } catch (err: unknown) {
+        let errorMessage = 'Update failed';
+        if (err && typeof err === 'object' && 'data' in err && err.data && typeof err.data === 'object' && 'message' in err.data) {
+          errorMessage = String(err.data.message);
+        }
+        this.error = errorMessage;
+        throw err;
+      } finally {
+        this.loading = false;
+      }
     }
   }
 });

@@ -4,6 +4,11 @@ import AnalyticsDashboard from '~/components/AnalyticsDashboard.vue';
 const authStore = useAuthStore();
 const toast = useToast();
 
+// Profile state
+const profileName = ref(authStore.user?.name || '');
+const profilePictureInput = ref<HTMLInputElement | null>(null);
+const uploadingProfilePicture = ref(false);
+
 // Dark mode toggle
 const colorMode = useColorMode();
 
@@ -14,6 +19,84 @@ const loading = ref(false);
 const showTempPasswordAlert = computed(() => authStore.needsPasswordReset);
 
 const isLoggingOut = ref(false);
+
+async function handleUpdateProfile() {
+  if (!profileName.value.trim()) {
+    toast.add({
+      title: 'Error',
+      description: 'Name is required',
+      color: 'error'
+    });
+    return;
+  }
+
+  loading.value = true;
+  try {
+    await authStore.updateProfile({ name: profileName.value.trim() });
+    toast.add({
+      title: 'Success',
+      description: 'Profile updated successfully!',
+      color: 'success'
+    });
+  } catch (error: any) {
+    toast.add({
+      title: 'Error',
+      description: error.data?.message || 'Failed to update profile',
+      color: 'error'
+    });
+  } finally {
+    loading.value = false;
+  }
+}
+
+async function handleProfilePictureUpload(event: Event) {
+  const target = event.target as HTMLInputElement;
+  if (!target.files || target.files.length === 0) return;
+
+  const file = target.files[0];
+  if (!file.type.startsWith('image/')) {
+    toast.add({
+      title: 'Error',
+      description: 'Please upload an image file',
+      color: 'error'
+    });
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append('file', file);
+
+  uploadingProfilePicture.value = true;
+  try {
+    const updatedUser = await $fetch<any>('/api/user/profile-picture', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${authStore.token}`
+      },
+      body: formData
+    });
+
+    authStore.user = updatedUser;
+    if (process.client) {
+      localStorage.setItem('cached_user', JSON.stringify(updatedUser));
+    }
+
+    toast.add({
+      title: 'Success',
+      description: 'Profile picture updated!',
+      color: 'success'
+    });
+  } catch (error: any) {
+    toast.add({
+      title: 'Error',
+      description: error.data?.message || 'Failed to upload profile picture',
+      color: 'error'
+    });
+  } finally {
+    uploadingProfilePicture.value = false;
+    if (profilePictureInput.value) profilePictureInput.value.value = '';
+  }
+}
 
 async function handleLogout() {
   isLoggingOut.value = true;
@@ -149,21 +232,97 @@ function goBack() {
       <!-- Account Info -->
       <div class="mb-6 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800">
         <div class="px-4 py-3 border-b border-gray-300 dark:border-gray-700">
-          <h2 class="text-base font-semibold text-gray-900 dark:text-white">Account Information</h2>
+          <h2 class="text-base font-semibold text-gray-900 dark:text-white">Profile Settings</h2>
         </div>
-        <div class="p-4 space-y-4">
-          <div>
-            <label class="block text-sm font-normal text-gray-700 dark:text-gray-300 mb-1">
-              Email
-            </label>
-            <p class="text-sm text-gray-900 dark:text-white">{{ authStore.user?.email }}</p>
+        <div class="p-4 space-y-6">
+          <!-- Profile Picture -->
+          <div class="flex flex-col sm:flex-row items-center gap-6">
+            <div class="relative">
+              <div class="w-24 h-24 bg-gray-100 dark:bg-gray-700 overflow-hidden border border-gray-300 dark:border-gray-600">
+                <img 
+                  v-if="authStore.user?.profile_picture_url" 
+                  :src="authStore.user.profile_picture_url" 
+                  class="w-full h-full object-cover"
+                />
+                <div v-else class="w-full h-full flex items-center justify-center text-gray-400 dark:text-gray-500">
+                  <UIcon name="i-heroicons-user" class="w-12 h-12" />
+                </div>
+              </div>
+              <button
+                @click="profilePictureInput?.click()"
+                class="absolute -bottom-2 -right-2 p-1.5 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 shadow-sm hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                title="Change profile picture"
+              >
+                <UIcon name="i-heroicons-camera" class="w-4 h-4 text-gray-600 dark:text-gray-300" />
+              </button>
+              <input
+                ref="profilePictureInput"
+                type="file"
+                class="hidden"
+                accept="image/*"
+                @change="handleProfilePictureUpload"
+              />
+            </div>
+            <div class="flex-1 text-center sm:text-left">
+              <h3 class="text-sm font-medium text-gray-900 dark:text-white mb-1">Profile Picture</h3>
+              <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">JPG, GIF or PNG. Max size of 5MB.</p>
+              <div class="flex justify-center sm:justify-start">
+                <button
+                  @click="profilePictureInput?.click()"
+                  :disabled="uploadingProfilePicture"
+                  class="px-3 py-1.5 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-xs font-normal border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 active:bg-gray-100 dark:active:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                >
+                  <UIcon v-if="uploadingProfilePicture" name="i-heroicons-arrow-path" class="w-3.5 h-3.5 animate-spin" />
+                  <span>{{ uploadingProfilePicture ? 'Uploading...' : 'Upload New Picture' }}</span>
+                </button>
+              </div>
+            </div>
           </div>
-          
-          <div v-if="authStore.user?.name">
-            <label class="block text-sm font-normal text-gray-700 dark:text-gray-300 mb-1">
-              Name
-            </label>
-            <p class="text-sm text-gray-900 dark:text-white">{{ authStore.user?.name }}</p>
+
+          <!-- Name and Email -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+            <div>
+              <label class="block text-sm font-normal text-gray-700 dark:text-gray-300 mb-1.5">
+                Full Name
+              </label>
+              <UInput
+                v-model="profileName"
+                placeholder="Your name"
+                size="md"
+                :disabled="loading"
+                class="w-full"
+                :ui="{ rounded: 'rounded-none' }"
+              />
+            </div>
+            <div>
+              <label class="block text-sm font-normal text-gray-700 dark:text-gray-300 mb-1.5">
+                Email Address
+              </label>
+              <UInput
+                :value="authStore.user?.email"
+                disabled
+                size="md"
+                class="w-full"
+                icon="i-heroicons-envelope"
+                :ui="{ rounded: 'rounded-none' }"
+              />
+              <p class="mt-1 text-[10px] text-gray-500">Email cannot be changed</p>
+            </div>
+          </div>
+
+          <div class="flex justify-end">
+            <button
+              @click="handleUpdateProfile"
+              :disabled="loading"
+              class="px-4 py-2 bg-blue-600 dark:bg-blue-500 text-white text-sm font-normal border border-blue-700 dark:border-blue-600 hover:bg-blue-700 dark:hover:bg-blue-600 active:bg-blue-800 dark:active:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+            >
+              <UIcon 
+                v-if="loading" 
+                name="i-heroicons-arrow-path" 
+                class="w-4 h-4 animate-spin" 
+              />
+              <span>Save Profile</span>
+            </button>
           </div>
         </div>
       </div>

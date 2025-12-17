@@ -461,7 +461,7 @@ function initNoteSortable() {
       animation: 200, // Smooth animation
       ghostClass: 'bg-primary-50', // Class for the drag placeholder
       draggable: '.note-item',
-      delay: 150, // Delay before drag starts (prevents accidental drags on click)
+      delay: 75, // Delay before drag starts (prevents accidental drags on click)
       delayOnTouchOnly: false, // Apply delay to both touch and mouse
       distance: 10, // Require 10px movement before drag starts (prevents accidental drags)
       onEnd: (evt) => {
@@ -489,7 +489,7 @@ function initSortables() {
       animation: 150,
       draggable: '.space-item',
       handle: '.space-button', // Drag by the button itself
-      delay: 150, // Delay before drag starts (prevents accidental drags on click)
+      delay: 75, // Delay before drag starts (prevents accidental drags on click)
       delayOnTouchOnly: false, // Apply delay to both touch and mouse
       distance: 10, // Require 10px movement before drag starts (prevents accidental drags)
       onStart: () => {
@@ -513,7 +513,7 @@ function initSortables() {
       group: 'folders',
       animation: 150,
       draggable: '.folder-item',
-      delay: 150, // Delay before drag starts (prevents accidental drags on click)
+      delay: 75, // Delay before drag starts (prevents accidental drags on click)
       delayOnTouchOnly: false, // Apply delay to both touch and mouse
       distance: 10, // Require 10px movement before drag starts (prevents accidental drags)
       onEnd: (evt) => {
@@ -1780,8 +1780,13 @@ function handleNoteListResizeStart(e: MouseEvent) {
       <!-- User Footer -->
       <div class="p-3 border-t border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800">
         <div class="flex items-center gap-2">
-          <div class="w-7 h-7 bg-blue-600 dark:bg-blue-500 flex items-center justify-center text-white text-xs font-medium">
-            {{ authStore.currentUser?.name?.[0] || 'U' }}
+          <div class="w-7 h-7 bg-blue-600 dark:bg-blue-500 flex items-center justify-center text-white text-xs font-medium overflow-hidden">
+            <img 
+              v-if="authStore.currentUser?.profile_picture_url" 
+              :src="authStore.currentUser.profile_picture_url" 
+              class="w-full h-full object-cover"
+            />
+            <span v-else>{{ authStore.currentUser?.name?.[0] || 'U' }}</span>
           </div>
           <div class="flex-1 min-w-0">
             <div class="text-sm font-normal truncate text-gray-900 dark:text-gray-100">{{ authStore.currentUser?.name }}</div>

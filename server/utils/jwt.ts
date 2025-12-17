@@ -38,12 +38,22 @@ export function verifyToken(token: string): JwtPayload {
 
 export function extractTokenFromHeader(authHeader: string | undefined): string {
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    throw createError({
-      statusCode: 401,
-      message: 'No token provided'
-    });
+    return '';
   }
 
   return authHeader.substring(7);
+}
+
+export function extractTokenFromEvent(event: any): string {
+  // Try header first
+  const authHeader = getHeader(event, 'authorization');
+  const headerToken = extractTokenFromHeader(authHeader);
+  if (headerToken) return headerToken;
+
+  // Try cookie
+  const cookieToken = getCookie(event, 'auth_token');
+  if (cookieToken) return cookieToken;
+
+  return '';
 }
 

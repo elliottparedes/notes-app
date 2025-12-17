@@ -57,7 +57,7 @@ export default defineEventHandler(async (event): Promise<AuthResponse> => {
 
     // Fetch created user
     const users = await executeQuery<User[]>(
-      'SELECT id, email, name, folder_order, created_at, updated_at FROM users WHERE id = ?',
+      'SELECT id, email, name, profile_picture_url, folder_order, created_at, updated_at FROM users WHERE id = ?',
       [result.insertId]
     );
 
