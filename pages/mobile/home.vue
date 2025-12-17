@@ -28,6 +28,11 @@ const showSettingsMenu = ref(false);
 // Expanded spaces
 const expandedSpaceIds = ref<Set<number>>(new Set());
 
+// Space menu state
+const openSpaceMenuId = ref<number | null>(null);
+const showSpaceModal = ref(false);
+const editingSpace = ref<any>(null);
+
 // Folder menu state
 const openFolderMenuId = ref<number | null>(null);
 const showCreateFolderModal = ref(false);
@@ -36,6 +41,12 @@ const editingFolder = ref<any>(null); // Type 'any' to avoid complex imports, ca
 const newFolderName = ref('');
 const targetSpaceIdForFolderCreation = ref<number | undefined>(undefined);
 const isCreatingFolder = ref(false);
+
+// Deletion confirmation state
+const showDeleteSpaceModal = ref(false);
+const showDeleteFolderModal = ref(false);
+const itemToDeleteId = ref<number | null>(null);
+const isDeleting = ref(false);
 
 function isUrl(value: string | null | undefined): boolean {
   if (!value) return false;
@@ -46,6 +57,65 @@ function openEditFolderModal(folder: any) {
   editingFolder.value = folder;
   showEditFolderModal.value = true;
   openFolderMenuId.value = null;
+}
+
+function openCreateSpaceModal() {
+  editingSpace.value = null;
+  showSpaceModal.value = true;
+  showSettingsMenu.value = false;
+}
+
+function openEditSpaceModal(space: any) {
+  editingSpace.value = space;
+  showSpaceModal.value = true;
+  openSpaceMenuId.value = null;
+}
+
+function handleDeleteSpaceClick(spaceId: number) {
+  if (spacesStore.spaces.length <= 1) {
+    toast.error('Cannot delete the last remaining notebook');
+    openSpaceMenuId.value = null;
+    return;
+  }
+  itemToDeleteId.value = spaceId;
+  showDeleteSpaceModal.value = true;
+  openSpaceMenuId.value = null;
+}
+
+async function confirmDeleteSpace() {
+  if (itemToDeleteId.value === null) return;
+  isDeleting.value = true;
+  try {
+    await spacesStore.deleteSpace(itemToDeleteId.value);
+    toast.success('Notebook deleted');
+    showDeleteSpaceModal.value = false;
+  } catch (error) {
+    toast.error('Failed to delete notebook');
+  } finally {
+    isDeleting.value = false;
+    itemToDeleteId.value = null;
+  }
+}
+
+function handleDeleteFolderClick(folderId: number) {
+  itemToDeleteId.value = folderId;
+  showDeleteFolderModal.value = true;
+  openFolderMenuId.value = null;
+}
+
+async function confirmDeleteFolder() {
+  if (itemToDeleteId.value === null) return;
+  isDeleting.value = true;
+  try {
+    await foldersStore.deleteFolder(itemToDeleteId.value);
+    toast.success('Folder deleted');
+    showDeleteFolderModal.value = false;
+  } catch (error) {
+    toast.error('Failed to delete folder');
+  } finally {
+    isDeleting.value = false;
+    itemToDeleteId.value = null;
+  }
 }
 
 // Perform search
@@ -222,16 +292,6 @@ async function handleCreateNoteInFolder(folderId: number) {
   }
 }
 
-async function handleDeleteFolder(folderId: number) {
-  try {
-    await foldersStore.deleteFolder(folderId);
-    toast.success('Folder deleted');
-    openFolderMenuId.value = null;
-  } catch (error) {
-    toast.error('Failed to delete folder');
-  }
-}
-
 async function handleCreateFolder() {
   if (!newFolderName.value.trim() || isCreatingFolder.value) return;
   
@@ -257,13 +317,6 @@ function openCreateFolderModal(spaceId?: number) {
   showCreateFolderModal.value = true;
 }
 
-// Initialize expanded state
-watch(() => spacesStore.currentSpaceId, (newId) => {
-  if (newId !== null && !expandedSpaceIds.value.has(newId)) {
-    expandedSpaceIds.value.add(newId);
-  }
-}, { immediate: true });
-
 // Helper to check if we're on mobile (client-side only)
 const isMobileView = computed(() => {
   if (!process.client) return false;
@@ -277,6 +330,14 @@ watch(isMobileView, (isMobile) => {
     router.replace('/dashboard');
   }
 }, { immediate: false });
+
+// Listen for window resize
+const handleResize = () => {
+  if (window.innerWidth >= 1024) {
+    // Screen became desktop, redirect
+    router.replace('/dashboard');
+  }
+};
 
 // Watch for window resize
 onMounted(async () => {
@@ -297,38 +358,33 @@ onMounted(async () => {
     toast.error('Failed to load data');
   }
 
-  // Listen for window resize
-  const handleResize = () => {
-    if (window.innerWidth >= 1024) {
-      // Screen became desktop, redirect
-      router.replace('/dashboard');
-    }
-  };
-
   window.addEventListener('resize', handleResize);
-  onUnmounted(() => {
-    window.removeEventListener('resize', handleResize);
-  });
+});
+
+onUnmounted(() => {
+  window.removeEventListener('resize', handleResize);
 });
 
 // Close dropdowns when clicking outside
+const handleClickOutside = (event: MouseEvent) => {
+  const target = event.target as HTMLElement;
+  if (!target.closest('[data-view-dropdown]')) {
+    showViewDropdown.value = false;
+  }
+  if (!target.closest('[data-settings-menu]')) {
+    showSettingsMenu.value = false;
+  }
+};
+
 onMounted(() => {
-  const handleClickOutside = (event: MouseEvent) => {
-    const target = event.target as HTMLElement;
-    if (!target.closest('[data-view-dropdown]')) {
-      showViewDropdown.value = false;
-    }
-    if (!target.closest('[data-settings-menu]')) {
-      showSettingsMenu.value = false;
-    }
-  };
   document.addEventListener('click', handleClickOutside);
-  onUnmounted(() => {
-    document.removeEventListener('click', handleClickOutside);
-    if (searchTimeout) {
-      clearTimeout(searchTimeout);
-    }
-  });
+});
+
+onUnmounted(() => {
+  document.removeEventListener('click', handleClickOutside);
+  if (searchTimeout) {
+    clearTimeout(searchTimeout);
+  }
 });
 </script>
 
@@ -427,7 +483,7 @@ onMounted(() => {
     </div>
 
     <!-- Content -->
-    <div class="flex-1 overflow-y-auto pb-6">
+    <div class="flex-1 overflow-y-auto pb-32">
       <div class="px-4 pt-4 pb-4">
         <!-- Search Bar -->
         <div class="relative">
@@ -511,7 +567,16 @@ onMounted(() => {
 
         <!-- Notebook/Folder Tree -->
         <section>
-          <h2 class="text-base font-bold text-gray-700 dark:text-gray-200 mb-4">Notebooks</h2>
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="text-base font-bold text-gray-700 dark:text-gray-200">Notebooks</h2>
+            <button
+              @click="openCreateSpaceModal"
+              class="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-lg text-sm font-semibold active:scale-95 transition"
+            >
+              <UIcon name="i-heroicons-plus" class="w-4 h-4" />
+              <span>New</span>
+            </button>
+          </div>
           <div class="space-y-4">
             <div
               v-for="space in spacesStore.spaces"
@@ -528,7 +593,13 @@ onMounted(() => {
                     :name="expandedSpaceIds.has(space.id) ? 'i-heroicons-chevron-down' : 'i-heroicons-chevron-right'" 
                     class="w-5 h-5 text-gray-500 dark:text-gray-400"
                   />
+                  <img 
+                    v-if="isUrl(space.icon)" 
+                    :src="space.icon!" 
+                    class="w-5 h-5 object-contain rounded-sm"
+                  />
                   <UIcon 
+                    v-else
                     :name="space.icon ? `i-lucide-${space.icon}` : 'i-heroicons-book-open'" 
                     class="w-5 h-5 text-gray-700 dark:text-gray-300"
                   />
@@ -538,12 +609,53 @@ onMounted(() => {
                 <!-- Three dot menu for space -->
                 <div class="relative">
                   <button
-                    @click.stop="openCreateFolderModal(space.id)"
+                    @click.stop="openSpaceMenuId = openSpaceMenuId === space.id ? null : space.id"
                     class="w-10 h-10 flex items-center justify-center rounded-full text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-                    title="Add folder"
                   >
-                    <UIcon name="i-heroicons-plus" class="w-5 h-5" />
+                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 16 16">
+                      <circle cx="8" cy="2" r="1.5"/>
+                      <circle cx="8" cy="8" r="1.5"/>
+                      <circle cx="8" cy="14" r="1.5"/>
+                    </svg>
                   </button>
+                  
+                  <!-- Space Menu Dropdown -->
+                  <Transition
+                    enter-active-class="transition-opacity duration-100"
+                    enter-from-class="opacity-0"
+                    enter-to-class="opacity-100"
+                    leave-active-class="transition-opacity duration-100"
+                    leave-from-class="opacity-100"
+                    leave-to-class="opacity-0"
+                  >
+                    <div
+                      v-if="openSpaceMenuId === space.id"
+                      class="absolute right-0 top-full mt-1 w-44 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 shadow-xl py-2 z-50 rounded-xl"
+                      @click.stop
+                    >
+                      <button
+                        @click="openCreateFolderModal(space.id)"
+                        class="w-full text-left px-4 py-3 text-base text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-3"
+                      >
+                        <UIcon name="i-heroicons-plus" class="w-5 h-5" />
+                        <span>Add section</span>
+                      </button>
+                      <button
+                        @click="openEditSpaceModal(space)"
+                        class="w-full text-left px-4 py-3 text-base text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-3"
+                      >
+                        <UIcon name="i-heroicons-pencil" class="w-5 h-5" />
+                        <span>Edit</span>
+                      </button>
+                      <button
+                        @click="handleDeleteSpaceClick(space.id)"
+                        class="w-full text-left px-4 py-3 text-base text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-3"
+                      >
+                        <UIcon name="i-heroicons-trash" class="w-5 h-5" />
+                        <span>Delete</span>
+                      </button>
+                    </div>
+                  </Transition>
                 </div>
               </div>
 
@@ -622,7 +734,7 @@ onMounted(() => {
                             <span>Edit</span>
                           </button>
                           <button
-                            @click="handleDeleteFolder(folder.id)"
+                            @click="handleDeleteFolderClick(folder.id)"
                             class="w-full text-left px-4 py-3 text-base text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-3"
                           >
                             <UIcon name="i-heroicons-trash" class="w-5 h-5" />
@@ -729,11 +841,139 @@ onMounted(() => {
       :folder="editingFolder"
     />
 
-    <!-- Backdrop for folder menu -->
+    <!-- Space Modal -->
+    <SpaceModal
+      v-if="showSpaceModal"
+      :is-open="showSpaceModal"
+      :space="editingSpace"
+      @update:is-open="showSpaceModal = $event"
+    />
+
+    <!-- Delete Space Confirmation Modal -->
+    <ClientOnly>
+      <Teleport to="body">
+        <Transition
+          enter-active-class="transition-opacity duration-200"
+          enter-from-class="opacity-0"
+          enter-to-class="opacity-100"
+          leave-active-class="transition-opacity duration-200"
+          leave-from-class="opacity-100"
+          leave-to-class="opacity-0"
+        >
+          <div 
+            v-if="showDeleteSpaceModal" 
+            class="fixed inset-0 z-50 overflow-y-auto"
+            @click.self="showDeleteSpaceModal = false"
+          >
+            <div class="fixed inset-0 bg-black/50 transition-opacity"></div>
+            <div class="flex min-h-full items-center justify-center p-4">
+              <div 
+                class="relative bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 shadow-lg max-w-sm w-full p-6 rounded-xl"
+                @click.stop
+              >
+                <div class="mb-4 text-center">
+                  <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30 mb-4">
+                    <UIcon name="i-heroicons-exclamation-triangle" class="h-6 w-6 text-red-600 dark:text-red-400" />
+                  </div>
+                  <h3 class="text-lg font-bold text-gray-900 dark:text-white">Delete Notebook?</h3>
+                  <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                    Are you sure you want to delete this notebook and all its sections? This action cannot be undone.
+                  </p>
+                </div>
+                <div class="grid grid-cols-2 gap-3 mt-6">
+                  <button
+                    type="button"
+                    @click="showDeleteSpaceModal = false"
+                    class="px-4 py-3 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-sm font-semibold border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    @click="confirmDeleteSpace"
+                    :disabled="isDeleting"
+                    class="px-4 py-3 bg-red-600 dark:bg-red-500 text-white text-sm font-semibold border border-red-700 dark:border-red-600 hover:bg-red-700 dark:hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors flex items-center justify-center gap-2"
+                  >
+                    <UIcon 
+                      v-if="isDeleting" 
+                      name="i-heroicons-arrow-path" 
+                      class="w-4 h-4 animate-spin" 
+                    />
+                    <span>Delete</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </Transition>
+      </Teleport>
+    </ClientOnly>
+
+    <!-- Delete Folder Confirmation Modal -->
+    <ClientOnly>
+      <Teleport to="body">
+        <Transition
+          enter-active-class="transition-opacity duration-200"
+          enter-from-class="opacity-0"
+          enter-to-class="opacity-100"
+          leave-active-class="transition-opacity duration-200"
+          leave-from-class="opacity-100"
+          leave-to-class="opacity-0"
+        >
+          <div 
+            v-if="showDeleteFolderModal" 
+            class="fixed inset-0 z-50 overflow-y-auto"
+            @click.self="showDeleteFolderModal = false"
+          >
+            <div class="fixed inset-0 bg-black/50 transition-opacity"></div>
+            <div class="flex min-h-full items-center justify-center p-4">
+              <div 
+                class="relative bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 shadow-lg max-w-sm w-full p-6 rounded-xl"
+                @click.stop
+              >
+                <div class="mb-4 text-center">
+                  <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30 mb-4">
+                    <UIcon name="i-heroicons-exclamation-triangle" class="h-6 w-6 text-red-600 dark:text-red-400" />
+                  </div>
+                  <h3 class="text-lg font-bold text-gray-900 dark:text-white">Delete Section?</h3>
+                  <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                    Are you sure you want to delete this section? All notes inside will also be removed. This action cannot be undone.
+                  </p>
+                </div>
+                <div class="grid grid-cols-2 gap-3 mt-6">
+                  <button
+                    type="button"
+                    @click="showDeleteFolderModal = false"
+                    class="px-4 py-3 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-sm font-semibold border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    @click="confirmDeleteFolder"
+                    :disabled="isDeleting"
+                    class="px-4 py-3 bg-red-600 dark:bg-red-500 text-white text-sm font-semibold border border-red-700 dark:border-red-600 hover:bg-red-700 dark:hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors flex items-center justify-center gap-2"
+                  >
+                    <UIcon 
+                      v-if="isDeleting" 
+                      name="i-heroicons-arrow-path" 
+                      class="w-4 h-4 animate-spin" 
+                    />
+                    <span>Delete</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </Transition>
+      </Teleport>
+    </ClientOnly>
+
+    <!-- Backdrop for menus -->
     <div
-      v-if="openFolderMenuId !== null"
+      v-if="openFolderMenuId !== null || openSpaceMenuId !== null"
       class="fixed inset-0 z-40 lg:hidden"
-      @click="openFolderMenuId = null"
+      @click="openFolderMenuId = null; openSpaceMenuId = null"
     />
   </div>
 </template>

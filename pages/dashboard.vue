@@ -762,13 +762,6 @@ function openEditFolderModal(folder: any) {
   openFolderContextMenuId.value = null;
 }
 
-// Initialize expanded state with current space if available
-watch(() => spacesStore.currentSpaceId, (newId) => {
-  if (newId !== null && !expandedSpaceIds.value.has(newId)) {
-    expandedSpaceIds.value.add(newId);
-  }
-}, { immediate: true });
-
 function openCreateSpaceModal() {
   editingSpace.value = null;
   showSpaceModal.value = true;
@@ -1254,10 +1247,9 @@ const restoreState = () => {
       // Restore selected folder
       selectedFolderId.value = note.folder_id;
       
-      // Expand the space containing this folder
+      // We no longer automatically expand the space on refresh to keep everything collapsed
       const folder = foldersStore.getFolderById(note.folder_id);
       if (folder && folder.space_id) {
-        expandedSpaceIds.value.add(folder.space_id);
         spacesStore.setCurrentSpace(folder.space_id);
       }
     }
@@ -1265,49 +1257,49 @@ const restoreState = () => {
 }
 
 // Close dropdown when clicking outside
-onMounted(() => {
-  const handleClickOutside = (event: MouseEvent) => {
-    const target = event.target as HTMLElement;
-    if (!target.closest('[data-view-dropdown]')) {
-      showViewDropdown.value = false;
-    }
-  };
+const handleClickOutsideViewDropdown = (event: MouseEvent) => {
+  const target = event.target as HTMLElement;
+  if (!target.closest('[data-view-dropdown]')) {
+    showViewDropdown.value = false;
+  }
+};
+
+const handleSpaceClickOutside = (event: MouseEvent) => {
+  if (showSpaceContextMenu.value === null) return;
   
+  const target = event.target as HTMLElement;
+  
+  // Don't close if clicking the button itself
+  const buttonRefs = Array.from(spaceContextMenuRefs.value.values()).filter(Boolean);
+  if (buttonRefs.some(ref => ref && ref.contains(target))) {
+    return;
+  }
+  
+  // Don't close if clicking inside the menu
+  const menu = target.closest('[data-space-context-menu]');
+  if (menu) {
+    return;
+  }
+  
+  // Don't close if clicking on a button
+  if (target.tagName === 'BUTTON' || target.closest('button')) {
+    return;
+  }
+  
+  // Close if clicking anywhere else
+  showSpaceContextMenu.value = null;
+};
+
+onMounted(() => {
   watch(() => showViewDropdown.value, (isOpen) => {
     if (isOpen) {
       setTimeout(() => {
-        document.addEventListener('click', handleClickOutside);
+        document.addEventListener('click', handleClickOutsideViewDropdown);
       }, 0);
     } else {
-      document.removeEventListener('click', handleClickOutside);
+      document.removeEventListener('click', handleClickOutsideViewDropdown);
     }
   });
-  
-  const handleSpaceClickOutside = (event: MouseEvent) => {
-    if (showSpaceContextMenu.value === null) return;
-    
-    const target = event.target as HTMLElement;
-    
-    // Don't close if clicking the button itself
-    const buttonRefs = Array.from(spaceContextMenuRefs.value.values()).filter(Boolean);
-    if (buttonRefs.some(ref => ref && ref.contains(target))) {
-      return;
-    }
-    
-    // Don't close if clicking inside the menu
-    const menu = target.closest('[data-space-context-menu]');
-    if (menu) {
-      return;
-    }
-    
-    // Don't close if clicking on a button
-    if (target.tagName === 'BUTTON' || target.closest('button')) {
-      return;
-    }
-    
-    // Close if clicking anywhere else
-    showSpaceContextMenu.value = null;
-  };
   
   watch(() => showSpaceContextMenu.value, (shouldListen) => {
     if (shouldListen) {
@@ -1318,33 +1310,34 @@ onMounted(() => {
       document.removeEventListener('click', handleSpaceClickOutside);
     }
   });
-  
-  onUnmounted(() => {
-    document.removeEventListener('click', handleSpaceClickOutside);
-  });
+});
+
+onUnmounted(() => {
+  document.removeEventListener('click', handleClickOutsideViewDropdown);
+  document.removeEventListener('click', handleSpaceClickOutside);
 });
 
 // Close folder context menu when clicking outside
+const handleFolderClickOutside = (event: MouseEvent) => {
+  if (openFolderContextMenuId.value === null) return;
+
+  const target = event.target as HTMLElement;
+
+  // Don't close if clicking the folder menu button
+  if (target.closest('[data-context-menu-button]')) {
+    return;
+  }
+
+  // Don't close if clicking inside the folder context menu
+  if (target.closest('[data-context-menu]')) {
+    return;
+  }
+
+  // Close for any other click
+  openFolderContextMenuId.value = null;
+};
+
 onMounted(() => {
-  const handleFolderClickOutside = (event: MouseEvent) => {
-    if (openFolderContextMenuId.value === null) return;
-
-    const target = event.target as HTMLElement;
-
-    // Don't close if clicking the folder menu button
-    if (target.closest('[data-context-menu-button]')) {
-      return;
-    }
-
-    // Don't close if clicking inside the folder context menu
-    if (target.closest('[data-context-menu]')) {
-      return;
-    }
-
-    // Close for any other click
-    openFolderContextMenuId.value = null;
-  };
-
   watch(() => openFolderContextMenuId.value, (folderId) => {
     if (folderId !== null) {
       setTimeout(() => {
@@ -1354,10 +1347,10 @@ onMounted(() => {
       document.removeEventListener('click', handleFolderClickOutside);
     }
   });
+});
 
-  onUnmounted(() => {
-    document.removeEventListener('click', handleFolderClickOutside);
-  });
+onUnmounted(() => {
+  document.removeEventListener('click', handleFolderClickOutside);
 });
 
 // Keyboard shortcut handler for search
@@ -1376,6 +1369,14 @@ watch(isMobileView, (isMobile) => {
     router.replace('/mobile/home');
   }
 }, { immediate: false });
+
+// Listen for window resize to handle responsive routing
+const handleResize = () => {
+  if (window.innerWidth < 1024 && route.path === '/dashboard') {
+    // Screen became mobile, redirect
+    router.replace('/mobile/home');
+  }
+};
 
 onMounted(async () => {
   isMounted.value = true;
@@ -1403,24 +1404,14 @@ onMounted(async () => {
   // Add keyboard shortcut listener
   window.addEventListener('keydown', handleGlobalKeydown);
 
-  // Listen for window resize to handle responsive routing
-  const handleResize = () => {
-    if (window.innerWidth < 1024 && route.path === '/dashboard') {
-      // Screen became mobile, redirect
-      router.replace('/mobile/home');
-    }
-  };
-
   window.addEventListener('resize', handleResize);
-  onUnmounted(() => {
-    window.removeEventListener('resize', handleResize);
-  });
 });
 
 onUnmounted(() => {
   if (titleSaveTimeout) clearTimeout(titleSaveTimeout);
   if (contentSaveTimeout) clearTimeout(contentSaveTimeout);
   window.removeEventListener('keydown', handleGlobalKeydown);
+  window.removeEventListener('resize', handleResize);
   cleanupScrollDetection();
 });
 

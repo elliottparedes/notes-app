@@ -112,16 +112,18 @@ async function handleSubmit() {
 }
 
 // Handle Escape key
+const handleEscape = (e: KeyboardEvent) => {
+  if (e.key === 'Escape' && props.isOpen) {
+    closeModal();
+  }
+};
+
 onMounted(() => {
-  const handleEscape = (e: KeyboardEvent) => {
-    if (e.key === 'Escape' && props.isOpen) {
-      closeModal();
-    }
-  };
   document.addEventListener('keydown', handleEscape);
-  onBeforeUnmount(() => {
-    document.removeEventListener('keydown', handleEscape);
-  });
+});
+
+onBeforeUnmount(() => {
+  document.removeEventListener('keydown', handleEscape);
 });
 </script>
 
