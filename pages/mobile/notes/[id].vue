@@ -145,13 +145,13 @@ onUnmounted(() => {
       <div class="flex items-center justify-between mb-3">
         <button
           @click="handleCloseNote"
-          class="p-2 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 active:scale-95 transition"
+          class="w-9 h-9 flex items-center justify-center rounded-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 active:scale-95 transition"
         >
           <UIcon name="i-heroicons-arrow-left" class="w-5 h-5" />
         </button>
         <button
           @click="showDeleteModal = true"
-          class="p-2 rounded-full bg-gray-100 dark:bg-gray-800 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 active:scale-95 transition"
+          class="w-9 h-9 flex items-center justify-center rounded-full bg-gray-100 dark:bg-gray-800 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 active:scale-95 transition"
         >
           <UIcon name="i-heroicons-trash" class="w-5 h-5" />
         </button>
@@ -200,9 +200,6 @@ onUnmounted(() => {
         :initial-content="activeNote.content"
       />
     </div>
-
-    <!-- Mobile Bottom Navigation -->
-    <MobileBottomNav />
 
     <!-- Delete Confirmation Modal -->
     <ClientOnly>

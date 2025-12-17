@@ -187,7 +187,7 @@ onUnmounted(() => {
     </div>
 
     <!-- Results -->
-    <div class="flex-1 overflow-y-auto pb-20">
+    <div class="flex-1 overflow-y-auto pb-6">
       <!-- Loading -->
       <div v-if="isSearching" class="p-8 text-center">
         <UIcon name="i-heroicons-arrow-path" class="w-8 h-8 mx-auto text-gray-400 animate-spin mb-2" />
@@ -250,9 +250,6 @@ onUnmounted(() => {
         </div>
       </div>
     </div>
-
-    <!-- Mobile Bottom Navigation -->
-    <MobileBottomNav />
   </div>
 </template>
 

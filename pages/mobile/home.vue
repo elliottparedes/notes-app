@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
 import { useNotesStore } from '~/stores/notes';
 import { useFoldersStore } from '~/stores/folders';
 import { useSpacesStore } from '~/stores/spaces';
+import { useAuthStore } from '~/stores/auth';
 import { useToast } from '~/composables/useToast';
 import type { Note } from '~/models';
 
@@ -11,7 +12,13 @@ const router = useRouter();
 const notesStore = useNotesStore();
 const foldersStore = useFoldersStore();
 const spacesStore = useSpacesStore();
+const authStore = useAuthStore();
 const toast = useToast();
+
+// Search state
+const searchQuery = ref('');
+const searchResults = ref<Note[]>([]);
+const isSearching = ref(false);
 
 // Current view: 'notebooks' or 'storage'
 const currentView = ref<'notebooks' | 'storage'>('notebooks');
@@ -27,6 +34,64 @@ const showCreateFolderModal = ref(false);
 const newFolderName = ref('');
 const targetSpaceIdForFolderCreation = ref<number | undefined>(undefined);
 const isCreatingFolder = ref(false);
+
+// Perform search
+async function performSearch(query: string) {
+  if (!query.trim()) {
+    searchResults.value = [];
+    isSearching.value = false;
+    return;
+  }
+
+  isSearching.value = true;
+  
+  try {
+    const results = await $fetch<Array<Note & { relevance_score: number; match_context?: string }>>('/api/notes/search', {
+      params: { q: query.trim() },
+      headers: {
+        Authorization: `Bearer ${authStore.token}`
+      }
+    });
+
+    searchResults.value = results.map(note => ({
+      id: note.id,
+      user_id: note.user_id,
+      title: note.title,
+      content: note.content,
+      tags: note.tags,
+      is_favorite: note.is_favorite,
+      folder: note.folder,
+      folder_id: note.folder_id,
+      created_at: note.created_at,
+      updated_at: note.updated_at,
+      is_shared: note.is_shared,
+      share_permission: note.share_permission
+    }));
+  } catch (error) {
+    console.error('Search failed:', error);
+    searchResults.value = [];
+  } finally {
+    isSearching.value = false;
+  }
+}
+
+// Debounced search watcher
+let searchTimeout: ReturnType<typeof setTimeout> | null = null;
+watch(searchQuery, (newQuery) => {
+  if (searchTimeout) {
+    clearTimeout(searchTimeout);
+  }
+
+  if (!newQuery.trim()) {
+    searchResults.value = [];
+    isSearching.value = false;
+    return;
+  }
+
+  searchTimeout = setTimeout(() => {
+    performSearch(newQuery);
+  }, 300);
+});
 
 // Most recently edited notes (6 for carousel)
 const recentNotes = computed(() => {
@@ -247,6 +312,9 @@ onMounted(() => {
   document.addEventListener('click', handleClickOutside);
   onUnmounted(() => {
     document.removeEventListener('click', handleClickOutside);
+    if (searchTimeout) {
+      clearTimeout(searchTimeout);
+    }
   });
 });
 </script>
@@ -309,7 +377,7 @@ onMounted(() => {
       <div class="relative" data-settings-menu>
         <button
           @click.stop="showSettingsMenu = !showSettingsMenu"
-          class="p-1.5 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
+          class="w-9 h-9 flex items-center justify-center rounded-full text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
         >
           <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 16 16">
             <circle cx="8" cy="2" r="1.5"/>
@@ -346,12 +414,61 @@ onMounted(() => {
     </div>
 
     <!-- Content -->
-    <div class="flex-1 overflow-y-auto pb-20">
+    <div class="flex-1 overflow-y-auto pb-6">
       <div class="px-4 pt-6 pb-4">
-        <h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-50">Home</h1>
+        <h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-50 mb-4">Home</h1>
+        
+        <!-- Search Bar -->
+        <div class="relative">
+          <UIcon name="i-heroicons-magnifying-glass" class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+          <input
+            v-model="searchQuery"
+            type="text"
+            placeholder="Search notes..."
+            class="w-full pl-10 pr-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
       </div>
 
-      <div class="px-4 space-y-6 pb-6">
+      <!-- Search Results -->
+      <div v-if="searchQuery.trim()" class="px-4 space-y-2 pb-6">
+        <div v-if="isSearching" class="py-8 text-center">
+          <UIcon name="i-heroicons-arrow-path" class="w-8 h-8 mx-auto text-gray-400 animate-spin mb-2" />
+          <p class="text-sm text-gray-500 dark:text-gray-400">Searching...</p>
+        </div>
+        
+        <div v-else-if="searchResults.length > 0">
+          <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">{{ searchResults.length }} results</p>
+          <button
+            v-for="note in searchResults"
+            :key="note.id"
+            @click="handleOpenNote(note.id)"
+            class="w-full text-left rounded-xl bg-gray-50 dark:bg-gray-800/80 px-4 py-3 active:scale-[0.99] transition mb-2"
+          >
+            <div class="flex items-center justify-between gap-2 mb-1">
+              <h3 class="text-sm font-medium text-gray-900 dark:text-gray-50 truncate flex-1">
+                {{ note.title || 'Untitled note' }}
+              </h3>
+              <span class="text-xs text-gray-400 whitespace-nowrap">
+                {{ formatDate(note.updated_at) }}
+              </span>
+            </div>
+            <div class="text-[11px] text-gray-400">
+              <template v-if="getNoteLocation(note).spaceName">
+                {{ getNoteLocation(note).spaceName }}<span v-if="getNoteLocation(note).folderName"> · {{ getNoteLocation(note).folderName }}</span>
+              </template>
+            </div>
+          </button>
+        </div>
+        
+        <div v-else class="py-8 text-center">
+          <UIcon name="i-heroicons-document-minus" class="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-3" />
+          <p class="text-sm text-gray-500 dark:text-gray-400">No notes found</p>
+        </div>
+      </div>
+
+      <!-- Regular Home Content (Hidden when searching) -->
+      <div v-else class="px-4 space-y-6 pb-6">
         <!-- Jump back in section (Carousel) -->
         <section v-if="recentNotes.length > 0">
           <div class="flex items-center justify-between mb-3">
@@ -411,7 +528,7 @@ onMounted(() => {
                 <div class="relative">
                   <button
                     @click.stop="openCreateFolderModal(space.id)"
-                    class="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                    class="w-8 h-8 flex items-center justify-center rounded-full text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
                     title="Add folder"
                   >
                     <UIcon name="i-heroicons-plus" class="w-4 h-4" />
@@ -447,7 +564,7 @@ onMounted(() => {
                     <div class="relative">
                       <button
                         @click.stop="openFolderMenuId = openFolderMenuId === folder.id ? null : folder.id"
-                        class="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                        class="w-8 h-8 flex items-center justify-center rounded-full text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
                       >
                         <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 16 16">
                           <circle cx="8" cy="2" r="1.5"/>
@@ -584,9 +701,6 @@ onMounted(() => {
       class="fixed inset-0 z-40 md:hidden"
       @click="openFolderMenuId = null"
     />
-
-    <!-- Mobile Bottom Navigation -->
-    <MobileBottomNav />
   </div>
 </template>
 

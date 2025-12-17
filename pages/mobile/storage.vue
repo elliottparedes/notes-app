@@ -298,7 +298,7 @@ watch(() => filesStore.currentFolder, async (newFolder, oldFolder) => {
       <div class="flex items-center gap-1">
         <button
           @click="fileInputRef?.click()"
-          class="p-1.5 rounded-lg text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 active:scale-95 transition"
+          class="w-9 h-9 flex items-center justify-center rounded-full text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 active:scale-95 transition"
           :disabled="isUploading"
           title="Upload file"
         >
@@ -310,7 +310,7 @@ watch(() => filesStore.currentFolder, async (newFolder, oldFolder) => {
         </button>
         <button
           @click="showCreateFolderModal = true"
-          class="p-1.5 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 active:scale-95 transition"
+          class="w-9 h-9 flex items-center justify-center rounded-full text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 active:scale-95 transition"
           title="New folder"
         >
           <UIcon name="i-heroicons-folder-plus" class="w-5 h-5" />
@@ -336,7 +336,7 @@ watch(() => filesStore.currentFolder, async (newFolder, oldFolder) => {
 
     <!-- Content -->
     <div 
-      class="flex-1 overflow-y-auto pb-20"
+      class="flex-1 overflow-y-auto pb-6"
       @drop="handleDrop"
       @dragover="handleDragOver"
     >
@@ -466,9 +466,6 @@ watch(() => filesStore.currentFolder, async (newFolder, oldFolder) => {
         </Transition>
       </Teleport>
     </ClientOnly>
-
-    <!-- Mobile Bottom Navigation -->
-    <MobileBottomNav />
   </div>
 </template>
 

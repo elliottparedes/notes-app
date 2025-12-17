@@ -341,8 +341,7 @@ onMounted(() => {
 
     <!-- Input Area -->
     <div 
-      class="px-4 pt-3 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 transition-all duration-200"
-      :class="isInputFocused ? 'pb-4' : 'pb-20'"
+      class="px-4 pt-3 pb-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 transition-all duration-200"
     >
       <div class="flex items-end gap-2">
         <div class="flex-1 relative">
@@ -376,9 +375,6 @@ onMounted(() => {
         </button>
       </div>
     </div>
-
-    <!-- Mobile Bottom Navigation -->
-    <MobileBottomNav v-show="!isInputFocused" />
   </div>
 </template>
 
