@@ -127,7 +127,7 @@ async function handleSelectNote(note: Note) {
 // Helper to check if we're on mobile (client-side only)
 const isMobileView = computed(() => {
   if (!process.client) return false;
-  return window.innerWidth < 768;
+  return window.innerWidth < 1024;
 });
 
 // Responsive routing - redirect to dashboard if screen becomes desktop
@@ -151,7 +151,7 @@ onMounted(() => {
 
   // Listen for window resize
   const handleResize = () => {
-    if (window.innerWidth >= 768) {
+    if (window.innerWidth >= 1024) {
       router.replace('/dashboard');
     }
   };
@@ -170,7 +170,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="flex flex-col h-screen bg-white dark:bg-gray-900 md:hidden">
+  <div class="flex flex-col h-screen bg-white dark:bg-gray-900 lg:hidden">
     <!-- Header -->
     <div class="px-4 pt-6 pb-4 border-b border-gray-200 dark:border-gray-700">
       <h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-50 mb-4">Search</h1>

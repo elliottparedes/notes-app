@@ -78,7 +78,7 @@ const spaceMenuOpensUpward = ref(new Map<number, boolean>());
 // Helper to check if we're on mobile (client-side only)
 const isMobileView = computed(() => {
   if (!process.client) return false;
-  return window.innerWidth < 768;
+  return window.innerWidth < 1024;
 });
 
 // Space Delete Confirmation
@@ -1447,9 +1447,9 @@ onMounted(async () => {
 
   // Listen for window resize to handle responsive routing
   const handleResize = () => {
-    if (window.innerWidth < 768 && route.path === '/dashboard') {
+    if (window.innerWidth < 1024 && route.path === '/storage') {
       // Screen became mobile, redirect
-      router.replace('/mobile/home');
+      router.replace('/mobile/storage');
     }
   };
 

@@ -140,7 +140,7 @@ watch(showFolderDropdown, (show) => {
 // Helper to check if we're on mobile (client-side only)
 const isMobileView = computed(() => {
   if (!process.client) return false;
-  return window.innerWidth < 768;
+  return window.innerWidth < 1024;
 });
 
 // Redirect to dashboard and open tab
@@ -149,14 +149,14 @@ onMounted(async () => {
   try {
     await notesStore.openTab(noteId.value);
     // On mobile, redirect to mobile home; on desktop, redirect to dashboard
-    if (isMobileView.value) {
+    if (window.innerWidth < 1024) {
       router.push('/mobile/home');
     } else {
       router.push('/dashboard');
     }
   } catch (error) {
     console.error('Error opening note:', error);
-    if (isMobileView.value) {
+    if (window.innerWidth < 1024) {
       router.push('/mobile/home');
     } else {
       router.push('/dashboard');

@@ -985,10 +985,10 @@ export const useNotesStore = defineStore('notes', {
       this.saveTabsToStorage();
     },
 
-    // Helper to detect mobile devices (viewport width < 768px)
+    // Helper to detect mobile devices (viewport width < 1024px)
     isMobile(): boolean {
       if (!process.client) return false;
-      return window.innerWidth < 768;
+      return window.innerWidth < 1024;
     }
   }
 });

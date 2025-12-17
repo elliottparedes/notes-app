@@ -78,7 +78,7 @@ const spaceMenuOpensUpward = ref(new Map<number, boolean>());
 // Helper to check if we're on mobile (client-side only)
 const isMobileView = computed(() => {
   if (!process.client) return false;
-  return window.innerWidth < 768;
+  return window.innerWidth < 1024;
 });
 
 // Space Delete Confirmation
@@ -1447,7 +1447,7 @@ onMounted(async () => {
 
   // Listen for window resize to handle responsive routing
   const handleResize = () => {
-    if (window.innerWidth < 768 && route.path === '/dashboard') {
+    if (window.innerWidth < 1024 && route.path === '/dashboard') {
       // Screen became mobile, redirect
       router.replace('/mobile/home');
     }
@@ -1541,7 +1541,7 @@ function handleNoteListResizeStart(e: MouseEvent) {
     <!-- Column 1: Notebooks & Sections (Sidebar) -->
     <aside 
       v-if="isDesktopSidebarVisible && !isFullscreen && currentView === 'notebooks'"
-      class="hidden md:flex flex-col bg-gray-50 dark:bg-gray-900 border-r border-gray-300 dark:border-gray-700 flex-shrink-0 relative overflow-x-hidden"
+      class="hidden lg:flex flex-col bg-gray-50 dark:bg-gray-900 border-r border-gray-300 dark:border-gray-700 flex-shrink-0 relative overflow-x-hidden"
       :style="{ width: `${sidebarWidth}px` }"
     >
       <!-- Resize Handle -->
@@ -1675,7 +1675,7 @@ function handleNoteListResizeStart(e: MouseEvent) {
               type="button"
               @click.stop="toggleSpaceContextMenu($event, space.id)"
               @mousedown.stop
-              class="no-drag flex-shrink-0 p-1 opacity-100 md:opacity-0 md:group-hover/space:opacity-100 hover:bg-gray-200 dark:hover:bg-gray-700 active:bg-gray-200 dark:active:bg-gray-700 transition-colors"
+              class="no-drag flex-shrink-0 p-1 opacity-100 lg:opacity-0 lg:group-hover/space:opacity-100 hover:bg-gray-200 dark:hover:bg-gray-700 active:bg-gray-200 dark:active:bg-gray-700 transition-colors"
               :class="showSpaceContextMenu === space.id ? 'bg-gray-200 dark:bg-gray-700' : ''"
             >
               <svg class="w-4 h-4 text-gray-500 dark:text-gray-400" fill="currentColor" viewBox="0 0 16 16">
@@ -1717,7 +1717,7 @@ function handleNoteListResizeStart(e: MouseEvent) {
               <!-- Backdrop for mobile -->
               <div
                 v-if="showSpaceContextMenu === space.id && isMobileView"
-                class="fixed inset-0 z-[9998] md:hidden"
+                class="fixed inset-0 z-[9998] lg:hidden"
                 @click="showSpaceContextMenu = null"
               />
             </Teleport>
@@ -1791,7 +1791,7 @@ function handleNoteListResizeStart(e: MouseEvent) {
     <!-- Column 2: Note List (Middle) -->
     <aside 
       v-if="!isFullscreen && currentView === 'notebooks'"
-      class="hidden md:flex flex-col bg-white dark:bg-gray-900 border-r border-gray-300 dark:border-gray-700 flex-shrink-0 relative"
+      class="hidden lg:flex flex-col bg-white dark:bg-gray-900 border-r border-gray-300 dark:border-gray-700 flex-shrink-0 relative"
       :style="{ width: `${noteListWidth}px` }"
     >
       <!-- Resize Handle -->
@@ -1888,7 +1888,7 @@ function handleNoteListResizeStart(e: MouseEvent) {
         <!-- Mobile: Folder notes list screen -->
         <div
           v-else-if="selectedFolderId"
-          class="md:hidden flex-1 overflow-y-auto pb-28"
+          class="lg:hidden flex-1 overflow-y-auto pb-28"
         >
           <div class="px-4 pt-6 pb-3 flex items-center justify-between gap-2">
             <button
@@ -1952,7 +1952,7 @@ function handleNoteListResizeStart(e: MouseEvent) {
         </div>
 
         <!-- Mobile Home tab: cross-space "what matters now" -->
-        <div v-else class="md:hidden flex-1 overflow-y-auto pb-28">
+        <div v-else class="lg:hidden flex-1 overflow-y-auto pb-28">
           <div class="px-4 pt-6 pb-4 flex items-center justify-between">
             <div>
               <p class="text-xs uppercase tracking-wide text-gray-400">Home</p>
@@ -2159,7 +2159,7 @@ function handleNoteListResizeStart(e: MouseEvent) {
         >
           <div
             v-if="showMobileSpacesSheet && isMobileView"
-            class="fixed inset-0 z-40 md:hidden"
+            class="fixed inset-0 z-40 lg:hidden"
           >
             <div
               class="absolute inset-0 bg-black/40 backdrop-blur-sm"

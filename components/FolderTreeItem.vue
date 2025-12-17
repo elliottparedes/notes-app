@@ -67,10 +67,10 @@ const isRenaming = ref(false);
 const renameValue = ref('');
 const renameInputRef = ref<HTMLInputElement | null>(null);
 
-// Helper to detect mobile devices (viewport width < 768px)
+// Helper to detect mobile devices (viewport width < 1024px)
 function isMobile(): boolean {
   if (!process.client) return false;
-  return window.innerWidth < 768;
+  return window.innerWidth < 1024;
 }
 
 function handleSelect() {

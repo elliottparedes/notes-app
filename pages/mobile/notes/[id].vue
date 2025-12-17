@@ -92,7 +92,7 @@ function formatHeaderDate(date: string | Date): string {
 // Helper to check if we're on mobile (client-side only)
 const isMobileView = computed(() => {
   if (!process.client) return false;
-  return window.innerWidth < 768;
+  return window.innerWidth < 1024;
 });
 
 // Responsive routing - redirect to dashboard if screen becomes desktop
@@ -121,7 +121,7 @@ onMounted(async () => {
 
   // Listen for window resize
   const handleResize = () => {
-    if (window.innerWidth >= 768) {
+    if (window.innerWidth >= 1024) {
       router.replace(`/notes/${noteId.value}`);
     }
   };
@@ -139,7 +139,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="flex flex-col h-screen bg-white dark:bg-gray-900 md:hidden">
+  <div class="flex flex-col h-screen bg-white dark:bg-gray-900 lg:hidden">
     <!-- Top Nav with Close Button -->
     <div class="px-4 pt-4 pb-3 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
       <div class="flex items-center justify-between mb-3">
