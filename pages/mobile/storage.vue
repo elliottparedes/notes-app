@@ -253,12 +253,12 @@ watch(() => filesStore.currentFolder, async (newFolder, oldFolder) => {
       <div class="relative" data-view-dropdown>
             <button
               @click.stop="showViewDropdown = !showViewDropdown"
-              class="flex items-center gap-1.5 font-medium text-sm text-gray-900 dark:text-gray-100"
+              class="flex items-center gap-1.5 font-semibold text-base text-gray-900 dark:text-gray-100 py-1"
             >
               <span>Storage</span>
               <UIcon 
                 name="i-heroicons-chevron-down" 
-                class="w-4 h-4 transition-transform"
+                class="w-5 h-5 transition-transform"
                 :class="{ 'rotate-180': showViewDropdown }"
               />
             </button>
@@ -273,21 +273,21 @@ watch(() => filesStore.currentFolder, async (newFolder, oldFolder) => {
             >
               <div
                 v-if="showViewDropdown"
-                class="absolute top-full left-0 mt-1 w-40 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 shadow-lg py-1 z-50 rounded-lg"
+                class="absolute top-full left-0 mt-1 w-48 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 shadow-xl py-2 z-50 rounded-xl"
                 @click.stop
               >
               <button
                 @click="router.push('/mobile/home'); showViewDropdown = false"
-                class="w-full text-left px-3 py-1.5 text-sm transition-colors text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
+                class="w-full text-left px-4 py-3 text-base transition-colors text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-3"
               >
-                <UIcon name="i-heroicons-book-open" class="w-4 h-4" />
+                <UIcon name="i-heroicons-book-open" class="w-5 h-5" />
                 <span>Notebooks</span>
               </button>
               <button
                 @click="showViewDropdown = false"
-                class="w-full text-left px-3 py-1.5 text-sm transition-colors bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 font-medium flex items-center gap-2"
+                class="w-full text-left px-4 py-3 text-base transition-colors bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 font-semibold flex items-center gap-3"
               >
-                <UIcon name="i-heroicons-folder" class="w-4 h-4" />
+                <UIcon name="i-heroicons-folder" class="w-5 h-5" />
                 <span>Storage</span>
               </button>
             </div>
@@ -356,17 +356,17 @@ watch(() => filesStore.currentFolder, async (newFolder, oldFolder) => {
       </div>
 
       <!-- Files List -->
-      <div v-else class="p-4 space-y-2">
+      <div v-else class="p-4 space-y-3">
         <!-- Folders -->
         <button
           v-for="folder in folders"
           :key="folder.path"
           @click="navigateToFolder(folder.path)"
-          class="w-full flex items-center gap-3 p-3 rounded-xl bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-700/50 active:scale-[0.98] transition"
+          class="w-full flex items-center gap-4 p-4 rounded-xl bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-700/50 active:scale-[0.98] transition"
         >
-          <UIcon name="i-heroicons-folder" class="w-6 h-6 text-blue-500" />
+          <UIcon name="i-heroicons-folder" class="w-7 h-7 text-blue-500" />
           <div class="flex-1 text-left min-w-0">
-            <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+            <p class="text-base font-semibold text-gray-900 dark:text-gray-100 truncate">
               {{ folder.name }}
             </p>
           </div>
@@ -378,14 +378,14 @@ watch(() => filesStore.currentFolder, async (newFolder, oldFolder) => {
           v-for="file in filesStore.files"
           :key="file.id"
           @click="window.open(file.download_url || file.presigned_url, '_blank')"
-          class="w-full flex items-center gap-3 p-3 rounded-xl bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-700/50 active:scale-[0.98] transition"
+          class="w-full flex items-center gap-4 p-4 rounded-xl bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-700/50 active:scale-[0.98] transition"
         >
-          <UIcon :name="getFileIcon(file)" class="w-6 h-6 text-gray-500" />
+          <UIcon :name="getFileIcon(file)" class="w-7 h-7 text-gray-500" />
           <div class="flex-1 text-left min-w-0">
-            <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+            <p class="text-base font-semibold text-gray-900 dark:text-gray-100 truncate">
               {{ file.file_name }}
             </p>
-            <p class="text-xs text-gray-500 dark:text-gray-400">
+            <p class="text-sm text-gray-500 dark:text-gray-400">
               {{ formatFileSize(file.file_size) }}
             </p>
           </div>

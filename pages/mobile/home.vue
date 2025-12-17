@@ -327,12 +327,12 @@ onMounted(() => {
       <div class="relative" data-view-dropdown>
         <button
           @click.stop="showViewDropdown = !showViewDropdown"
-          class="flex items-center gap-1.5 font-medium text-sm text-gray-900 dark:text-gray-100"
+          class="flex items-center gap-1.5 font-semibold text-base text-gray-900 dark:text-gray-100 py-1"
         >
           <span>{{ currentView === 'notebooks' ? 'Notes' : 'Storage' }}</span>
           <UIcon 
             name="i-heroicons-chevron-down" 
-            class="w-4 h-4 transition-transform"
+            class="w-5 h-5 transition-transform"
             :class="{ 'rotate-180': showViewDropdown }"
           />
         </button>
@@ -348,23 +348,23 @@ onMounted(() => {
         >
           <div
             v-if="showViewDropdown"
-            class="absolute top-full left-0 mt-1 w-40 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 shadow-lg py-1 z-50 rounded-lg"
+            class="absolute top-full left-0 mt-1 w-48 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 shadow-xl py-2 z-50 rounded-xl"
             @click.stop
           >
             <button
               @click="currentView = 'notebooks'; showViewDropdown = false"
-              class="w-full text-left px-3 py-2 text-sm transition-colors"
+              class="w-full text-left px-4 py-3 text-base transition-colors"
               :class="currentView === 'notebooks' 
-                ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 font-medium' 
+                ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 font-semibold' 
                 : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'"
             >
               Notes
             </button>
             <button
               @click="router.push('/mobile/storage'); showViewDropdown = false"
-              class="w-full text-left px-3 py-2 text-sm transition-colors"
+              class="w-full text-left px-4 py-3 text-base transition-colors"
               :class="currentView === 'storage' 
-                ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 font-medium' 
+                ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 font-semibold' 
                 : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'"
             >
               Storage
@@ -431,29 +431,29 @@ onMounted(() => {
       </div>
 
       <!-- Search Results -->
-      <div v-if="searchQuery.trim()" class="px-4 space-y-2 pb-6">
-        <div v-if="isSearching" class="py-8 text-center">
-          <UIcon name="i-heroicons-arrow-path" class="w-8 h-8 mx-auto text-gray-400 animate-spin mb-2" />
-          <p class="text-sm text-gray-500 dark:text-gray-400">Searching...</p>
+      <div v-if="searchQuery.trim()" class="px-4 space-y-3 pb-6">
+        <div v-if="isSearching" class="py-10 text-center">
+          <UIcon name="i-heroicons-arrow-path" class="w-10 h-10 mx-auto text-gray-400 animate-spin mb-3" />
+          <p class="text-base text-gray-500 dark:text-gray-400">Searching...</p>
         </div>
         
         <div v-else-if="searchResults.length > 0">
-          <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">{{ searchResults.length }} results</p>
+          <p class="text-sm text-gray-500 dark:text-gray-400 mb-3 ml-1">{{ searchResults.length }} results</p>
           <button
             v-for="note in searchResults"
             :key="note.id"
             @click="handleOpenNote(note.id)"
-            class="w-full text-left rounded-xl bg-gray-50 dark:bg-gray-800/80 px-4 py-3 active:scale-[0.99] transition mb-2"
+            class="w-full text-left rounded-xl bg-gray-50 dark:bg-gray-800/80 px-4 py-4 active:scale-[0.99] transition mb-3"
           >
-            <div class="flex items-center justify-between gap-2 mb-1">
-              <h3 class="text-sm font-medium text-gray-900 dark:text-gray-50 truncate flex-1">
+            <div class="flex items-center justify-between gap-3 mb-1.5">
+              <h3 class="text-base font-semibold text-gray-900 dark:text-gray-50 truncate flex-1">
                 {{ note.title || 'Untitled note' }}
               </h3>
               <span class="text-xs text-gray-400 whitespace-nowrap">
                 {{ formatDate(note.updated_at) }}
               </span>
             </div>
-            <div class="text-[11px] text-gray-400">
+            <div class="text-xs text-gray-400">
               <template v-if="getNoteLocation(note).spaceName">
                 {{ getNoteLocation(note).spaceName }}<span v-if="getNoteLocation(note).folderName"> · {{ getNoteLocation(note).folderName }}</span>
               </template>
@@ -461,35 +461,35 @@ onMounted(() => {
           </button>
         </div>
         
-        <div v-else class="py-8 text-center">
-          <UIcon name="i-heroicons-document-minus" class="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-3" />
-          <p class="text-sm text-gray-500 dark:text-gray-400">No notes found</p>
+        <div v-else class="py-10 text-center">
+          <UIcon name="i-heroicons-document-minus" class="w-14 h-14 mx-auto text-gray-300 dark:text-gray-600 mb-4" />
+          <p class="text-base text-gray-500 dark:text-gray-400">No notes found</p>
         </div>
       </div>
 
       <!-- Regular Home Content (Hidden when searching) -->
-      <div v-else class="px-4 space-y-6 pb-6">
+      <div v-else class="px-4 space-y-8 pb-6">
         <!-- Jump back in section (Carousel) -->
         <section v-if="recentNotes.length > 0">
-          <div class="flex items-center justify-between mb-3">
-            <h2 class="text-sm font-semibold text-gray-700 dark:text-gray-200">Jump back in</h2>
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="text-base font-bold text-gray-700 dark:text-gray-200">Jump back in</h2>
           </div>
-          <div class="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 scrollbar-hide">
+          <div class="flex gap-4 overflow-x-auto pb-2 -mx-4 px-4 scrollbar-hide">
             <button
               v-for="note in recentNotes"
               :key="note.id"
               @click="handleOpenNote(note.id)"
-              class="flex-shrink-0 w-64 rounded-xl bg-gray-50 dark:bg-gray-800/80 px-4 py-3 active:scale-[0.98] transition text-left"
+              class="flex-shrink-0 w-72 rounded-2xl bg-gray-50 dark:bg-gray-800/80 px-5 py-4 active:scale-[0.98] transition text-left shadow-sm"
             >
-              <div class="flex items-center justify-between gap-2 mb-1">
-                <p class="text-sm font-medium text-gray-900 dark:text-gray-50 truncate flex-1">
+              <div class="flex items-center justify-between gap-3 mb-1.5">
+                <p class="text-base font-semibold text-gray-900 dark:text-gray-50 truncate flex-1">
                   {{ note.title || 'Untitled note' }}
                 </p>
                 <span class="text-xs text-gray-400 whitespace-nowrap">
                   {{ formatTime(note.updated_at) }}
                 </span>
               </div>
-              <div class="text-[11px] text-gray-400">
+              <div class="text-xs text-gray-400">
                 <template v-if="getNoteLocation(note).spaceName">
                   {{ getNoteLocation(note).spaceName }}<span v-if="getNoteLocation(note).folderName"> · {{ getNoteLocation(note).folderName }}</span>
                 </template>
@@ -500,61 +500,61 @@ onMounted(() => {
 
         <!-- Notebook/Folder Tree -->
         <section>
-          <h2 class="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-3">Notebooks</h2>
-          <div class="space-y-3">
+          <h2 class="text-base font-bold text-gray-700 dark:text-gray-200 mb-4">Notebooks</h2>
+          <div class="space-y-4">
             <div
               v-for="space in spacesStore.spaces"
               :key="space.id"
-              class="rounded-lg border border-gray-200 dark:border-gray-700"
+              class="rounded-xl border border-gray-200 dark:border-gray-700"
             >
               <!-- Space Header -->
-              <div class="flex items-center justify-between p-3">
+              <div class="flex items-center justify-between p-4">
                 <button
                   @click="toggleSpace(space.id)"
-                  class="flex-1 flex items-center gap-2 text-left"
+                  class="flex-1 flex items-center gap-3 text-left"
                 >
                   <UIcon 
                     :name="expandedSpaceIds.has(space.id) ? 'i-heroicons-chevron-down' : 'i-heroicons-chevron-right'" 
-                    class="w-4 h-4 text-gray-500 dark:text-gray-400"
+                    class="w-5 h-5 text-gray-500 dark:text-gray-400"
                   />
                   <UIcon 
                     :name="space.icon ? `i-lucide-${space.icon}` : 'i-heroicons-book-open'" 
-                    class="w-4 h-4 text-gray-700 dark:text-gray-300"
+                    class="w-5 h-5 text-gray-700 dark:text-gray-300"
                   />
-                  <span class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ space.name }}</span>
+                  <span class="text-base font-semibold text-gray-900 dark:text-gray-100">{{ space.name }}</span>
                 </button>
                 
                 <!-- Three dot menu for space -->
                 <div class="relative">
                   <button
                     @click.stop="openCreateFolderModal(space.id)"
-                    class="w-8 h-8 flex items-center justify-center rounded-full text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                    class="w-10 h-10 flex items-center justify-center rounded-full text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
                     title="Add folder"
                   >
-                    <UIcon name="i-heroicons-plus" class="w-4 h-4" />
+                    <UIcon name="i-heroicons-plus" class="w-5 h-5" />
                   </button>
                 </div>
               </div>
 
               <!-- Folders (Sections) -->
-              <div v-show="expandedSpaceIds.has(space.id)" class="pl-4 pb-2 space-y-1">
+              <div v-show="expandedSpaceIds.has(space.id)" class="pl-4 pr-3 pb-3 space-y-2">
                 <div
                   v-for="folder in getSpaceFolders(space.id)"
                   :key="folder.id"
-                  class="rounded border border-gray-200 dark:border-gray-700"
+                  class="rounded-lg border border-gray-200 dark:border-gray-700"
                 >
                   <!-- Folder Header -->
-                  <div class="flex items-center justify-between p-2">
+                  <div class="flex items-center justify-between p-3">
                     <button
                       @click="toggleFolder(folder.id)"
-                      class="flex-1 flex items-center gap-2 text-left"
+                      class="flex-1 flex items-center gap-3 text-left"
                     >
                       <UIcon 
                         :name="foldersStore.expandedFolderIds.has(folder.id) ? 'i-heroicons-chevron-down' : 'i-heroicons-chevron-right'" 
-                        class="w-3.5 h-3.5 text-gray-500 dark:text-gray-400"
+                        class="w-4 h-4 text-gray-500 dark:text-gray-400"
                       />
-                      <UIcon name="i-heroicons-folder" class="w-4 h-4 text-gray-500 dark:text-gray-400" />
-                      <span class="text-sm text-gray-700 dark:text-gray-300">{{ folder.name }}</span>
+                      <UIcon name="i-heroicons-folder" class="w-5 h-5 text-gray-500 dark:text-gray-400" />
+                      <span class="text-base text-gray-700 dark:text-gray-300">{{ folder.name }}</span>
                       <span v-if="getFolderNotes(folder.id).length > 0" class="text-xs text-gray-400">
                         ({{ getFolderNotes(folder.id).length }})
                       </span>
@@ -564,9 +564,9 @@ onMounted(() => {
                     <div class="relative">
                       <button
                         @click.stop="openFolderMenuId = openFolderMenuId === folder.id ? null : folder.id"
-                        class="w-8 h-8 flex items-center justify-center rounded-full text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                        class="w-10 h-10 flex items-center justify-center rounded-full text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
                       >
-                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 16 16">
+                        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 16 16">
                           <circle cx="8" cy="2" r="1.5"/>
                           <circle cx="8" cy="8" r="1.5"/>
                           <circle cx="8" cy="14" r="1.5"/>
@@ -584,21 +584,21 @@ onMounted(() => {
                       >
                         <div
                           v-if="openFolderMenuId === folder.id"
-                          class="absolute right-0 top-full mt-1 w-40 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 shadow-lg py-1 z-50 rounded-lg"
+                          class="absolute right-0 top-full mt-1 w-44 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 shadow-xl py-2 z-50 rounded-xl"
                           @click.stop
                         >
                           <button
                             @click="handleCreateNoteInFolder(folder.id)"
-                            class="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
+                            class="w-full text-left px-4 py-3 text-base text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-3"
                           >
-                            <UIcon name="i-heroicons-plus" class="w-4 h-4" />
+                            <UIcon name="i-heroicons-plus" class="w-5 h-5" />
                             <span>Add note</span>
                           </button>
                           <button
                             @click="handleDeleteFolder(folder.id)"
-                            class="w-full text-left px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
+                            class="w-full text-left px-4 py-3 text-base text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-3"
                           >
-                            <UIcon name="i-heroicons-trash" class="w-4 h-4" />
+                            <UIcon name="i-heroicons-trash" class="w-5 h-5" />
                             <span>Delete</span>
                           </button>
                         </div>
@@ -607,18 +607,18 @@ onMounted(() => {
                   </div>
 
                   <!-- Notes inside folder -->
-                  <div v-show="foldersStore.expandedFolderIds.has(folder.id)" class="pl-6 pr-2 pb-2 space-y-1">
-                    <div v-if="getOrderedNotesForFolder(folder.id).length === 0" class="px-2 py-1 text-xs text-gray-400">
+                  <div v-show="foldersStore.expandedFolderIds.has(folder.id)" class="pl-8 pr-3 pb-3 space-y-2">
+                    <div v-if="getOrderedNotesForFolder(folder.id).length === 0" class="px-2 py-1 text-sm text-gray-400">
                       No notes yet
                     </div>
                     <button
                       v-for="note in getOrderedNotesForFolder(folder.id)"
                       :key="note.id"
                       @click="handleOpenNote(note.id)"
-                      class="w-full text-left px-3 py-2 rounded-lg bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-700/50 active:scale-[0.98] transition text-sm"
+                      class="w-full text-left px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-700/50 active:scale-[0.98] transition text-base"
                     >
-                      <div class="flex items-center justify-between gap-2">
-                        <span class="text-gray-900 dark:text-gray-100 truncate flex-1">
+                      <div class="flex items-center justify-between gap-3">
+                        <span class="text-gray-900 dark:text-gray-100 truncate flex-1 font-medium">
                           {{ note.title || 'Untitled note' }}
                         </span>
                         <span class="text-xs text-gray-400 whitespace-nowrap">
