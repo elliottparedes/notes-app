@@ -16,6 +16,8 @@ const titleSaveTimeout = ref<NodeJS.Timeout | null>(null);
 const contentSaveTimeout = ref<NodeJS.Timeout | null>(null);
 const showDeleteModal = ref(false);
 const isDeleting = ref(false);
+const isPolishing = ref(false);
+const isAskingAI = ref(false);
 
 // Auto-save title
 function handleTitleChange() {
@@ -55,6 +57,86 @@ function handleContentChange(newContent: string) {
       toast.error('Failed to save changes');
     }
   }, 2000);
+}
+
+// Polish note with AI
+async function polishNote() {
+  if (!activeNote.value) return;
+  
+  if (!activeNote.value.title?.trim() && !activeNote.value.content?.trim()) {
+    toast.error('Add some content to your note first');
+    return;
+  }
+
+  isPolishing.value = true;
+
+  try {
+    const authStore = useAuthStore();
+    const response = await $fetch<{ title: string; content: string }>('/api/notes/polish', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${authStore.token}`
+      },
+      body: {
+        title: activeNote.value.title || 'Untitled Note',
+        content: activeNote.value.content || ''
+      }
+    });
+
+    // Update the note with the polished content
+    activeNote.value.title = response.title;
+    activeNote.value.content = response.content;
+
+    toast.success('Note Polished! ✨');
+
+    // Save the changes
+    await notesStore.updateNote(activeNote.value.id, {
+      title: activeNote.value.title,
+      content: activeNote.value.content
+    });
+  } catch (error: any) {
+    console.error('Polish error:', error);
+    toast.error('Failed to polish note with AI');
+  } finally {
+    isPolishing.value = false;
+  }
+}
+
+// Ask AI to modify note
+async function askAINote(prompt: string) {
+  if (!activeNote.value || !prompt || !prompt.trim()) return;
+
+  isAskingAI.value = true;
+
+  try {
+    const authStore = useAuthStore();
+    const response = await $fetch<{ content: string }>('/api/notes/ask-ai', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${authStore.token}`
+      },
+      body: {
+        title: activeNote.value.title || 'Untitled Note',
+        content: activeNote.value.content || '',
+        prompt: prompt
+      }
+    });
+
+    // Update the note with the AI-modified content
+    activeNote.value.content = response.content;
+
+    toast.success('Note Updated! ✨');
+
+    // Save the changes
+    await notesStore.updateNote(activeNote.value.id, {
+      content: activeNote.value.content
+    });
+  } catch (error: any) {
+    console.error('AskAI error:', error);
+    toast.error('Failed to process AI request');
+  } finally {
+    isAskingAI.value = false;
+  }
 }
 
 function handleCloseNote() {
@@ -197,7 +279,11 @@ onUnmounted(() => {
         :editable="true"
         :placeholder="'Start writing...'"
         :is-collaborative="false"
+        :is-polishing="isPolishing"
+        :is-asking-a-i="isAskingAI"
         @update:model-value="handleContentChange"
+        @request-polish="polishNote"
+        @request-ask-ai="askAINote"
         @note-link-clicked="(id) => router.push(`/mobile/notes/${id}`)"
       />
     </div>

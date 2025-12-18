@@ -3,8 +3,14 @@ import { ref, computed, nextTick, watch, onMounted, onUnmounted } from 'vue';
 import { useAuthStore } from '~/stores/auth';
 import { useToast } from '~/composables/useToast';
 
+import { useNotesStore } from '~/stores/notes';
+import { useFoldersStore } from '~/stores/folders';
+
 const authStore = useAuthStore();
+const notesStore = useNotesStore();
+const foldersStore = useFoldersStore();
 const toast = useToast();
+const router = useRouter();
 
 // Markdown to HTML converter (compact spacing)
 function markdownToHtml(markdown: string): string {
@@ -226,6 +232,44 @@ async function sendMessage() {
   }
 }
 
+const isSavingNote = ref<string | null>(null);
+
+async function saveAsNote(content: string, messageId: string) {
+  if (isSavingNote.value) return;
+  
+  isSavingNote.value = messageId;
+  try {
+    // Find first heading or first line for title
+    let title = 'AI Generated Note';
+    const headingMatch = content.match(/^#+ (.*)$/m);
+    if (headingMatch) {
+      title = headingMatch[1];
+    } else {
+      const firstLine = content.trim().split('\n')[0];
+      if (firstLine && firstLine.length < 50) {
+        title = firstLine;
+      }
+    }
+
+    // Prefer creating in the last used folder or first available folder
+    const folderId = foldersStore.folders[0]?.id;
+
+    const newNote = await notesStore.createNote({
+      title: title,
+      content: markdownToHtml(content),
+      folder_id: folderId
+    });
+
+    toast.success('Note created!');
+    router.push(`/mobile/notes/${newNote.id}`);
+  } catch (error) {
+    console.error('Failed to save note:', error);
+    toast.error('Failed to create note');
+  } finally {
+    isSavingNote.value = null;
+  }
+}
+
 function handleKeydown(event: KeyboardEvent) {
   if (event.key === 'Enter' && !event.shiftKey) {
     event.preventDefault();
@@ -318,6 +362,22 @@ onMounted(() => {
               class="text-sm break-words prose prose-sm dark:prose-invert max-w-none"
               v-html="markdownToHtml(message.content)"
             />
+            
+            <div v-if="message.role === 'assistant'" class="mt-2 pt-2 border-t border-gray-200 dark:border-gray-700 flex justify-end">
+              <button
+                @click="saveAsNote(message.content, message.id)"
+                :disabled="!!isSavingNote"
+                class="flex items-center gap-1.5 text-xs font-medium text-blue-600 dark:text-blue-400 hover:opacity-80 transition-opacity disabled:opacity-50"
+              >
+                <UIcon 
+                  :name="isSavingNote === message.id ? 'i-heroicons-arrow-path' : 'i-heroicons-plus-circle'" 
+                  class="w-4 h-4"
+                  :class="{ 'animate-spin': isSavingNote === message.id }"
+                />
+                <span>{{ isSavingNote === message.id ? 'Saving...' : 'Save as Note' }}</span>
+              </button>
+            </div>
+
             <p class="text-xs mt-1.5 opacity-70">
               {{ message.timestamp.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) }}
             </p>
