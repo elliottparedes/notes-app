@@ -2028,4 +2028,48 @@ async function uploadFiles(files: File[]) {
   min-height: 1.5em;
   margin: 0;
 }
+
+/* Mobile specific enhancements */
+@media (max-width: 768px) {
+  .unified-editor :deep(.ProseMirror),
+  .collaborative-editor :deep(.ProseMirror) {
+    font-size: 18px !important; /* Larger font for mobile */
+    line-height: 1.6 !important;
+  }
+
+  .unified-editor :deep(.ProseMirror h1),
+  .collaborative-editor :deep(.ProseMirror h1) {
+    font-size: 1.8em !important;
+  }
+
+  .unified-editor :deep(.ProseMirror h2),
+  .collaborative-editor :deep(.ProseMirror h2) {
+    font-size: 1.5em !important;
+  }
+
+  .unified-editor :deep(.ProseMirror h3),
+  .collaborative-editor :deep(.ProseMirror h3) {
+    font-size: 1.3em !important;
+  }
+
+  /* Increase checkbox size and hit area on mobile */
+  .unified-editor :deep(ul[data-type="taskList"] li[data-type="taskItem"]),
+  .collaborative-editor :deep(ul[data-type="taskList"] li[data-type="taskItem"]) {
+    margin-bottom: 0.5rem !important;
+    gap: 0.75rem !important;
+  }
+
+  .unified-editor :deep(ul[data-type="taskList"] li[data-type="taskItem"] > label),
+  .collaborative-editor :deep(ul[data-type="taskList"] li[data-type="taskItem"] > label) {
+    padding: 4px;
+    margin-top: -2px;
+  }
+
+  .unified-editor :deep(ul[data-type="taskList"] li[data-type="taskItem"] > label input[type="checkbox"]),
+  .collaborative-editor :deep(ul[data-type="taskList"] li[data-type="taskItem"] > label input[type="checkbox"]) {
+    width: 1.4rem;
+    height: 1.4rem;
+    cursor: pointer;
+  }
+}
 </style>
