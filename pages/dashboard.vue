@@ -31,7 +31,6 @@ const searchQueryForHighlight = ref<string | null>(null);
 // Selection State
 const selectedFolderId = ref<number | null>(null);
 const previousFolderId = ref<number | null>(null); // Track previous folder for animation direction
-const expandedSpaceIds = ref<Set<number>>(new Set());
 const noteToDelete = ref<string | null>(null); // Track which note is in delete confirmation mode
 
 // Modal states
@@ -600,8 +599,8 @@ function handleSpaceDragOver(spaceId: number) {
   // Don't expand if reordering spaces
   if (isDraggingSpace.value) return;
   
-  if (!expandedSpaceIds.value.has(spaceId)) {
-    expandedSpaceIds.value.add(spaceId);
+  if (!spacesStore.expandedSpaceIds.has(spaceId)) {
+    spacesStore.expandSpace(spaceId);
   }
 }
 
@@ -796,12 +795,8 @@ const shouldShowEmptyState = computed(() => !activeNote.value);
 
 // Actions
 async function handleSelectSpace(spaceId: number) {
-  // Toggle expansion logic
-  if (expandedSpaceIds.value.has(spaceId)) {
-    expandedSpaceIds.value.delete(spaceId);
-  } else {
-    expandedSpaceIds.value.add(spaceId);
-    // Also set as current space for context, but don't collapse others
+  spacesStore.toggleSpace(spaceId);
+  if (spacesStore.expandedSpaceIds.has(spaceId)) {
     spacesStore.setCurrentSpace(spaceId);
   }
 }
@@ -906,7 +901,7 @@ async function handleSearchNoteSelected(note: Note | { id: string }, searchQuery
   searchQueryForHighlight.value = searchQuery || null;
   
   try {
-    await navigateToNote(note, expandedSpaceIds.value, (folderId) => {
+    await navigateToNote(note, spacesStore.expandedSpaceIds, (folderId) => {
       selectedFolderId.value = folderId;
     });
   } catch (error) {
@@ -1598,7 +1593,7 @@ function handleNoteListResizeStart(e: MouseEvent) {
             class="space-item-header group/space relative flex items-center gap-1 transition-colors hover:bg-gray-100 dark:hover:bg-gray-800 active:bg-gray-200 dark:active:bg-gray-700 overflow-hidden min-w-0"
             :class="{ 
               // Subtle gray highlight when expanded but no folder is selected (or selected folder is in different notebook)
-              'bg-gray-100/50 dark:bg-gray-800/50': expandedSpaceIds.has(space.id) && 
+              'bg-gray-100/50 dark:bg-gray-800/50': spacesStore.expandedSpaceIds.has(space.id) && 
                 (!selectedFolderId || foldersStore.getFolderById(selectedFolderId)?.space_id !== space.id)
             }"
           >
@@ -1609,7 +1604,7 @@ function handleNoteListResizeStart(e: MouseEvent) {
               class="space-button flex-1 flex items-center gap-2 px-2 py-2.5 transition-colors text-left min-w-0"
             >
               <UIcon 
-                :name="expandedSpaceIds.has(space.id) ? 'i-heroicons-chevron-down' : 'i-heroicons-chevron-right'" 
+                :name="spacesStore.expandedSpaceIds.has(space.id) ? 'i-heroicons-chevron-down' : 'i-heroicons-chevron-right'" 
                 class="w-4 h-4 text-gray-500 dark:text-gray-400 flex-shrink-0"
               />
               <img 
@@ -1688,7 +1683,7 @@ function handleNoteListResizeStart(e: MouseEvent) {
           </ClientOnly>
 
           <!-- Sections (Folders) - Only visible if space is active -->
-          <div v-show="expandedSpaceIds.has(space.id)">
+          <div v-show="spacesStore.expandedSpaceIds.has(space.id)">
             <div 
               class="pl-6 space-y-0.5 min-h-[5px]"
               :ref="(el) => setFolderListRef(el, space.id)"

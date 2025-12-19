@@ -140,7 +140,6 @@ async function askAINote(prompt: string) {
 }
 
 function handleCloseNote() {
-  notesStore.closeTab(noteId.value);
   router.push('/mobile/home');
 }
 

@@ -5,6 +5,7 @@ import { useAuthStore } from './auth';
 interface SpacesState {
   spaces: Space[];
   currentSpaceId: number | null;
+  expandedSpaceIds: Set<number>;
   loading: boolean;
   error: string | null;
 }
@@ -13,6 +14,7 @@ export const useSpacesStore = defineStore('spaces', {
   state: (): SpacesState => ({
     spaces: [],
     currentSpaceId: null,
+    expandedSpaceIds: new Set(),
     loading: false,
     error: null
   }),
@@ -89,6 +91,17 @@ export const useSpacesStore = defineStore('spaces', {
             // No saved space, use first space
             this.currentSpaceId = spaces[0].id;
             localStorage.setItem('current_space_id', this.currentSpaceId.toString());
+          }
+
+          // Load expanded spaces
+          const expanded = localStorage.getItem('expanded_spaces');
+          if (expanded) {
+            try {
+              const ids = JSON.parse(expanded) as number[];
+              this.expandedSpaceIds = new Set(ids);
+            } catch (err) {
+              console.error('Failed to parse expanded spaces:', err);
+            }
           }
         } else if (spaces.length > 0) {
           // SSR: just use first space
@@ -268,6 +281,34 @@ export const useSpacesStore = defineStore('spaces', {
       // Persist to localStorage
       if (process.client) {
         localStorage.setItem('current_space_id', spaceId.toString());
+      }
+    },
+
+    toggleSpace(spaceId: number): void {
+      if (this.expandedSpaceIds.has(spaceId)) {
+        this.expandedSpaceIds.delete(spaceId);
+      } else {
+        this.expandedSpaceIds.add(spaceId);
+      }
+      this.expandedSpaceIds = new Set(this.expandedSpaceIds);
+      this.saveExpandedState();
+    },
+
+    expandSpace(spaceId: number): void {
+      this.expandedSpaceIds.add(spaceId);
+      this.expandedSpaceIds = new Set(this.expandedSpaceIds);
+      this.saveExpandedState();
+    },
+
+    collapseSpace(spaceId: number): void {
+      this.expandedSpaceIds.delete(spaceId);
+      this.expandedSpaceIds = new Set(this.expandedSpaceIds);
+      this.saveExpandedState();
+    },
+
+    saveExpandedState(): void {
+      if (process.client) {
+        localStorage.setItem('expanded_spaces', JSON.stringify(Array.from(this.expandedSpaceIds)));
       }
     }
   }

@@ -61,10 +61,7 @@ export function useNoteNavigation() {
           console.log(`[Navigation] Note is in folder "${folder.name}" in space ${spaceId}`);
           
           // Expand the space (notebook)
-          if (expandedSpaceIds && !expandedSpaceIds.has(spaceId)) {
-            console.log(`[Navigation] Expanding space ${spaceId}`);
-            expandedSpaceIds.add(spaceId);
-          }
+          spacesStore.expandSpace(spaceId);
           
           // Set as current space
           spacesStore.setCurrentSpace(spaceId);

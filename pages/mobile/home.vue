@@ -25,9 +25,6 @@ const currentView = ref<'notebooks' | 'storage'>('notebooks');
 const showViewDropdown = ref(false);
 const showSettingsMenu = ref(false);
 
-// Expanded spaces
-const expandedSpaceIds = ref<Set<number>>(new Set());
-
 // Space menu state
 const openSpaceMenuId = ref<number | null>(null);
 const showSpaceModal = ref(false);
@@ -230,10 +227,8 @@ async function handleOpenNote(noteId: string) {
 }
 
 function toggleSpace(spaceId: number) {
-  if (expandedSpaceIds.value.has(spaceId)) {
-    expandedSpaceIds.value.delete(spaceId);
-  } else {
-    expandedSpaceIds.value.add(spaceId);
+  spacesStore.toggleSpace(spaceId);
+  if (spacesStore.expandedSpaceIds.has(spaceId)) {
     spacesStore.setCurrentSpace(spaceId);
   }
 }
@@ -349,11 +344,38 @@ onMounted(async () => {
   }
 
   try {
+    // Ensure tabs are loaded first so we know if there is an active note
+    await notesStore.loadTabsFromStorage();
+    
     await Promise.all([
       spacesStore.fetchSpaces(),
       foldersStore.fetchFolders(null),
       notesStore.fetchNotes()
     ]);
+    
+    // Auto-expand context of the active note (if any) and collapse others
+    if (notesStore.activeTabId) {
+      const activeNote = notesStore.notes.find(n => n.id === notesStore.activeTabId);
+      if (activeNote && activeNote.folder_id) {
+         const folder = foldersStore.getFolderById(activeNote.folder_id);
+         if (folder && folder.space_id) {
+            // 1. Collapse all first
+            spacesStore.expandedSpaceIds.clear();
+            foldersStore.expandedFolderIds.clear();
+            
+            // 2. Expand target
+            spacesStore.expandSpace(folder.space_id);
+            foldersStore.expandFolder(folder.id);
+            
+            // 3. Set current space
+            spacesStore.setCurrentSpace(folder.space_id);
+            
+            // 4. Persist
+            spacesStore.saveExpandedState();
+            foldersStore.saveExpandedState();
+         }
+      }
+    }
   } catch (error) {
     console.error('Failed to load data:', error);
     toast.error('Failed to load data');
@@ -591,7 +613,7 @@ onUnmounted(() => {
                   class="flex-1 flex items-center gap-3 text-left"
                 >
                   <UIcon 
-                    :name="expandedSpaceIds.has(space.id) ? 'i-heroicons-chevron-down' : 'i-heroicons-chevron-right'" 
+                    :name="spacesStore.expandedSpaceIds.has(space.id) ? 'i-heroicons-chevron-down' : 'i-heroicons-chevron-right'" 
                     class="w-5 h-5 text-gray-500 dark:text-gray-400"
                   />
                   <img 
@@ -661,7 +683,7 @@ onUnmounted(() => {
               </div>
 
               <!-- Folders (Sections) -->
-              <div v-show="expandedSpaceIds.has(space.id)" class="pl-4 pr-3 pb-3 space-y-2">
+              <div v-show="spacesStore.expandedSpaceIds.has(space.id)" class="pl-4 pr-3 pb-3 space-y-2">
                 <div
                   v-for="folder in getSpaceFolders(space.id)"
                   :key="folder.id"

@@ -31,7 +31,6 @@ const searchQueryForHighlight = ref<string | null>(null);
 // Selection State
 const selectedFolderId = ref<number | null>(null);
 const previousFolderId = ref<number | null>(null); // Track previous folder for animation direction
-const expandedSpaceIds = ref<Set<number>>(new Set());
 const noteToDelete = ref<string | null>(null); // Track which note is in delete confirmation mode
 
 // Modal states
@@ -607,8 +606,8 @@ function handleSpaceDragOver(spaceId: number) {
   // Don't expand if reordering spaces
   if (isDraggingSpace.value) return;
   
-  if (!expandedSpaceIds.value.has(spaceId)) {
-    expandedSpaceIds.value.add(spaceId);
+  if (!spacesStore.expandedSpaceIds.has(spaceId)) {
+    spacesStore.expandSpace(spaceId);
   }
 }
 
@@ -761,8 +760,8 @@ const editingSpace = ref<Space | null>(null);
 
 // Initialize expanded state with current space if available
 watch(() => spacesStore.currentSpaceId, (newId) => {
-  if (newId !== null && !expandedSpaceIds.value.has(newId)) {
-    expandedSpaceIds.value.add(newId);
+  if (newId !== null && !spacesStore.expandedSpaceIds.has(newId)) {
+    spacesStore.expandSpace(newId);
   }
 }, { immediate: true });
 
@@ -800,12 +799,8 @@ const shouldShowEmptyState = computed(() => !activeNote.value);
 
 // Actions
 async function handleSelectSpace(spaceId: number) {
-  // Toggle expansion logic
-  if (expandedSpaceIds.value.has(spaceId)) {
-    expandedSpaceIds.value.delete(spaceId);
-  } else {
-    expandedSpaceIds.value.add(spaceId);
-    // Also set as current space for context, but don't collapse others
+  spacesStore.toggleSpace(spaceId);
+  if (spacesStore.expandedSpaceIds.has(spaceId)) {
     spacesStore.setCurrentSpace(spaceId);
   }
 }
@@ -910,7 +905,7 @@ async function handleSearchNoteSelected(note: Note | { id: string }, searchQuery
   searchQueryForHighlight.value = searchQuery || null;
   
   try {
-    await navigateToNote(note, expandedSpaceIds.value, (folderId) => {
+    await navigateToNote(note, spacesStore.expandedSpaceIds, (folderId) => {
       selectedFolderId.value = folderId;
     });
   } catch (error) {
@@ -1255,7 +1250,7 @@ const restoreState = () => {
       // Expand the space containing this folder
       const folder = foldersStore.getFolderById(note.folder_id);
       if (folder && folder.space_id) {
-        expandedSpaceIds.value.add(folder.space_id);
+        spacesStore.expandSpace(folder.space_id);
         spacesStore.setCurrentSpace(folder.space_id);
       }
     }

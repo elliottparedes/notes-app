@@ -478,16 +478,19 @@ export const useFoldersStore = defineStore('folders', {
       } else {
         this.expandedFolderIds.add(folderId);
       }
+      this.expandedFolderIds = new Set(this.expandedFolderIds);
       this.saveExpandedState();
     },
 
     expandFolder(folderId: number): void {
       this.expandedFolderIds.add(folderId);
+      this.expandedFolderIds = new Set(this.expandedFolderIds);
       this.saveExpandedState();
     },
 
     collapseFolder(folderId: number): void {
       this.expandedFolderIds.delete(folderId);
+      this.expandedFolderIds = new Set(this.expandedFolderIds);
       this.saveExpandedState();
     },
 
