@@ -213,6 +213,18 @@ const SearchHighlight = Extension.create({
 
 // Custom TaskItem extension that applies strike formatting when checked
 const TaskItemWithStrike = TaskItem.extend({
+  addKeyboardShortcuts() {
+    const parentShortcuts = this.parent?.() || {}
+    return {
+      ...parentShortcuts,
+      Enter: ({ editor }) => {
+        return editor.chain()
+          .splitListItem(this.name)
+          .unsetMark('strike')
+          .run()
+      }
+    }
+  },
   addCommands() {
     return {
       ...this.parent?.(),
@@ -425,44 +437,38 @@ const TaskItemWithStrike = TaskItem.extend({
           const tr = newState.tr
           let modified = false
 
-          // Iterate through all task items to check for checked state changes
+          // Iterate through all task items to enforce consistent state
           newState.doc.descendants((node, pos) => {
             if (node.type.name === 'taskItem') {
               const isChecked = node.attrs.checked
-              // Check if position exists in old document before accessing it
-              // (pasted content may have positions that didn't exist before)
-              const oldNode = pos < oldState.doc.content.size ? oldState.doc.nodeAt(pos) : null
-              const wasChecked = oldNode?.attrs?.checked || false
+              
+              // Iterate through text content of the task item
+              const contentStart = pos + 1
+              const contentEnd = pos + node.nodeSize - 1
 
-              // If checked state changed, apply or remove strike formatting
-              if (isChecked !== wasChecked) {
-                // Find all text nodes within the task item and apply/remove strike
-                const contentStart = pos + 1
-                const contentEnd = pos + node.nodeSize - 1
-
-                newState.doc.nodesBetween(contentStart, contentEnd, (textNode, textPos) => {
-                  if (textNode.isText && textPos >= 0 && textPos + textNode.nodeSize <= newState.doc.content.size) {
-                    const hasStrike = textNode.marks.some(mark => mark.type.name === 'strike')
-                    const strikeMarkType = newState.schema.marks.strike
-                    
-                    if (!strikeMarkType) {
-                      return
-                    }
-                    
-                    if (isChecked && !hasStrike) {
-                      const strikeMark = strikeMarkType.create()
-                      tr.addMark(textPos, textPos + textNode.nodeSize, strikeMark)
+              newState.doc.nodesBetween(contentStart, contentEnd, (textNode, textPos) => {
+                if (textNode.isText && textPos >= 0 && textPos + textNode.nodeSize <= newState.doc.content.size) {
+                  const hasStrike = textNode.marks.some(mark => mark.type.name === 'strike')
+                  const strikeMarkType = newState.schema.marks.strike
+                  
+                  if (!strikeMarkType) {
+                    return
+                  }
+                  
+                  if (isChecked && !hasStrike) {
+                    // Should be struck but isn't
+                    tr.addMark(textPos, textPos + textNode.nodeSize, strikeMarkType.create())
+                    modified = true
+                  } else if (!isChecked && hasStrike) {
+                    // Should NOT be struck but is
+                    const strikeMark = textNode.marks.find(mark => mark.type.name === 'strike')
+                    if (strikeMark) {
+                      tr.removeMark(textPos, textPos + textNode.nodeSize, strikeMark)
                       modified = true
-                    } else if (!isChecked && hasStrike) {
-                      const strikeMark = textNode.marks.find(mark => mark.type.name === 'strike')
-                      if (strikeMark) {
-                        tr.removeMark(textPos, textPos + textNode.nodeSize, strikeMark)
-                        modified = true
-                      }
                     }
                   }
-                })
-              }
+                }
+              })
             }
           })
 
