@@ -1073,7 +1073,7 @@ const editor = useEditor({
   editorProps: {
     attributes: {
       spellcheck: 'true',
-      class: 'prose dark:prose-invert max-w-none focus:outline-none min-h-[calc(100vh-200px)] px-6 py-4'
+      class: 'prose dark:prose-invert text-black dark:text-white max-w-none focus:outline-none min-h-[calc(100vh-200px)] px-6 py-4'
     },
     handleDOMEvents: {
       click: (view, event) => {
@@ -1907,6 +1907,22 @@ async function uploadFiles(files: File[]) {
 .unified-editor :deep(.ProseMirror),
 .collaborative-editor :deep(.ProseMirror) {
   outline: none !important;
+  color: black !important;
+}
+
+.dark .unified-editor :deep(.ProseMirror),
+.dark .collaborative-editor :deep(.ProseMirror) {
+  color: white !important;
+}
+
+.unified-editor :deep(.ProseMirror p),
+.collaborative-editor :deep(.ProseMirror p) {
+  color: black !important;
+}
+
+.dark .unified-editor :deep(.ProseMirror p),
+.dark .collaborative-editor :deep(.ProseMirror p) {
+  color: white !important;
 }
 
 /* Link colors - corporate blue */
