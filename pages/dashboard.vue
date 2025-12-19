@@ -988,6 +988,7 @@ function openCreateFolderModal(spaceId?: number) {
   newFolderName.value = '';
   targetSpaceIdForFolderCreation.value = spaceId;
   showCreateFolderModal.value = true;
+  showSpaceContextMenu.value = null;
 }
 
 async function handleCreateFolder() {

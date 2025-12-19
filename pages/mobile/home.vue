@@ -315,6 +315,7 @@ function openCreateFolderModal(spaceId?: number) {
   newFolderName.value = '';
   targetSpaceIdForFolderCreation.value = spaceId;
   showCreateFolderModal.value = true;
+  openSpaceMenuId.value = null;
 }
 
 // Helper to check if we're on mobile (client-side only)
