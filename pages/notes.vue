@@ -1023,6 +1023,53 @@ function handleTitleChange() {
   }, 1000);
 }
 
+// Handle tags
+const tagInput = ref('');
+
+async function addTag() {
+  const trimmedTag = tagInput.value.trim();
+  if (!trimmedTag || !activeNote.value) return;
+  
+  // Ensure tags is an array
+  const currentTags = activeNote.value.tags || [];
+  
+  // Check if tag already exists
+  if (currentTags.includes(trimmedTag)) {
+    tagInput.value = '';
+    return;
+  }
+  
+  // Update local state
+  activeNote.value.tags = [...currentTags, trimmedTag];
+  tagInput.value = '';
+  
+  // Save changes
+  await saveTags();
+}
+
+async function removeTag(tag: string) {
+  if (!activeNote.value || !activeNote.value.tags) return;
+  
+  // Update local state
+  activeNote.value.tags = activeNote.value.tags.filter(t => t !== tag);
+  
+  // Save changes
+  await saveTags();
+}
+
+async function saveTags() {
+  if (!activeNote.value) return;
+  
+  try {
+    await notesStore.updateNote(activeNote.value.id, {
+      tags: activeNote.value.tags
+    });
+  } catch (error) {
+    console.error('Failed to save tags:', error);
+    toast.error('Failed to save tags');
+  }
+}
+
 // Auto-save content
 let contentSaveTimeout: NodeJS.Timeout | null = null;
 function handleContentChange(newContent: string) {
@@ -1360,7 +1407,7 @@ function handleGlobalKeydown(event: KeyboardEvent) {
 
 // Watch for screen size changes and redirect accordingly
 watch(isMobileView, (isMobile) => {
-  if (isMobile && process.client && route.path === '/dashboard') {
+  if (isMobile && process.client && route.path === '/notes') {
     // Screen became mobile, redirect to mobile home
     router.replace('/mobile/home');
   }
@@ -1368,7 +1415,7 @@ watch(isMobileView, (isMobile) => {
 
 // Listen for window resize to handle responsive routing
 const handleResize = () => {
-  if (window.innerWidth < 1024 && route.path === '/dashboard') {
+  if (window.innerWidth < 1024 && route.path === '/notes') {
     // Screen became mobile, redirect
     router.replace('/mobile/home');
   }
@@ -1536,7 +1583,16 @@ function handleNoteListResizeStart(e: MouseEvent) {
                   </div>
                 </button>
                 <button
-                  @click="switchToStorage(); showViewDropdown = false"
+                  @click="router.push('/kanban'); showViewDropdown = false"
+                  class="w-full text-left px-3 py-1.5 text-sm transition-colors text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                >
+                  <div class="flex items-center gap-2">
+                    <UIcon name="i-heroicons-view-columns" class="w-4 h-4" />
+                    <span>Kanban</span>
+                  </div>
+                </button>
+                <button
+                  @click="router.push('/storage'); showViewDropdown = false"
                   class="w-full text-left px-3 py-1.5 text-sm transition-colors text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
                 >
                   <div class="flex items-center gap-2">
@@ -2085,6 +2141,33 @@ function handleNoteListResizeStart(e: MouseEvent) {
                 </template>
               </div>
             </ClientOnly>
+          </div>
+
+          <!-- Tags Input -->
+          <div class="mt-3 flex items-center gap-2 flex-wrap">
+            <UIcon name="i-heroicons-tag" class="w-4 h-4 text-gray-400 flex-shrink-0" />
+            
+            <div class="flex items-center gap-1.5 flex-wrap">
+              <span
+                v-for="tag in activeNote.tags || []"
+                :key="tag"
+                class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 group cursor-pointer hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400 transition-colors"
+                @click="removeTag(tag)"
+                title="Click to remove"
+              >
+                {{ tag }}
+                <UIcon name="i-heroicons-x-mark" class="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+              </span>
+
+              <input
+                v-model="tagInput"
+                type="text"
+                class="bg-transparent border-none outline-none text-xs text-gray-600 dark:text-gray-400 placeholder-gray-400 min-w-[60px]"
+                placeholder="Add tag..."
+                @keydown.enter="addTag"
+                @blur="addTag"
+              />
+            </div>
           </div>
         </div>
 

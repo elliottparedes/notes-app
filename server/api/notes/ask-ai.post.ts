@@ -45,6 +45,7 @@ Guidelines:
 - If the note has content, modify it according to the prompt while preserving or expanding relevant information
 - Don't be overly brief - provide thorough, well-developed content that fully addresses the user's request
 - Use HTML formatting: <h1>, <h2>, <h3> for headings, <p> for paragraphs, <ul>/<ol> for lists, <strong> and <em> for emphasis
+- For task lists (checkboxes), YOU MUST use this exact HTML structure: <ul data-type="taskList"><li data-type="taskItem" data-checked="false">Task content</li></ul>. Do NOT use standard <ul> or <input type="checkbox"> for tasks.
 - Preserve the structure and style of the original note when appropriate, but feel free to expand and enhance it
 - Make sure the content is well-formatted, readable, and comprehensive`;
 
@@ -63,7 +64,7 @@ Return ONLY a JSON object in this exact format:
 
 Do not include any markdown formatting. Use HTML tags only.`;
 
-    // Call OpenRouter API with Claude Haiku 4.5 (fast and reliable)
+    // Call OpenRouter API with Claude Sonnet 4.5 (1M token context)
     const response = await $fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -73,7 +74,7 @@ Do not include any markdown formatting. Use HTML tags only.`;
         'X-Title': 'Markdown Notes App'
       },
       body: {
-        model: 'anthropic/claude-haiku-4.5',
+        model: 'anthropic/claude-4.5-sonnet',
         messages: [
           {
             role: 'system',
@@ -85,7 +86,7 @@ Do not include any markdown formatting. Use HTML tags only.`;
           }
         ],
         temperature: 0.7,
-        max_tokens: 8000
+        max_tokens: 8192
       }
     });
 

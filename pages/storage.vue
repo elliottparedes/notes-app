@@ -46,7 +46,7 @@ const showViewDropdown = ref(false);
 // Check for view query parameter on mount
 watch(() => route.query.view, (view) => {
   if (view === 'notebooks') {
-    router.replace('/dashboard');
+    router.replace('/notes');
   } else {
     currentView.value = 'storage';
   }

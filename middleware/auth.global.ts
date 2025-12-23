@@ -12,7 +12,7 @@ export default defineNuxtRouteMiddleware(async (to) => {
   // Handle root path - redirect authenticated users to dashboard immediately
   if (to.path === '/') {
     if (authStore.isAuthenticated) {
-      return navigateTo('/dashboard', { replace: true });
+      return navigateTo('/notes', { replace: true });
     }
     // Allow landing page to show for unauthenticated users
     return;
@@ -30,6 +30,6 @@ export default defineNuxtRouteMiddleware(async (to) => {
 
   // Redirect authenticated users away from auth pages
   if (authStore.isAuthenticated && (to.path === '/login' || to.path === '/signup')) {
-    return navigateTo('/dashboard');
+    return navigateTo('/notes');
   }
 });

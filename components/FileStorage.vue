@@ -1,14 +1,16 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch, inject } from 'vue';
+import { useRouter } from 'vue-router';
 import { useFilesStore, type FileItem } from '~/stores/files';
 import { useAuthStore } from '~/stores/auth';
 import { useToast } from '~/composables/useToast';
 
+const router = useRouter();
 const filesStore = useFilesStore();
 const authStore = useAuthStore();
 const toast = useToast();
 
-// Get view switching functions from parent
+// Get view switching functions from parent (legacy)
 const viewSwitcher = inject<{ switchToNotebooks: () => void; switchToStorage: () => void } | null>('switchView', null);
 
 const fileInputRef = ref<HTMLInputElement | null>(null);
@@ -1077,11 +1079,18 @@ onMounted(() => {
                 @click.stop
               >
               <button
-                @click="viewSwitcher?.switchToNotebooks(); showViewDropdown = false"
+                @click="router.push('/notes'); showViewDropdown = false"
                 class="w-full text-left px-3 py-1.5 text-sm transition-colors text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
               >
                 <UIcon name="i-heroicons-book-open" class="w-4 h-4" />
                 <span>Notebooks</span>
+              </button>
+              <button
+                @click="router.push('/kanban'); showViewDropdown = false"
+                class="w-full text-left px-3 py-1.5 text-sm transition-colors text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
+              >
+                <UIcon name="i-heroicons-view-columns" class="w-4 h-4" />
+                <span>Kanban</span>
               </button>
               <button
                 @click="showViewDropdown = false"

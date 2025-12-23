@@ -36,7 +36,7 @@ if (process.client) {
   if (token) {
     // Token exists - redirect immediately without waiting for nextTick
     // Use router.replace() immediately to prevent any rendering
-    router.replace('/dashboard');
+    router.replace('/notes');
   } else {
     // No token found, immediately mark auth as initialized
     authStore.initialized = true;
@@ -101,7 +101,7 @@ onMounted(async () => {
   
   // Final check - redirect if authenticated
   if (authStore.isAuthenticated) {
-    await router.replace('/dashboard');
+    await router.replace('/notes');
   } else {
     // Not authenticated despite having token (invalid/expired)
     checkingAuth.value = false;

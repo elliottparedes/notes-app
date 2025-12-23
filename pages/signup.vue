@@ -22,7 +22,7 @@ if (process.client) {
   
   if (token) {
     // Token exists - redirect immediately to prevent flash
-    router.replace('/dashboard');
+    router.replace('/notes');
   }
 }
 
@@ -42,7 +42,7 @@ onMounted(async () => {
 
   // Token exists - redirect if authenticated
   if (authStore.isAuthenticated) {
-    await router.replace('/dashboard');
+    await router.replace('/notes');
   } else {
     checkingAuth.value = false;
   }

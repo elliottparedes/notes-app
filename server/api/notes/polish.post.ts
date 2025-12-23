@@ -42,7 +42,7 @@ Please:
 1. Keep the original title exactly as provided - do NOT change or modify it
 2. Reorganize and clean up the content into well-structured HTML
 3. Fix any typos, grammar issues, and formatting problems
-4. If it's a to-do list, organize it with proper task list formatting
+4. If it's a to-do list, organize it with proper task list formatting using <ul data-type="taskList"><li data-type="taskItem" data-checked="false">Task content</li></ul>
 5. If there are random thoughts, organize them into logical sections with headings
 6. Preserve important information but make it more readable and professional
 7. Use appropriate HTML tags: <h1>, <h2>, <h3> for headings, <p> for paragraphs, <ul>/<ol> for lists, <strong> and <em> for emphasis
@@ -68,7 +68,7 @@ Do not include any markdown formatting. Use HTML tags only.`;
         'X-Title': 'Markdown Notes App'
       },
       body: {
-        model: 'anthropic/claude-haiku-4.5',
+        model: 'anthropic/claude-4.5-sonnet',
         messages: [
           {
             role: 'user',
@@ -76,7 +76,7 @@ Do not include any markdown formatting. Use HTML tags only.`;
           }
         ],
         temperature: 0.7,
-        max_tokens: 2000
+        max_tokens: 8192
       }
     });
 

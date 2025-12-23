@@ -1,25 +1,23 @@
 export interface Note {
-  id: string; // UUID
+  id: string;
   user_id: number;
   title: string;
   content: string | null;
   tags: string[] | null;
   is_favorite: boolean;
-  folder: string | null; // Legacy - keep for backward compatibility
-  folder_id: number | null; // New - references folders table
-  created_at: Date;
-  updated_at: Date;
-  is_shared?: boolean; // Whether this note is shared with others
-  share_permission?: 'viewer' | 'editor'; // User's permission if shared with them
+  folder: string | null;
+  folder_id: number | null;
+  created_at: string | Date;
+  updated_at: string | Date;
+  is_shared: boolean;
+  share_permission?: 'viewer' | 'editor';
 }
 
 export interface CreateNoteDto {
   title: string;
-  content?: string;
+  content: string;
   tags?: string[];
-  is_favorite?: boolean;
-  folder?: string | null | undefined; // Legacy
-  folder_id?: number | null | undefined; // New
+  folder_id?: number | null;
 }
 
 export interface UpdateNoteDto {
@@ -27,8 +25,8 @@ export interface UpdateNoteDto {
   content?: string;
   tags?: string[];
   is_favorite?: boolean;
-  folder?: string | null | undefined; // Legacy
-  folder_id?: number | null | undefined; // New
+  folder?: string | null;
+  folder_id?: number | null;
 }
 
 export interface NoteFilters {

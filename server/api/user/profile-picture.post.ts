@@ -4,7 +4,7 @@ import { requireAuth } from '../../utils/auth';
 import { uploadFile } from '../../utils/minio';
 import type { User } from '../../../models';
 
-const MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB for profile picture
+const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB for profile picture
 
 export default defineEventHandler(async (event) => {
   const userId = await requireAuth(event);

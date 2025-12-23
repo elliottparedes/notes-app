@@ -39,15 +39,13 @@ export default defineEventHandler(async (event): Promise<Note> => {
 
     // Insert note with UUID
     await executeQuery<ResultSetHeader>(
-      'INSERT INTO notes (id, user_id, title, content, tags, is_favorite, folder, folder_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO notes (id, user_id, title, content, tags, folder_id) VALUES (?, ?, ?, ?, ?, ?)',
       [
         noteId,
         userId,
         title,
         body.content || null,
         tagsJson,
-        body.is_favorite || false,
-        body.folder || null,
         body.folder_id || null
       ]
     );

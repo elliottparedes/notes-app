@@ -487,7 +487,7 @@ function highlightText(text: string, query: string): string {
                               :key="tag"
                               class="text-xs px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded"
                             >
-                              {{ tag }}
+                              <span v-html="highlightText(tag, searchQuery)"></span>
                             </span>
                           </div>
                         </div>

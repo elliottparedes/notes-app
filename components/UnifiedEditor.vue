@@ -2005,6 +2005,7 @@ async function uploadFiles(files: File[]) {
 .collaborative-editor :deep(.ProseMirror ul[data-type="taskList"] li[data-type="taskItem"] div) {
   flex: 1;
   min-width: 0; /* Important for flex containers to allow text to wrap properly and have width */
+  cursor: text; /* Ensure clicking wrapper sets cursor */
 }
 
 .unified-editor :deep(.note-link) {
@@ -2026,10 +2027,17 @@ async function uploadFiles(files: File[]) {
 
 .unified-editor :deep(.ProseMirror ul[data-type="taskList"] li[data-type="taskItem"] p),
 .collaborative-editor :deep(.ProseMirror ul[data-type="taskList"] li[data-type="taskItem"] p) {
-  min-height: 1.5em;
+  min-height: 1.5em; /* Ensure empty items have height */
   margin: 0;
   width: 100%; /* Ensure paragraph takes full width */
-  caret-color: currentColor; /* Ensure cursor is visible */
+  display: block; /* Ensure block display */
+  caret-color: black; /* Force visible caret color */
+  cursor: text;
+}
+
+.dark .unified-editor :deep(.ProseMirror ul[data-type="taskList"] li[data-type="taskItem"] p),
+.dark .collaborative-editor :deep(.ProseMirror ul[data-type="taskList"] li[data-type="taskItem"] p) {
+  caret-color: white; /* Force visible caret color in dark mode */
 }
 
 /* Mobile specific enhancements */

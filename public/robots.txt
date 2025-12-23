@@ -1,9 +1,8 @@
 User-Agent: *
 Allow: /
 Disallow: /api/
-Disallow: /dashboard/
-Disallow: /settings/
 Disallow: /notes/
+Disallow: /settings/
 
 # Sitemap location
 Sitemap: http://iok8gcgswosgo00kk4888g0s.155.117.44.112.sslip.io/sitemap.xml

@@ -60,7 +60,7 @@ const router = useRouter();
 
 onMounted(() => {
   if (authStore.token && authStore.currentUser) {
-    router.push('/dashboard');
+    router.push('/notes');
   }
 });
 </script>

@@ -323,7 +323,7 @@ const isMobileView = computed(() => {
 watch(isMobileView, (isMobile) => {
   if (!isMobile && process.client) {
     // Screen became desktop size, redirect to dashboard
-    router.replace('/dashboard');
+    router.replace('/notes');
   }
 }, { immediate: false });
 
@@ -331,7 +331,7 @@ watch(isMobileView, (isMobile) => {
 const handleResize = () => {
   if (window.innerWidth >= 1024) {
     // Screen became desktop, redirect
-    router.replace('/dashboard');
+    router.replace('/notes');
   }
 };
 
@@ -339,7 +339,7 @@ const handleResize = () => {
 onMounted(async () => {
   // Redirect if on desktop
   if (!isMobileView.value) {
-    router.replace('/dashboard');
+    router.replace('/notes');
     return;
   }
 

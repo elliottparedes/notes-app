@@ -187,7 +187,7 @@ async function handleChangePassword() {
 }
 
 function goBack() {
-  navigateTo('/dashboard');
+  navigateTo('/notes');
 }
 </script>
 
@@ -203,7 +203,7 @@ function goBack() {
           <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
           </svg>
-          Back to Dashboard
+          Back to Notes
         </button>
         
         <h1 class="text-2xl font-semibold text-gray-900 dark:text-white">Settings</h1>
@@ -265,7 +265,7 @@ function goBack() {
             </div>
             <div class="flex-1 text-center sm:text-left">
               <h3 class="text-sm font-medium text-gray-900 dark:text-white mb-1">Profile Picture</h3>
-              <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">JPG, GIF or PNG. Max size of 5MB.</p>
+              <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">JPG, GIF or PNG. Max size of 10MB.</p>
               <div class="flex justify-center sm:justify-start">
                 <button
                   @click="profilePictureInput?.click()"

@@ -152,14 +152,14 @@ onMounted(async () => {
     if (window.innerWidth < 1024) {
       router.push('/mobile/home');
     } else {
-      router.push('/dashboard');
+      router.push('/notes');
     }
   } catch (error) {
     console.error('Error opening note:', error);
     if (window.innerWidth < 1024) {
       router.push('/mobile/home');
     } else {
-      router.push('/dashboard');
+      router.push('/notes');
     }
   }
 });
@@ -481,7 +481,7 @@ async function confirmDelete() {
       color: 'success'
     });
     showDeleteModal.value = false;
-    router.push('/dashboard');
+    router.push('/notes');
   } catch (error) {
     toast.add({
       title: 'Error',
@@ -685,7 +685,7 @@ onUnmounted(() => {
             color="neutral"
             variant="ghost"
             size="sm"
-            @click="router.push('/dashboard')"
+            @click="router.push('/notes')"
           />
           <div class="flex items-center gap-2">
             <div class="w-8 h-8 bg-gradient-to-br from-primary-500 to-primary-600 rounded-lg flex items-center justify-center shadow-lg">

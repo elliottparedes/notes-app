@@ -57,7 +57,7 @@ export const useAuthStore = defineStore('auth', {
         }
         
         // Navigate to dashboard
-        await navigateTo('/dashboard');
+        await navigateTo('/notes');
       } catch (err: unknown) {
         // Extract error message from $fetch error response
         let errorMessage = 'Signup failed';
@@ -115,7 +115,7 @@ export const useAuthStore = defineStore('auth', {
           await navigateTo('/settings');
         } else {
           // Navigate to dashboard
-          await navigateTo('/dashboard');
+          await navigateTo('/notes');
         }
       } catch (err: unknown) {
         // Extract error message from $fetch error response

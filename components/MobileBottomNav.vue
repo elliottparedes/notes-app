@@ -5,7 +5,7 @@ const route = useRoute();
 // Determine active route
 const activeRoute = computed(() => {
   const path = route.path;
-  if (path === '/mobile/home' || path === '/dashboard') return 'home';
+  if (path === '/mobile/home' || path === '/notes') return 'home';
   if (path === '/mobile/search') return 'search';
   if (path === '/mobile/ai-chat') return 'ai-chat';
   if (path === '/mobile/storage') return 'home'; // Storage shows home as active

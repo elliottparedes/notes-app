@@ -113,13 +113,25 @@ function calculateRelevanceScore(
     score += 50;
   }
 
-  // Tag matches (medium priority)
+  // Tag matches (high priority)
+  // Check for exact tag match with the full query
+  const fullQueryMatch = tags.some(tag => tag.toLowerCase() === queryLower);
+  if (fullQueryMatch) {
+    score += 2000;
+  }
+
+  // Check for partial matches
   for (const word of words) {
     if (word.length < 2) continue;
     for (const tag of tags) {
-      if (tag.toLowerCase().includes(word)) {
-        score += 150;
-        break;
+      const tagLower = tag.toLowerCase();
+      // Exact word match in tag
+      if (tagLower === word) {
+        score += 800;
+      }
+      // Partial match
+      else if (tagLower.includes(word)) {
+        score += 400;
       }
     }
   }
@@ -225,20 +237,20 @@ export default defineEventHandler(async (event): Promise<SearchResult[]> => {
       const fulltextWords = words.filter(w => w.length >= 3).join(' ');
       
       if (fulltextWords) {
-        conditions.push(`(MATCH(n.title, n.content) AGAINST(? IN BOOLEAN MODE) OR n.title LIKE ? OR n.content LIKE ?)`);
+        conditions.push(`(MATCH(n.title, n.content) AGAINST(? IN BOOLEAN MODE) OR n.title LIKE ? OR n.content LIKE ? OR n.tags LIKE ?)`);
       } else {
         // For short words, use LIKE
         const likePattern = `%${escapedQueryLower}%`;
-        conditions.push(`(n.title LIKE ? OR n.content LIKE ?)`);
+        conditions.push(`(n.title LIKE ? OR n.content LIKE ? OR n.tags LIKE ?)`);
       }
     } else if (phrases.length > 0) {
       // Only phrases, use LIKE
       const likePattern = `%${escapedQueryLower}%`;
-      conditions.push(`(n.title LIKE ? OR n.content LIKE ?)`);
+      conditions.push(`(n.title LIKE ? OR n.content LIKE ? OR n.tags LIKE ?)`);
     } else {
       // Fallback to LIKE
       const likePattern = `%${escapedQueryLower}%`;
-      conditions.push(`(n.title LIKE ? OR n.content LIKE ?)`);
+      conditions.push(`(n.title LIKE ? OR n.content LIKE ? OR n.tags LIKE ?)`);
     }
 
     // Build the query
@@ -260,14 +272,14 @@ export default defineEventHandler(async (event): Promise<SearchResult[]> => {
         // Use FULLTEXT with boolean mode for better matching
         const fulltextQuery = fulltextWords.split(' ').map(w => `+${w}*`).join(' ');
         const likePattern = `%${escapedQueryLower}%`;
-        params.push(fulltextQuery, likePattern, likePattern);
+        params.push(fulltextQuery, likePattern, likePattern, likePattern);
       } else {
         const likePattern = `%${escapedQueryLower}%`;
-        params.push(likePattern, likePattern);
+        params.push(likePattern, likePattern, likePattern);
       }
     } else {
       const likePattern = `%${escapedQueryLower}%`;
-      params.push(likePattern, likePattern);
+      params.push(likePattern, likePattern, likePattern);
     }
 
     // Execute query
