@@ -7,6 +7,7 @@ import { useFoldersStore } from '~/stores/folders';
 import { useSpacesStore } from '~/stores/spaces';
 import { useSharedNotesStore } from '~/stores/sharedNotes';
 import { useToast } from '~/composables/useToast';
+import AppLoadingScreen from '~/components/AppLoadingScreen.vue';
 import { useNoteNavigation } from '~/composables/useNoteNavigation';
 import type { Note, CreateNoteDto, CreateFolderDto, Space } from '~/models';
 import Sortable from 'sortablejs';
@@ -774,6 +775,9 @@ const sheetDisplayNotes = computed(() => getOrderedNotesForFolder(sheetFolderId.
 
 const activeNote = computed(() => notesStore.activeNote);
 
+// Computed property for editor editable state
+const isEditorEditable = computed(() => !(isPolishing.value || isAskingAI.value));
+
 // Mobile Home view: cross-space recent notes
 const regularNotesSortedByUpdated = computed(() => {
   return notesStore.notes
@@ -1097,8 +1101,12 @@ function handleContentChange(newContent: string) {
 const isPolishing = ref(false);
 async function polishNote() {
   if (!activeNote.value) return;
+
+  const originalNoteId = activeNote.value.id; // Capture original note ID
+  const originalNoteTitle = activeNote.value.title; // Capture original note title
+  const originalNoteContent = activeNote.value.content; // Capture original note content
   
-  if (!activeNote.value.title?.trim() && !activeNote.value.content?.trim()) {
+  if (!originalNoteTitle?.trim() && !originalNoteContent?.trim()) {
     toast.error('Add some content to your note first');
     return;
   }
@@ -1118,22 +1126,22 @@ async function polishNote() {
         Authorization: `Bearer ${authStore.token}`
       },
       body: {
-        title: activeNote.value.title || 'Untitled Note',
-        content: activeNote.value.content || ''
+        title: originalNoteTitle || 'Untitled Note',
+        content: originalNoteContent || ''
       }
     });
 
-    // Update the note with the polished content
-    if (activeNote.value) {
+    // Only update if the active note hasn't changed
+    if (activeNote.value && activeNote.value.id === originalNoteId) {
       activeNote.value.title = response.title;
       activeNote.value.content = response.content;
-      
-      // Save the changes
-      await notesStore.updateNote(activeNote.value.id, {
-        title: response.title,
-        content: response.content
-      });
     }
+    
+    // Always save changes to the original note ID
+    await notesStore.updateNote(originalNoteId, {
+      title: response.title,
+      content: response.content
+    });
 
     toast.success('Note polished! ✨');
   } catch (error: any) {
@@ -1192,6 +1200,10 @@ async function downloadPDF() {
 async function askAINote(prompt: string) {
   if (!activeNote.value) return;
   
+  const originalNoteId = activeNote.value.id; // Capture original note ID
+  const originalNoteTitle = activeNote.value.title; // Capture original note title
+  const originalNoteContent = activeNote.value.content; // Capture original note content
+
   if (!prompt || !prompt.trim()) {
     return;
   }
@@ -1211,21 +1223,21 @@ async function askAINote(prompt: string) {
         Authorization: `Bearer ${authStore.token}`
       },
       body: {
-        title: activeNote.value.title || 'Untitled Note',
-        content: activeNote.value.content || '',
+        title: originalNoteTitle || 'Untitled Note',
+        content: originalNoteContent || '',
         prompt: prompt
       }
     });
 
-    // Update the note with the AI-modified content
-    if (activeNote.value) {
+    // Only update if the active note hasn't changed
+    if (activeNote.value && activeNote.value.id === originalNoteId) {
       activeNote.value.content = response.content;
-      
-      // Save the changes
-      await notesStore.updateNote(activeNote.value.id, {
-        content: response.content
-      });
     }
+    
+    // Always save changes to the original note ID
+    await notesStore.updateNote(originalNoteId, {
+      content: response.content
+    });
 
     toast.success('Note updated! ✨');
   } catch (error: any) {
@@ -1528,7 +1540,8 @@ function handleNoteListResizeStart(e: MouseEvent) {
 </script>
 
 <template>
-  <div class="flex h-screen w-full bg-white dark:bg-gray-900 overflow-hidden">
+  <AppLoadingScreen v-if="!hasInitialized" />
+  <div v-else class="flex h-screen w-full bg-white dark:bg-gray-900 overflow-hidden">
     
     <!-- Column 1: Notebooks & Sections (Sidebar) -->
     <aside 
@@ -2177,7 +2190,7 @@ function handleNoteListResizeStart(e: MouseEvent) {
               ref="editorRef"
               v-model="activeNote.content"
               :note-id="activeNote.id"
-              :editable="true"
+              :editable="isEditorEditable"
               :placeholder="'Start writing...'"
               :is-collaborative="false"
               :is-polishing="isPolishing"
