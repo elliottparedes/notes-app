@@ -183,3 +183,7 @@ body > div[data-notivue-align="top-left"] .Notivue__leave,
   }
 }
 
+.prose p {
+  margin-bottom: 1rem;
+}
+

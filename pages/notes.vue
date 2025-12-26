@@ -853,6 +853,9 @@ async function handleSelectFolder(folderId: number) {
   const notes = getOrderedNotesForFolder(folderId);
   if (notes.length > 0) {
     await handleOpenNote(notes[0].id);
+  } else {
+    // If the folder is empty, clear the active note
+    notesStore.activeTabId = null;
   }
 }
 
@@ -1789,9 +1792,9 @@ function handleNoteListResizeStart(e: MouseEvent) {
 
       
       <!-- User Footer -->
-      <div class="p-3 border-t border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800">
+      <div class="p-3 border-t border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-lg">
         <div class="flex items-center gap-2">
-          <div class="w-7 h-7 bg-blue-600 dark:bg-blue-500 flex items-center justify-center text-white text-xs font-medium overflow-hidden">
+          <div class="w-7 h-7 bg-blue-600 dark:bg-blue-500 flex items-center justify-center text-white text-xs font-medium overflow-hidden rounded-full">
             <img 
               v-if="authStore.currentUser?.profile_picture_url" 
               :src="authStore.currentUser.profile_picture_url" 

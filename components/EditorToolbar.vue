@@ -1,10 +1,12 @@
 <script setup lang="ts">
+import { ref, computed, nextTick } from 'vue'; // Added computed
 import type { Editor } from '@tiptap/vue-3';
 
 const props = defineProps<{
   editor: Editor | null | undefined;
   isPolishing?: boolean;
   isAskingAI?: boolean;
+  hideAiButtons?: boolean; // New prop to hide AI buttons
 }>();
 
 const emit = defineEmits<{
@@ -51,206 +53,209 @@ const isActive = (name: string, attributes?: Record<string, any>) => {
 };
 
 // Toolbar items configuration
-const toolbarGroups = [
-  {
-    name: 'text',
-    items: [
-      {
-        icon: 'i-heroicons-bold',
-        title: 'Bold',
-        action: () => props.editor?.chain().focus().toggleBold().run(),
-        isActive: () => isActive('bold'),
-      },
-      {
-        icon: 'i-heroicons-italic',
-        title: 'Italic',
-        action: () => props.editor?.chain().focus().toggleItalic().run(),
-        isActive: () => isActive('italic'),
-      },
-      {
-        icon: 'i-heroicons-strikethrough',
-        title: 'Strike',
-        action: () => props.editor?.chain().focus().toggleStrike().run(),
-        isActive: () => isActive('strike'),
-      },
-      {
-        icon: 'i-heroicons-code-bracket',
-        title: 'Inline Code',
-        action: () => props.editor?.chain().focus().toggleCode().run(),
-        isActive: () => isActive('code'),
-      },
-      {
-        icon: 'i-heroicons-command-line',
-        title: 'Code Block',
-        action: () => props.editor?.chain().focus().toggleCodeBlock().run(),
-        isActive: () => isActive('codeBlock'),
-      },
-    ],
-  },
-  {
-    name: 'headings',
-    items: [
-      {
-        // icon: 'i-lucide-heading-1', // Using text label for reliability
-        label: 'H1',
-        title: 'Heading 1',
-        action: () => props.editor?.chain().focus().toggleHeading({ level: 1 }).run(),
-        isActive: () => isActive('heading', { level: 1 }),
-      },
-      {
-        // icon: 'i-lucide-heading-2',
-        label: 'H2',
-        title: 'Heading 2',
-        action: () => props.editor?.chain().focus().toggleHeading({ level: 2 }).run(),
-        isActive: () => isActive('heading', { level: 2 }),
-      },
-      {
-        // icon: 'i-lucide-heading-3',
-        label: 'H3',
-        title: 'Heading 3',
-        action: () => props.editor?.chain().focus().toggleHeading({ level: 3 }).run(),
-        isActive: () => isActive('heading', { level: 3 }),
-      },
-    ],
-  },
-  {
-    name: 'lists',
-    items: [
-      {
-        icon: 'i-heroicons-list-bullet',
-        title: 'Bullet List',
-        action: () => props.editor?.chain().focus().toggleBulletList().run(),
-        isActive: () => isActive('bulletList'),
-      },
-      {
-        icon: 'i-heroicons-numbered-list',
-        title: 'Ordered List',
-        action: () => props.editor?.chain().focus().toggleOrderedList().run(),
-        isActive: () => isActive('orderedList'),
-      },
-      {
-        icon: 'i-heroicons-clipboard-document-check',
-        title: 'Task List',
-        action: () => props.editor?.chain().focus().toggleTaskList().run(),
-        isActive: () => isActive('taskList'),
-      },
-    ],
-  },
-  {
-    name: 'insert',
-    items: [
-      {
-        icon: 'i-heroicons-link',
-        title: 'Link',
-        action: () => emit('insert-link'),
-        isActive: () => isActive('link'),
-      },
-      {
-        icon: 'i-heroicons-photo',
-        title: 'Image',
-        action: () => emit('insert-image'),
-      },
-      {
-        icon: 'i-heroicons-video-camera',
-        title: 'YouTube',
-        action: () => emit('insert-youtube'),
-      },
-      {
-        icon: 'i-heroicons-table-cells',
-        title: 'Table',
-        action: () => emit('insert-table'),
-      },
-      {
-        icon: 'i-heroicons-chat-bubble-bottom-center-text',
-        title: 'Blockquote',
-        action: () => props.editor?.chain().focus().toggleBlockquote().run(),
-        isActive: () => isActive('blockquote'),
-      },
-      {
-        icon: 'i-heroicons-minus',
-        title: 'Horizontal Rule',
-        action: () => props.editor?.chain().focus().setHorizontalRule().run(),
-      },
-    ],
-  },
-  {
-    name: 'ai',
-    items: [
-      {
-        icon: 'i-heroicons-sparkles',
-        title: 'Polish with AI',
-        action: () => {
-          console.log('Toolbar: Polish button clicked');
-          emit('polish');
+const toolbarGroups = computed(() => { // Changed to computed property
+  const groups = [
+    {
+      name: 'text',
+      items: [
+        {
+          icon: 'i-heroicons-bold',
+          title: 'Bold',
+          action: () => props.editor?.chain().focus().toggleBold().run(),
+          isActive: () => isActive('bold'),
         },
-        color: 'text-purple-600 dark:text-purple-400',
-        isLoading: () => props.isPolishing
-      },
-      {
-        icon: 'i-heroicons-chat-bubble-left-right',
-        title: 'Ask AI',
-        action: () => {
-          console.log('Toolbar: AskAI button clicked');
-          toggleAskAIPrompt();
+        {
+          icon: 'i-heroicons-italic',
+          title: 'Italic',
+          action: () => props.editor?.chain().focus().toggleItalic().run(),
+          isActive: () => isActive('italic'),
         },
-        color: 'text-purple-600 dark:text-purple-400',
-        isLoading: () => props.isAskingAI,
-        isActive: () => showAskAIPrompt.value
-      }
-    ]
-  },
-  // Table controls - only shown when in a table
-  {
-    name: 'table',
-    items: [
-      {
-        icon: 'i-heroicons-arrow-left',
-        title: 'Add Column Left',
-        action: () => props.editor?.chain().focus().addColumnBefore().run(),
-        isHidden: () => !isActive('table'),
-      },
-      {
-        icon: 'i-heroicons-arrow-right',
-        title: 'Add Column Right',
-        action: () => props.editor?.chain().focus().addColumnAfter().run(),
-        isHidden: () => !isActive('table'),
-      },
-      {
-        icon: 'i-heroicons-arrow-up',
-        title: 'Add Row Before',
-        action: () => props.editor?.chain().focus().addRowBefore().run(),
-        isHidden: () => !isActive('table'),
-      },
-      {
-        icon: 'i-heroicons-arrow-down',
-        title: 'Add Row After',
-        action: () => props.editor?.chain().focus().addRowAfter().run(),
-        isHidden: () => !isActive('table'),
-      },
-      {
-        icon: 'i-heroicons-table-cells',
-        title: 'Delete Column',
-        action: () => props.editor?.chain().focus().deleteColumn().run(),
-        isHidden: () => !isActive('table'),
-        color: 'text-red-600 dark:text-red-400',
-      },
-      {
-        icon: 'i-heroicons-queue-list',
-        title: 'Delete Row',
-        action: () => props.editor?.chain().focus().deleteRow().run(),
-        isHidden: () => !isActive('table'),
-        color: 'text-red-600 dark:text-red-400',
-      },
-      {
-        icon: 'i-heroicons-trash',
-        title: 'Delete Table',
-        action: () => props.editor?.chain().focus().deleteTable().run(),
-        isHidden: () => !isActive('table'),
-        color: 'text-red-600 dark:text-red-400',
-      },
-    ],
-  },
-];
+        {
+          icon: 'i-heroicons-strikethrough',
+          title: 'Strike',
+          action: () => props.editor?.chain().focus().toggleStrike().run(),
+          isActive: () => isActive('strike'),
+        },
+        {
+          icon: 'i-heroicons-code-bracket',
+          title: 'Inline Code',
+          action: () => props.editor?.chain().focus().toggleCode().run(),
+          isActive: () => isActive('code'),
+        },
+        {
+          icon: 'i-heroicons-command-line',
+          title: 'Code Block',
+          action: () => props.editor?.chain().focus().toggleCodeBlock().run(),
+          isActive: () => isActive('codeBlock'),
+        },
+      ],
+    },
+    {
+      name: 'headings',
+      items: [
+        {
+          label: 'H1',
+          title: 'Heading 1',
+          action: () => props.editor?.chain().focus().toggleHeading({ level: 1 }).run(),
+          isActive: () => isActive('heading', { level: 1 }),
+        },
+        {
+          label: 'H2',
+          title: 'Heading 2',
+          action: () => props.editor?.chain().focus().toggleHeading({ level: 2 }).run(),
+          isActive: () => isActive('heading', { level: 2 }),
+        },
+        {
+          label: 'H3',
+          title: 'Heading 3',
+          action: () => props.editor?.chain().focus().toggleHeading({ level: 3 }).run(),
+          isActive: () => isActive('heading', { level: 3 }),
+        },
+      ],
+    },
+    {
+      name: 'lists',
+      items: [
+        {
+          icon: 'i-heroicons-list-bullet',
+          title: 'Bullet List',
+          action: () => props.editor?.chain().focus().toggleBulletList().run(),
+          isActive: () => isActive('bulletList'),
+        },
+        {
+          icon: 'i-heroicons-numbered-list',
+          title: 'Ordered List',
+          action: () => props.editor?.chain().focus().toggleOrderedList().run(),
+          isActive: () => isActive('orderedList'),
+        },
+        {
+          icon: 'i-heroicons-clipboard-document-check',
+          title: 'Task List',
+          action: () => props.editor?.chain().focus().toggleTaskList().run(),
+          isActive: () => isActive('taskList'),
+        },
+      ],
+    },
+    {
+      name: 'insert',
+      items: [
+        {
+          icon: 'i-heroicons-link',
+          title: 'Link',
+          action: () => emit('insert-link'),
+          isActive: () => isActive('link'),
+        },
+        {
+          icon: 'i-heroicons-photo',
+          title: 'Image',
+          action: () => emit('insert-image'),
+        },
+        {
+          icon: 'i-heroicons-video-camera',
+          title: 'YouTube',
+          action: () => emit('insert-youtube'),
+        },
+        {
+          icon: 'i-heroicons-table-cells',
+          title: 'Table',
+          action: () => emit('insert-table'),
+        },
+        {
+          icon: 'i-heroicons-chat-bubble-bottom-center-text',
+          title: 'Blockquote',
+          action: () => props.editor?.chain().focus().toggleBlockquote().run(),
+          isActive: () => isActive('blockquote'),
+        },
+        {
+          icon: 'i-heroicons-minus',
+          title: 'Horizontal Rule',
+          action: () => props.editor?.chain().focus().setHorizontalRule().run(),
+        },
+      ],
+    },
+    // Table controls - only shown when in a table
+    {
+      name: 'table',
+      items: [
+        {
+          icon: 'i-heroicons-arrow-left',
+          title: 'Add Column Left',
+          action: () => props.editor?.chain().focus().addColumnBefore().run(),
+          isHidden: () => !isActive('table'),
+        },
+        {
+          icon: 'i-heroicons-arrow-right',
+          title: 'Add Column Right',
+          action: () => props.editor?.chain().focus().addColumnAfter().run(),
+          isHidden: () => !isActive('table'),
+        },
+        {
+          icon: 'i-heroicons-arrow-up',
+          title: 'Add Row Before',
+          action: () => props.editor?.chain().focus().addRowBefore().run(),
+          isHidden: () => !isActive('table'),
+        },
+        {
+          icon: 'i-heroicons-arrow-down',
+          title: 'Add Row After',
+          action: () => props.editor?.chain().focus().addRowAfter().run(),
+          isHidden: () => !isActive('table'),
+        },
+        {
+          icon: 'i-heroicons-table-cells',
+          title: 'Delete Column',
+          action: () => props.editor?.chain().focus().deleteColumn().run(),
+          isHidden: () => !isActive('table'),
+          color: 'text-red-600 dark:text-red-400',
+        },
+        {
+          icon: 'i-heroicons-queue-list',
+          title: 'Delete Row',
+          action: () => props.editor?.chain().focus().deleteRow().run(),
+          isHidden: () => !isActive('table'),
+          color: 'text-red-600 dark:text-red-400',
+        },
+        {
+          icon: 'i-heroicons-trash',
+          title: 'Delete Table',
+          action: () => props.editor?.chain().focus().deleteTable().run(),
+          isHidden: () => !isActive('table'),
+          color: 'text-red-600 dark:text-red-400',
+        },
+      ],
+    },
+  ];
+
+  if (!props.hideAiButtons) {
+    groups.splice(4, 0, { // Insert before 'table' group
+      name: 'ai',
+      items: [
+        {
+          icon: 'i-heroicons-sparkles',
+          title: 'Polish with AI',
+          action: () => {
+            console.log('Toolbar: Polish button clicked');
+            emit('polish');
+          },
+          color: 'text-purple-600 dark:text-purple-400',
+          isLoading: () => props.isPolishing
+        },
+        {
+          icon: 'i-heroicons-chat-bubble-left-right',
+          title: 'Ask AI',
+          action: () => {
+            console.log('Toolbar: AskAI button clicked');
+            toggleAskAIPrompt();
+          },
+          color: 'text-purple-600 dark:text-purple-400',
+          isLoading: () => props.isAskingAI,
+          isActive: () => showAskAIPrompt.value
+        }
+      ]
+    });
+  }
+  return groups;
+});
 </script>
 
 <template>
@@ -289,7 +294,7 @@ const toolbarGroups = [
           </template>
           
           <!-- Separator -->
-          <div v-if="index < toolbarGroups.length - 1 && toolbarGroups.slice(index + 1).some(g => g.items.some(i => !i.isHidden?.()))" class="w-px h-5 bg-gray-300 dark:bg-gray-600 mx-1 flex-shrink-0"></div>
+          <div v-if="index < toolbarGroups.length - 1 && toolbarGroups[index + 1].name !== 'ai' && toolbarGroups.slice(index + 1).some(g => g.items.some(i => !i.isHidden?.()))" class="w-px h-5 bg-gray-300 dark:bg-gray-600 mx-1 flex-shrink-0"></div>
         </template>
       </div>
     </div>
@@ -345,4 +350,3 @@ const toolbarGroups = [
   scrollbar-width: none;
 }
 </style>
-

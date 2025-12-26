@@ -6,6 +6,7 @@ import { useKanbanStore } from '~/stores/kanban';
 import { useToast } from '~/composables/useToast';
 import type { KanbanCard, CreateKanbanCardDto } from '~/models/Kanban';
 import Sortable from 'sortablejs';
+import AddNoteModal from '~/components/AddNoteModal.vue';
 
 const router = useRouter();
 const authStore = useAuthStore();
@@ -16,7 +17,11 @@ const isMounted = ref(false);
 const showViewDropdown = ref(false);
 
 const columnRefs = ref(new Map<string, HTMLElement>());
-const quickAddContent = ref<Record<string, string>>({});
+
+// Modal states
+const showAddNoteModal = ref(false);
+const newNoteStatus = ref('backlog');
+const cardToEdit = ref<KanbanCard | null>(null);
 
 // Delete card confirmation
 const showDeleteCardModal = ref(false);
@@ -83,19 +88,34 @@ onMounted(async () => {
 });
 
 // Handlers
-async function handleQuickAdd(columnId: string) {
-  const title = quickAddContent.value[columnId]?.trim();
-  if (!title) return;
-  
+function openAddNoteModal(status: string) {
+  cardToEdit.value = null;
+  newNoteStatus.value = status;
+  showAddNoteModal.value = true;
+}
+
+function openEditNoteModal(card: KanbanCard) {
+  cardToEdit.value = { ...card };
+  showAddNoteModal.value = true;
+}
+
+async function handleSaveNote(card: CreateKanbanCardDto) {
   try {
-    await kanbanStore.createKanbanCard({
-      title: title,
-      status: columnId,
-    } as CreateKanbanCardDto);
-    quickAddContent.value[columnId] = '';
+    await kanbanStore.createKanbanCard(card);
     toast.success('Card added');
+    showAddNoteModal.value = false;
   } catch (e) {
     toast.error('Failed to add card');
+  }
+}
+
+async function handleUpdateNote(card: KanbanCard) {
+  try {
+    await kanbanStore.updateKanbanCard(card.id, card);
+    toast.success('Card updated');
+    showAddNoteModal.value = false;
+  } catch (e) {
+    toast.error('Failed to update card');
   }
 }
 
@@ -202,9 +222,15 @@ async function confirmClearCompleted() {
               v-for="card in getCardsForColumn(col.id)" 
               :key="card.id" 
               :data-card-id="card.id"
-              class="group bg-white dark:bg-gray-800 p-3 rounded-md shadow-sm border border-gray-300 dark:border-gray-700 hover:border-blue-500 dark:hover:border-blue-400 transition-all cursor-grab active:cursor-grabbing"
+              class="group relative bg-white dark:bg-gray-800 p-3 rounded-md shadow-sm border border-gray-300 dark:border-gray-700 hover:border-blue-500 dark:hover:border-blue-400 transition-all cursor-grab active:cursor-grabbing"
             >
-              <p class="text-sm text-gray-900 dark:text-white">{{ card.title }}</p>
+              <div class="flex justify-between items-start">
+                <h4 class="text-sm font-medium text-gray-900 dark:text-white flex-grow">{{ card.title }}</h4>
+                <button class="flex-shrink-0 p-1 text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity" @click.stop="openEditNoteModal(card)">
+                  <UIcon name="i-heroicons-pencil-square" class="w-4 h-4" />
+                </button>
+              </div>
+              <div v-if="card.content" class="prose prose-sm dark:prose-invert max-w-none mt-2" v-html="card.content"></div>
               <div class="flex items-center justify-end mt-2">
                 <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                    <button class="p-1 text-gray-400 hover:text-red-500 dark:hover:text-red-400" @click.stop="openDeleteCardModal(card.id)">
@@ -215,19 +241,24 @@ async function confirmClearCompleted() {
             </div>
           </div>
 
-          <!-- Quick Add -->
+          <!-- Add Card Button -->
           <div class="p-2 flex-shrink-0">
-            <input 
-              v-model="quickAddContent[col.id]"
-              type="text" 
-              placeholder="+ Add a card"
-              class="w-full px-2 py-1.5 text-sm bg-transparent border-none rounded-md placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white"
-              @keydown.enter="handleQuickAdd(col.id)"
-            />
+            <button @click="openAddNoteModal(col.id)" class="w-full flex items-center justify-center gap-2 px-3 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-md hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors text-sm font-medium">
+              <UIcon name="i-heroicons-plus" class="w-4 h-4" />
+              Add Card
+            </button>
           </div>
         </div>
       </div>
     </main>
+
+    <AddNoteModal 
+      v-model="showAddNoteModal"
+      :status="newNoteStatus"
+      :card="cardToEdit"
+      @save="handleSaveNote"
+      @update="handleUpdateNote"
+    />
 
     <!-- Delete Card Confirmation Modal -->
     <ClientOnly>

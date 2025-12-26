@@ -793,6 +793,7 @@ const props = defineProps<{
   isPolishing?: boolean;
   isAskingAI?: boolean;
   searchQuery?: string | null; // Search query to highlight matches
+  hideAiButtons?: boolean;
   // Optional callback for when attachment is uploaded
   onAttachmentUpload?: (attachment: any) => void;
 }>();
@@ -1674,12 +1675,13 @@ async function uploadFiles(files: File[]) {
       :editor="editor" 
       :is-polishing="isPolishing"
       :is-asking-a-i="isAskingAI"
+      :hide-ai-buttons="hideAiButtons"
       @insert-link="setLink" 
       @insert-image="addImage" 
       @insert-youtube="addYouTube"
       @insert-table="editor?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()"
-      @polish="handlePolish"
-      @ask-ai="handleAskAI"
+      @polish="!hideAiButtons && handlePolish()"
+      @ask-ai="!hideAiButtons && handleAskAI($event)"
     />
 
     <!-- Connection status indicator (only for collaborative notes) -->

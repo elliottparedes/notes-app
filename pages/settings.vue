@@ -230,40 +230,39 @@ function goBack() {
       </div>
 
       <!-- Account Info -->
-      <div class="mb-6 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800">
+      <div class="mb-6 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-lg">
         <div class="px-4 py-3 border-b border-gray-300 dark:border-gray-700">
           <h2 class="text-base font-semibold text-gray-900 dark:text-white">Profile Settings</h2>
         </div>
         <div class="p-4 space-y-6">
           <!-- Profile Picture -->
           <div class="flex flex-col sm:flex-row items-center gap-6">
-            <div class="relative">
-              <div class="w-24 h-24 bg-gray-100 dark:bg-gray-700 overflow-hidden border border-gray-300 dark:border-gray-600">
-                <img 
-                  v-if="authStore.user?.profile_picture_url" 
-                  :src="authStore.user.profile_picture_url" 
-                  class="w-full h-full object-cover"
-                />
-                <div v-else class="w-full h-full flex items-center justify-center text-gray-400 dark:text-gray-500">
-                  <UIcon name="i-heroicons-user" class="w-12 h-12" />
-                </div>
-              </div>
-              <button
-                @click="profilePictureInput?.click()"
-                class="absolute -bottom-2 -right-2 p-1.5 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 shadow-sm hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                title="Change profile picture"
-              >
-                <UIcon name="i-heroicons-camera" class="w-4 h-4 text-gray-600 dark:text-gray-300" />
-              </button>
-              <input
-                ref="profilePictureInput"
-                type="file"
-                class="hidden"
-                accept="image/*"
-                @change="handleProfilePictureUpload"
-              />
-            </div>
-            <div class="flex-1 text-center sm:text-left">
+                          <div class="relative">
+                            <div class="w-24 h-24 bg-gray-100 dark:bg-gray-700 overflow-hidden border border-gray-300 dark:border-gray-600 rounded-full">
+                              <img 
+                                v-if="authStore.user?.profile_picture_url" 
+                                :src="authStore.user.profile_picture_url" 
+                                class="w-full h-full object-cover"
+                              />
+                              <div v-else class="w-full h-full flex items-center justify-center text-gray-400 dark:text-gray-500">
+                                <UIcon name="i-heroicons-user" class="w-12 h-12" />
+                              </div>
+                            </div>
+                            <button
+                              @click="profilePictureInput?.click()"
+                              class="absolute -bottom-2 -right-2 p-1.5 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 shadow-sm hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors rounded-full"
+                              title="Change profile picture"
+                            >
+                              <UIcon name="i-heroicons-camera" class="w-4 h-4 text-gray-600 dark:text-gray-300" />
+                            </button>
+                            <input
+                              ref="profilePictureInput"
+                              type="file"
+                              class="hidden"
+                              accept="image/*"
+                              @change="handleProfilePictureUpload"
+                            />
+                          </div>            <div class="flex-1 text-center sm:text-left">
               <h3 class="text-sm font-medium text-gray-900 dark:text-white mb-1">Profile Picture</h3>
               <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">JPG, GIF or PNG. Max size of 10MB.</p>
               <div class="flex justify-center sm:justify-start">
