@@ -29,6 +29,9 @@ const showViewDropdown = ref(false);
 const viewMode = ref<'grid' | 'list'>('grid');
 const showDeleteFolderModal = ref(false);
 const folderToDelete = ref<{ path: string; name: string; fileCount: number } | null>(null);
+const showEditFolderModal = ref(false);
+const folderToEdit = ref<{ path: string; name: string } | null>(null);
+const editedFolderName = ref('');
 const fileContextMenu = ref<{ id: string; name: string } | null>(null);
 const fileMenuPosition = ref({ x: 0, y: 0 });
 const showDeleteFilesModal = ref(false);
@@ -960,6 +963,52 @@ function cancelDeleteFolder() {
   hideFolderMenu();
 }
 
+async function saveFolderEdit() {
+  if (!folderToEdit.value || !editedFolderName.value.trim()) return;
+  
+  try {
+    const folderPath = folderToEdit.value.path;
+    const newFolderName = editedFolderName.value.trim();
+    
+    // Call the API to rename the folder
+    await $fetch(`/api/files/folders/${encodeURIComponent(folderPath)}`, {
+      method: 'PUT',
+      headers: { 
+        Authorization: `Bearer ${authStore.token}`,
+        'Content-Type': 'application/json'
+      },
+      body: {
+        folder_name: newFolderName
+      }
+    });
+    
+    // Refresh folders and files
+    await Promise.all([
+      fetchFolders(),
+      filesStore.fetchFiles(filesStore.currentFolder)
+    ]);
+    
+    showEditFolderModal.value = false;
+    folderToEdit.value = null;
+    toast.success('Folder renamed');
+  } catch (error: any) {
+    console.error('Edit folder error:', error);
+    toast.error(error.data?.message || 'Failed to rename folder');
+  }
+}
+
+function cancelFolderEdit() {
+  showEditFolderModal.value = false;
+  folderToEdit.value = null;
+}
+
+async function editFolder(folder: { path: string; name: string }) {
+  hideFolderMenu();
+  folderToEdit.value = folder;
+  editedFolderName.value = folder.name;
+  showEditFolderModal.value = true;
+}
+
 async function deleteFolder(folder: { path: string; name: string }) {
   hideFolderMenu();
   
@@ -1466,6 +1515,13 @@ onMounted(() => {
             @click.stop
           >
             <button
+              @click="editFolder(folderContextMenu)"
+              class="w-full text-left px-4 py-2 text-sm transition-colors text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 flex items-center gap-2"
+            >
+              <UIcon name="i-heroicons-pencil" class="w-4 h-4" />
+              <span>Edit folder</span>
+            </button>
+            <button
               @click="downloadFolder(folderContextMenu)"
               class="w-full text-left px-4 py-2 text-sm transition-colors text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 flex items-center gap-2"
             >
@@ -1584,6 +1640,60 @@ onMounted(() => {
                     class="flex-1 px-3 py-2 bg-blue-600 dark:bg-blue-500 text-white text-sm font-normal border border-blue-700 dark:border-blue-600 hover:bg-blue-700 dark:hover:bg-blue-600 active:bg-blue-800 dark:active:bg-blue-700 transition-colors"
                   >
                     Create
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </Transition>
+      </Teleport>
+    </ClientOnly>
+
+    <!-- Edit Folder Modal -->
+    <ClientOnly>
+      <Teleport to="body">
+        <Transition
+          enter-active-class="transition-opacity duration-200"
+          enter-from-class="opacity-0"
+          enter-to-class="opacity-100"
+          leave-active-class="transition-opacity duration-200"
+          leave-from-class="opacity-100"
+          leave-to-class="opacity-0"
+        >
+          <div
+            v-if="showEditFolderModal"
+            class="fixed inset-0 z-50 overflow-y-auto"
+            @click.self="cancelFolderEdit"
+          >
+            <div class="fixed inset-0 bg-black/50"></div>
+            <div class="flex min-h-full items-center justify-center p-4">
+              <div
+                class="relative bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 shadow-lg max-w-sm w-full p-5"
+                @click.stop
+              >
+                <h3 class="text-base font-semibold mb-3 text-gray-900 dark:text-white">Edit Folder</h3>
+                <input
+                  v-model="editedFolderName"
+                  type="text"
+                  placeholder="Folder name"
+                  class="mb-3 w-full px-3 py-2 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-sm text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all"
+                  autofocus
+                  @keyup.enter="saveFolderEdit"
+                />
+                <div class="flex gap-2">
+                  <button
+                    type="button"
+                    @click="cancelFolderEdit"
+                    class="flex-1 px-3 py-2 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-sm font-normal border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 active:bg-gray-100 dark:active:bg-gray-600 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    @click="saveFolderEdit"
+                    class="flex-1 px-3 py-2 bg-blue-600 dark:bg-blue-500 text-white text-sm font-normal border border-blue-700 dark:border-blue-600 hover:bg-blue-700 dark:hover:bg-blue-600 active:bg-blue-800 dark:active:bg-blue-700 transition-colors"
+                  >
+                    Save
                   </button>
                 </div>
               </div>

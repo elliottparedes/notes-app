@@ -244,6 +244,34 @@ export default defineEventHandler(async (event) => {
       margin-bottom: 0.5rem;
       padding-left: 0.25rem;
     }
+    /* Task list styles for checkboxes */
+    .content ul[data-type="taskList"] {
+      list-style: none;
+      margin-left: 0;
+      padding-left: 0;
+    }
+    .content ul[data-type="taskList"] li[data-type="taskItem"] {
+      display: flex;
+      align-items: flex-start;
+      margin-bottom: 0.5rem;
+      padding-left: 0;
+      position: relative;
+      list-style: none;
+    }
+    .content ul[data-type="taskList"] li[data-type="taskItem"]::before {
+      content: "☐";
+      margin-right: 0.5rem;
+      margin-top: 0.25rem;
+      font-size: 1rem;
+      line-height: 1;
+    }
+    .content ul[data-type="taskList"] li[data-type="taskItem"][data-checked="true"]::before {
+      content: "☑";
+      color: #4f46e5;
+    }
+    .content ul[data-type="taskList"] li[data-type="taskItem"] > * {
+      flex: 1;
+    }
     .content blockquote {
       border-left: 4px solid var(--primary);
       background: var(--bg-soft);
