@@ -94,10 +94,131 @@ function formatFileSize(bytes: number): string {
 // Get file icon
 function getFileIcon(file: FileItem): string {
   if (!file.mime_type) return 'i-heroicons-document';
+  
+  // Images
   if (file.mime_type.startsWith('image/')) return 'i-heroicons-photo';
+  
+  // Video
   if (file.mime_type.startsWith('video/')) return 'i-heroicons-video-camera';
+  
+  // Audio
+  if (file.mime_type.startsWith('audio/')) return 'i-heroicons-musical-note';
+  
+  // PDF
   if (file.mime_type.includes('pdf')) return 'i-heroicons-document-text';
+  
+  // Text / Code
+  if (
+    file.mime_type.includes('text/') || 
+    file.mime_type.includes('json') || 
+    file.mime_type.includes('javascript') || 
+    file.mime_type.includes('xml')
+  ) {
+    return 'i-heroicons-code-bracket';
+  }
+  
+  // Archives
+  if (
+    file.mime_type.includes('zip') || 
+    file.mime_type.includes('compressed') || 
+    file.mime_type.includes('tar') ||
+    file.mime_type.includes('rar')
+  ) {
+    return 'i-heroicons-archive-box';
+  }
+  
+  // Microsoft Office & Documents
+  if (
+    file.mime_type.includes('word') || 
+    file.mime_type.includes('officedocument.wordprocessingml')
+  ) {
+    return 'i-heroicons-document-text'; // Or a more specific doc icon if available
+  }
+  
+  if (
+    file.mime_type.includes('excel') || 
+    file.mime_type.includes('spreadsheet') ||
+    file.mime_type.includes('csv')
+  ) {
+    return 'i-heroicons-table-cells';
+  }
+  
+  if (
+    file.mime_type.includes('powerpoint') || 
+    file.mime_type.includes('presentation')
+  ) {
+    return 'i-heroicons-presentation-chart-bar';
+  }
+
   return 'i-heroicons-document';
+}
+
+// Get file color
+function getFileColor(file: FileItem): string {
+  if (selectedFiles.value.has(file.id)) {
+    return 'text-blue-500 dark:text-blue-400';
+  }
+
+  if (!file.mime_type) return 'text-gray-400 dark:text-gray-500';
+  
+  // PDF - Red
+  if (file.mime_type.includes('pdf')) return 'text-red-500 dark:text-red-400';
+  
+  // Images - Purple
+  if (file.mime_type.startsWith('image/')) return 'text-purple-500 dark:text-purple-400';
+  
+  // Video - Pink
+  if (file.mime_type.startsWith('video/')) return 'text-pink-500 dark:text-pink-400';
+  
+  // Audio - Amber
+  if (file.mime_type.startsWith('audio/')) return 'text-amber-500 dark:text-amber-400';
+  
+  // Word - Blue
+  if (
+    file.mime_type.includes('word') || 
+    file.mime_type.includes('officedocument.wordprocessingml')
+  ) {
+    return 'text-blue-600 dark:text-blue-400';
+  }
+  
+  // Excel - Green
+  if (
+    file.mime_type.includes('excel') || 
+    file.mime_type.includes('spreadsheet') ||
+    file.mime_type.includes('csv')
+  ) {
+    return 'text-green-600 dark:text-green-400';
+  }
+  
+  // PowerPoint - Orange
+  if (
+    file.mime_type.includes('powerpoint') || 
+    file.mime_type.includes('presentation')
+  ) {
+    return 'text-orange-500 dark:text-orange-400';
+  }
+  
+  // Archives - Gray/Slate
+  if (
+    file.mime_type.includes('zip') || 
+    file.mime_type.includes('compressed') || 
+    file.mime_type.includes('tar') ||
+    file.mime_type.includes('rar')
+  ) {
+    return 'text-slate-500 dark:text-slate-400';
+  }
+  
+  // Code - Teal
+  if (
+    file.mime_type.includes('text/') || 
+    file.mime_type.includes('json') || 
+    file.mime_type.includes('javascript') || 
+    file.mime_type.includes('xml')
+  ) {
+    return 'text-teal-500 dark:text-teal-400';
+  }
+
+  return 'text-gray-400 dark:text-gray-500';
 }
 
 // Upload files with progress tracking
@@ -1037,6 +1158,14 @@ async function deleteFolder(folder: { path: string; name: string }) {
 }
 
 onMounted(async () => {
+  // Load view mode from local storage
+  if (process.client) {
+    const savedViewMode = localStorage.getItem('fileStorageViewMode');
+    if (savedViewMode === 'grid' || savedViewMode === 'list') {
+      viewMode.value = savedViewMode;
+    }
+  }
+
   // Set initial loading state
   foldersLoading.value = true;
   
@@ -1047,6 +1176,13 @@ onMounted(async () => {
   // Add global mouse event listeners for drag selection
   document.addEventListener('mousemove', handleSelectionMove);
   document.addEventListener('mouseup', handleSelectionEnd);
+});
+
+// Watch view mode changes
+watch(viewMode, (newMode) => {
+  if (process.client) {
+    localStorage.setItem('fileStorageViewMode', newMode);
+  }
 });
 
 onUnmounted(() => {
@@ -1261,10 +1397,11 @@ onMounted(() => {
     <!-- Content Area -->
     <div
       ref="contentAreaRef"
-      class="flex-1 overflow-y-auto p-8 relative select-none"
+      class="flex-1 overflow-y-auto relative select-none"
       :class="{ 
         'bg-blue-50/30 dark:bg-blue-900/10': isDragging,
-        'cursor-crosshair': isSelecting
+        'cursor-crosshair': isSelecting,
+        'p-8': viewMode === 'grid'
       }"
       @dragenter.prevent="handleDragEnter"
       @dragover.prevent="handleDragOver"
@@ -1327,46 +1464,69 @@ onMounted(() => {
         v-else-if="viewMode === 'grid'"
         name="folder-grid"
         tag="div"
-        class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-4"
+        class="grid gap-4 pb-4"
+        style="grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));"
       >
         <!-- Folders -->
           <div
             v-for="(folder, index) in folders"
             :key="`folder-${folder.path}`"
             :data-folder-item="folder.path"
-            class="relative group flex flex-col items-center p-4 border border-gray-300 dark:border-gray-600 transition-colors cursor-pointer bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700"
-            :class="{
-              'ring-2 ring-blue-500 border-blue-500': selectedFolders.has(folder.path)
-            }"
+            class="relative group flex items-center p-3.5 rounded-xl border transition-all duration-200 cursor-pointer select-none overflow-hidden"
+            :class="[
+              selectedFolders.has(folder.path)
+                ? 'bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-700/50 shadow-sm ring-1 ring-blue-500/30'
+                : 'bg-white dark:bg-[#1e1e1e] border-gray-200 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800 hover:shadow-md hover:-translate-y-0.5'
+            ]"
             :style="{ '--delay': `${index * 30}ms` }"
             @click="handleFolderClick(folder.path, $event)"
           >
-          <!-- Checkbox -->
-          <input
-            type="checkbox"
-            :checked="selectedFolders.has(folder.path)"
-            @change.stop="toggleFolderSelection(folder.path)"
-            @click.stop
-            class="absolute top-2 left-2 w-4 h-4 text-blue-600 z-10"
-          />
           
-          <div
-            class="flex flex-col items-center w-full"
-          >
-            <UIcon name="i-heroicons-folder" class="w-10 h-10 text-blue-600 dark:text-blue-400 mb-2" />
-            <p class="text-xs font-normal text-gray-900 dark:text-white truncate w-full text-center">
+          <!-- Content -->
+          <div class="flex items-center gap-3 min-w-0 w-full">
+            <!-- Icon -->
+            <UIcon 
+              name="i-heroicons-folder" 
+              class="w-6 h-6 flex-shrink-0 transition-colors"
+              :class="selectedFolders.has(folder.path) ? 'text-blue-500 dark:text-blue-400' : 'text-gray-400 dark:text-gray-500 group-hover:text-gray-500 dark:group-hover:text-gray-400'"
+            />
+            
+            <!-- Name -->
+            <p 
+              class="text-sm font-medium truncate flex-1"
+              :class="selectedFolders.has(folder.path) ? 'text-blue-700 dark:text-blue-100' : 'text-gray-700 dark:text-gray-200'"
+              :title="folder.name"
+            >
               {{ folder.name }}
             </p>
+
+            <!-- Actions (Checkbox & Menu) -->
+            <div class="flex items-center gap-1 flex-shrink-0">
+               <!-- Checkbox (Visible on hover or selected) -->
+               <div 
+                 class="transition-opacity duration-200"
+                 :class="selectedFolders.has(folder.path) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'"
+                 @click.stop
+               >
+                 <input
+                   type="checkbox"
+                   :checked="selectedFolders.has(folder.path)"
+                   @change.stop="toggleFolderSelection(folder.path)"
+                   class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600 cursor-pointer"
+                 />
+               </div>
+               
+               <!-- Menu Button -->
+               <button
+                 @click.stop="showFolderMenu($event, folder)"
+                 class="p-1.5 rounded-full text-gray-400 transition-all hover:bg-gray-200 dark:hover:bg-gray-700 hover:text-gray-600 dark:hover:text-gray-200 opacity-0 group-hover:opacity-100"
+                 :class="{ 'opacity-100': folderContextMenu?.path === folder.path }"
+                 title="Folder options"
+               >
+                 <UIcon name="i-heroicons-ellipsis-vertical" class="w-4 h-4" />
+               </button>
+            </div>
           </div>
-          
-          <!-- Folder menu button -->
-          <button
-            @click.stop="showFolderMenu($event, folder)"
-            class="absolute top-2 right-2 p-1 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-gray-200 dark:hover:bg-gray-700 z-10"
-            title="Folder options"
-          >
-            <UIcon name="i-heroicons-ellipsis-vertical" class="w-4 h-4 text-gray-500" />
-          </button>
         </div>
 
         <!-- Files -->
@@ -1374,127 +1534,245 @@ onMounted(() => {
           v-for="(file, index) in filesStore.filesInCurrentFolder"
           :key="`file-${file.id}`"
           :data-file-item="file.id"
-          class="relative group flex flex-col items-center p-4 border border-gray-300 dark:border-gray-600 transition-colors cursor-pointer bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700"
-          :class="{
-            'ring-2 ring-blue-500 border-blue-500': selectedFiles.has(file.id)
-          }"
+          class="relative group flex items-center p-3.5 rounded-xl border transition-all duration-200 cursor-pointer select-none overflow-hidden"
+          :class="[
+            selectedFiles.has(file.id)
+              ? 'bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-700/50 shadow-sm ring-1 ring-blue-500/30'
+              : 'bg-white dark:bg-[#1e1e1e] border-gray-200 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800 hover:shadow-md hover:-translate-y-0.5'
+          ]"
           :style="{ '--delay': `${(folders.length + index) * 30}ms` }"
           @click="handleFileClick(file.id, $event)"
         >
-          <!-- Checkbox -->
-          <input
-            type="checkbox"
-            :checked="selectedFiles.has(file.id)"
-            @mousedown.stop="isShiftPressed = $event.shiftKey"
-            @change.stop="toggleSelection(file.id, $event)"
-            @click.stop
-            class="absolute top-2 left-2 w-4 h-4 text-primary-600 rounded z-10 cursor-pointer"
-          />
-          
-          <UIcon :name="getFileIcon(file)" class="w-10 h-10 text-gray-500 dark:text-gray-400 mb-2" />
-          <p class="text-xs font-normal text-gray-900 dark:text-white truncate w-full text-center mb-1">
-            {{ file.file_name }}
-          </p>
-          <p class="text-[10px] text-gray-500 dark:text-gray-400">
-            {{ formatFileSize(file.file_size) }}
-          </p>
-          
-          <!-- Three-dot menu button -->
-          <button
-            @click.stop="showFileMenu($event, file)"
-            class="absolute top-2 right-2 p-1 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-gray-200 dark:hover:bg-gray-700 z-10"
-            title="File options"
-          >
-            <UIcon name="i-heroicons-ellipsis-vertical" class="w-4 h-4 text-gray-500" />
-          </button>
+          <!-- Content -->
+          <div class="flex items-center gap-3 min-w-0 w-full">
+             <!-- Icon -->
+             <div class="flex-shrink-0">
+               <UIcon 
+                 :name="getFileIcon(file)" 
+                 class="w-8 h-8 transition-transform duration-200 group-hover:scale-110" 
+                 :class="getFileColor(file)"
+               />
+             </div>
+
+             <!-- Text Info -->
+             <div class="flex-1 min-w-0">
+               <p 
+                 class="text-sm font-medium truncate w-full"
+                 :class="selectedFiles.has(file.id) ? 'text-blue-700 dark:text-blue-100' : 'text-gray-700 dark:text-gray-200'"
+                 :title="file.file_name"
+               >
+                 {{ file.file_name }}
+               </p>
+               <p class="text-[10px] text-gray-400 dark:text-gray-500 truncate">
+                 {{ formatFileSize(file.file_size) }}
+               </p>
+             </div>
+
+             <!-- Actions (Checkbox & Menu) -->
+             <div class="flex items-center gap-1 flex-shrink-0">
+                <!-- Checkbox (Visible on hover or selected) -->
+                <div 
+                  class="transition-opacity duration-200"
+                  :class="selectedFiles.has(file.id) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'"
+                  @click.stop
+                >
+                  <input
+                    type="checkbox"
+                    :checked="selectedFiles.has(file.id)"
+                    @mousedown.stop="isShiftPressed = $event.shiftKey"
+                    @change.stop="toggleSelection(file.id, $event)"
+                    class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600 cursor-pointer"
+                  />
+                </div>
+
+                <!-- Menu Button -->
+                <button
+                  @click.stop="showFileMenu($event, file)"
+                  class="p-1.5 rounded-full text-gray-400 transition-all hover:bg-gray-200 dark:hover:bg-gray-700 hover:text-gray-600 dark:hover:text-gray-200 opacity-0 group-hover:opacity-100"
+                  :class="{ 'opacity-100': fileContextMenu?.id === file.id }"
+                  title="File options"
+                >
+                  <UIcon name="i-heroicons-ellipsis-vertical" class="w-4 h-4" />
+                </button>
+             </div>
+          </div>
         </div>
       </TransitionGroup>
 
       <!-- Files and Folders - List View -->
-      <TransitionGroup
-        v-else
-        name="folder-list"
-        tag="div"
-        class="space-y-2"
-      >
-        <!-- Folders in list view -->
-        <div
-          v-for="(folder, index) in folders"
-          :key="`folder-${folder.path}`"
-          :data-folder-item="folder.path"
-          class="flex items-center gap-3 p-3 border-b border-gray-200 dark:border-gray-700 transition-colors group cursor-pointer bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700"
-          :class="{
-            'bg-blue-50 dark:bg-blue-900/20 border-l-2 border-l-blue-600 dark:border-l-blue-400': selectedFolders.has(folder.path)
-          }"
-          :style="{ '--delay': `${index * 30}ms` }"
-          @click="handleFolderClick(folder.path, $event)"
+      <div v-else class="flex flex-col h-full">
+        <!-- List Header -->
+        <div 
+          class="grid gap-4 px-4 py-2 bg-gray-50 dark:bg-[#1e1e1e] border-b border-gray-200 dark:border-gray-700 text-xs font-medium text-gray-500 dark:text-gray-400 select-none sticky top-0 z-20"
+          style="grid-template-columns: minmax(240px, 1fr) 100px 140px 100px 40px;"
         >
-          <!-- Checkbox -->
-          <input
-            type="checkbox"
-            :checked="selectedFolders.has(folder.path)"
-            @change.stop="toggleFolderSelection(folder.path)"
-            @click.stop
-            class="w-4 h-4 text-blue-600 flex-shrink-0"
-          />
-          
-          <div
-            class="flex items-center gap-3 flex-1 min-w-0"
-          >
-            <UIcon name="i-heroicons-folder" class="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0" />
-            <div class="flex-1 min-w-0">
-              <p class="font-normal text-sm text-gray-900 dark:text-white truncate">{{ folder.name }}</p>
-              <p class="text-xs text-gray-500 dark:text-gray-400">Folder</p>
-            </div>
+          <div class="flex items-center gap-1 cursor-pointer hover:text-gray-700 dark:hover:text-gray-200">
+            Name
+            <UIcon name="i-heroicons-arrow-down" class="w-3 h-3" />
           </div>
-          
-          <!-- Folder menu button -->
-          <button
-            @click.stop="showFolderMenu($event, folder)"
-            class="p-1 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-gray-200 dark:hover:bg-gray-700"
-            title="Folder options"
-          >
-            <UIcon name="i-heroicons-ellipsis-vertical" class="w-4 h-4 text-gray-500" />
-          </button>
+          <div class="hidden sm:block">Owner</div>
+          <div class="hidden md:block">Date modified</div>
+          <div class="hidden sm:block">File size</div>
+          <div class="text-right"></div>
         </div>
 
-        <!-- Files in list view -->
-        <div
-          v-for="(file, index) in filesStore.filesInCurrentFolder"
-          :key="`file-${file.id}`"
-          :data-file-item="file.id"
-          class="flex items-center gap-3 p-3 border-b border-gray-200 dark:border-gray-700 transition-colors group cursor-pointer bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700"
-          :class="{
-            'bg-blue-50 dark:bg-blue-900/20 border-l-2 border-l-blue-600 dark:border-l-blue-400': selectedFiles.has(file.id)
-          }"
-          :style="{ '--delay': `${(folders.length + index) * 30}ms` }"
-          @click="handleFileClick(file.id, $event)"
+        <TransitionGroup
+          name="folder-list"
+          tag="div"
+          class="flex-1 pb-4"
         >
-          <input
-            type="checkbox"
-            :checked="selectedFiles.has(file.id)"
-            @mousedown.stop="isShiftPressed = $event.shiftKey"
-            @change.stop="toggleSelection(file.id, $event)"
-            @click.stop
-            class="w-4 h-4 text-primary-600 rounded flex-shrink-0 cursor-pointer"
-          />
-          <UIcon :name="getFileIcon(file)" class="w-5 h-5 text-gray-500 dark:text-gray-400 flex-shrink-0" />
-          <div class="flex-1 min-w-0">
-            <p class="font-normal text-sm text-gray-900 dark:text-white truncate">{{ file.file_name }}</p>
-            <p class="text-xs text-gray-500 dark:text-gray-400">
-              {{ formatFileSize(file.file_size) }} • {{ new Date(file.created_at).toLocaleDateString() }}
-            </p>
-          </div>
-          <!-- Three-dot menu button -->
-          <button
-            @click.stop="showFileMenu($event, file)"
-            class="p-1 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-gray-200 dark:hover:bg-gray-700"
-            title="File options"
+          <!-- Folders in list view -->
+          <div
+            v-for="(folder, index) in folders"
+            :key="`folder-${folder.path}`"
+            :data-folder-item="folder.path"
+            class="grid gap-4 px-4 py-2.5 items-center border-b border-gray-100 dark:border-gray-800 transition-colors group cursor-pointer select-none"
+            :class="[
+              selectedFolders.has(folder.path)
+                ? 'bg-blue-50 dark:bg-blue-900/30'
+                : 'bg-white dark:bg-[#1e1e1e] hover:bg-gray-50 dark:hover:bg-gray-800'
+            ]"
+            style="grid-template-columns: minmax(240px, 1fr) 100px 140px 100px 40px;"
+            :style="{ '--delay': `${index * 30}ms` }"
+            @click="handleFolderClick(folder.path, $event)"
           >
-            <UIcon name="i-heroicons-ellipsis-vertical" class="w-4 h-4 text-gray-500" />
-          </button>
-        </div>
-      </TransitionGroup>
+            <!-- Name Column -->
+            <div class="flex items-center gap-3 min-w-0 overflow-hidden">
+              <!-- Checkbox (Visible on hover or selected) -->
+              <div 
+                class="flex-shrink-0 w-4 h-4 flex items-center justify-center transition-opacity duration-200"
+                :class="selectedFolders.has(folder.path) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'"
+                @click.stop
+              >
+                <input
+                  type="checkbox"
+                  :checked="selectedFolders.has(folder.path)"
+                  @change.stop="toggleFolderSelection(folder.path)"
+                  class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600 cursor-pointer"
+                />
+              </div>
+
+              <UIcon 
+                name="i-heroicons-folder" 
+                class="w-5 h-5 flex-shrink-0 transition-colors"
+                :class="selectedFolders.has(folder.path) ? 'text-blue-500 dark:text-blue-400' : 'text-gray-400 dark:text-gray-500'"
+              />
+              <span 
+                class="text-sm font-medium truncate"
+                :class="selectedFolders.has(folder.path) ? 'text-blue-700 dark:text-blue-100' : 'text-gray-700 dark:text-gray-200'"
+              >
+                {{ folder.name }}
+              </span>
+            </div>
+
+            <!-- Owner Column -->
+            <div class="hidden sm:flex items-center gap-2">
+              <div class="w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-[10px] text-gray-500 dark:text-gray-400">
+                <UIcon name="i-heroicons-user" class="w-3 h-3" />
+              </div>
+              <span class="text-xs text-gray-500 dark:text-gray-400">me</span>
+            </div>
+
+            <!-- Date Column -->
+            <div class="hidden md:block text-xs text-gray-500 dark:text-gray-400 truncate">
+              —
+            </div>
+
+            <!-- Size Column -->
+            <div class="hidden sm:block text-xs text-gray-500 dark:text-gray-400">
+              —
+            </div>
+            
+            <!-- Actions Column -->
+            <div class="text-right">
+              <button
+                @click.stop="showFolderMenu($event, folder)"
+                class="p-1.5 rounded-full text-gray-400 opacity-0 group-hover:opacity-100 transition-all hover:bg-gray-200 dark:hover:bg-gray-700 hover:text-gray-600 dark:hover:text-gray-200 inline-flex"
+                :class="{ 'opacity-100': folderContextMenu?.path === folder.path }"
+                title="Folder options"
+              >
+                <UIcon name="i-heroicons-ellipsis-vertical" class="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+
+          <!-- Files in list view -->
+          <div
+            v-for="(file, index) in filesStore.filesInCurrentFolder"
+            :key="`file-${file.id}`"
+            :data-file-item="file.id"
+            class="grid gap-4 px-4 py-2.5 items-center border-b border-gray-100 dark:border-gray-800 transition-colors group cursor-pointer select-none"
+            :class="[
+              selectedFiles.has(file.id)
+                ? 'bg-blue-50 dark:bg-blue-900/30'
+                : 'bg-white dark:bg-[#1e1e1e] hover:bg-gray-50 dark:hover:bg-gray-800'
+            ]"
+            style="grid-template-columns: minmax(240px, 1fr) 100px 140px 100px 40px;"
+            :style="{ '--delay': `${(folders.length + index) * 30}ms` }"
+            @click="handleFileClick(file.id, $event)"
+          >
+            <!-- Name Column -->
+            <div class="flex items-center gap-3 min-w-0 overflow-hidden">
+               <!-- Checkbox (Visible on hover or selected) -->
+              <div 
+                class="flex-shrink-0 w-4 h-4 flex items-center justify-center transition-opacity duration-200"
+                :class="selectedFiles.has(file.id) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'"
+                @click.stop
+              >
+                <input
+                  type="checkbox"
+                  :checked="selectedFiles.has(file.id)"
+                  @mousedown.stop="isShiftPressed = $event.shiftKey"
+                  @change.stop="toggleSelection(file.id, $event)"
+                  class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600 cursor-pointer"
+                />
+              </div>
+
+              <UIcon 
+                :name="getFileIcon(file)" 
+                class="w-5 h-5 flex-shrink-0 transition-colors"
+                :class="getFileColor(file)"
+              />
+              <span 
+                class="text-sm font-medium truncate"
+                :class="selectedFiles.has(file.id) ? 'text-blue-700 dark:text-blue-100' : 'text-gray-700 dark:text-gray-200'"
+              >
+                {{ file.file_name }}
+              </span>
+            </div>
+
+             <!-- Owner Column -->
+            <div class="hidden sm:flex items-center gap-2">
+              <div class="w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-[10px] text-gray-500 dark:text-gray-400">
+                <UIcon name="i-heroicons-user" class="w-3 h-3" />
+              </div>
+              <span class="text-xs text-gray-500 dark:text-gray-400">me</span>
+            </div>
+
+            <!-- Date Column -->
+            <div class="hidden md:block text-xs text-gray-500 dark:text-gray-400 truncate">
+              {{ new Date(file.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) }}
+            </div>
+
+            <!-- Size Column -->
+            <div class="hidden sm:block text-xs text-gray-500 dark:text-gray-400">
+              {{ formatFileSize(file.file_size) }}
+            </div>
+
+            <!-- Actions Column -->
+            <div class="text-right">
+              <button
+                @click.stop="showFileMenu($event, file)"
+                class="p-1.5 rounded-full text-gray-400 opacity-0 group-hover:opacity-100 transition-all hover:bg-gray-200 dark:hover:bg-gray-700 hover:text-gray-600 dark:hover:text-gray-200 inline-flex"
+                :class="{ 'opacity-100': fileContextMenu?.id === file.id }"
+                title="File options"
+              >
+                <UIcon name="i-heroicons-ellipsis-vertical" class="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </TransitionGroup>
+      </div>
     </div>
 
     <!-- Folder Context Menu -->
