@@ -5,14 +5,31 @@ export default defineNuxtRouteMiddleware(async (to) => {
   }
 
   const authStore = useAuthStore();
-  
+
+  // Detect if user is on a mobile device
+  const isMobileDevice = () => {
+    if (process.server) {
+      // Server-side: check user agent from headers
+      const headers = useRequestHeaders();
+      const userAgent = headers['user-agent'] || '';
+      return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(userAgent);
+    } else {
+      // Client-side: check user agent
+      return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    }
+  };
+
+  const getDashboardRoute = () => {
+    return isMobileDevice() ? '/mobile/home' : '/notes';
+  };
+
   // On server or client, check if we are authenticated
   // authStore.isAuthenticated relies on token, which is now hydrated from cookies on server
-  
+
   // Handle root path - redirect authenticated users to dashboard immediately
   if (to.path === '/') {
     if (authStore.isAuthenticated) {
-      return navigateTo('/notes', { replace: true });
+      return navigateTo(getDashboardRoute(), { replace: true });
     }
     // Allow landing page to show for unauthenticated users
     return;
@@ -30,6 +47,6 @@ export default defineNuxtRouteMiddleware(async (to) => {
 
   // Redirect authenticated users away from auth pages
   if (authStore.isAuthenticated && (to.path === '/login' || to.path === '/signup')) {
-    return navigateTo('/notes');
+    return navigateTo(getDashboardRoute());
   }
 });
