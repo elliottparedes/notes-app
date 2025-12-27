@@ -77,22 +77,19 @@ export function useNoteNavigation() {
           
           // Wait for UI to update
           await nextTick();
-          
-          // Open the note and ensure it's active
-          console.log(`[Navigation] Opening tab for note ${noteObj.id}`);
+
+          // Open the note
+          console.log(`[Navigation] Opening note ${noteObj.id}`);
           await notesStore.openTab(noteObj.id);
-          notesStore.setActiveTab(noteObj.id);
         } else {
           console.log(`[Navigation] Folder still not found, just opening note`);
           // Fallback: just open the note
           await notesStore.openTab(noteObj.id);
-          notesStore.setActiveTab(noteObj.id);
         }
       } else {
         console.log(`[Navigation] Note has no folder, just opening`);
         // Note has no folder, just open it
         await notesStore.openTab(noteObj.id);
-        notesStore.setActiveTab(noteObj.id);
       }
     } catch (error) {
       console.error('Failed to navigate to note:', error);

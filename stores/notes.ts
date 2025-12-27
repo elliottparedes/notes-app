@@ -19,9 +19,8 @@ interface NotesState {
   filters: NoteFilters;
   folderOrder: string[];
   noteOrder: Record<string, string[]>; // { "folder_5": ["uuid1", "uuid2"], "root": ["uuid3"] }
-  // Tab management
-  openTabs: string[]; // Array of note IDs (UUIDs) that are open in tabs
-  activeTabId: string | null; // Currently active tab
+  // Current active note
+  activeTabId: string | null; // Currently active note ID
   isSyncing: boolean; // Background sync status
 }
 
@@ -34,7 +33,6 @@ export const useNotesStore = defineStore('notes', {
     filters: {},
     folderOrder: [],
     noteOrder: {},
-    openTabs: [],
     activeTabId: null,
     isSyncing: false
   }),
@@ -108,14 +106,7 @@ export const useNotesStore = defineStore('notes', {
       return Array.from(tagSet).sort();
     },
 
-    // Get notes for open tabs
-    tabNotes: (state): Note[] => {
-      return state.openTabs
-        .map(id => state.notes.find(note => String(note.id) === String(id)))
-        .filter((note): note is Note => note !== undefined);
-    },
-
-    // Get the active note (from active tab)
+    // Get the active note
     activeNote: (state): Note | null => {
       if (!state.activeTabId) return null;
       return state.notes.find(note => String(note.id) === String(state.activeTabId)) || null;
@@ -840,70 +831,48 @@ export const useNotesStore = defineStore('notes', {
       }
     },
 
-    // Tab management actions
+    // Load active note from storage
     async loadTabsFromStorage(): Promise<void> {
       if (process.client) {
         try {
-          const savedTabs = localStorage.getItem('open_tabs');
           const savedActiveTab = localStorage.getItem('active_tab');
-          
-          console.log('[Store] Loading tabs from storage:', savedTabs);
-          
-          if (savedTabs) {
-            const parsedTabs = JSON.parse(savedTabs);
-            
-            // Clean up: only keep tabs for notes that actually exist
-            // Convert to string to handle both number and string IDs
-            const validTabIds = parsedTabs
-              .map((id: any) => String(id))
-              .filter((id: string) => this.notes.some(note => String(note.id) === id));
-            
-            this.openTabs = validTabIds;
-            console.log('[Store] Cleaned openTabs from', parsedTabs.length, 'to', validTabIds.length, ':', this.openTabs);
-          }
-          
+
           if (savedActiveTab) {
-            // Ensure active tab is in the valid tabs list
-            if (this.openTabs.includes(String(savedActiveTab))) {
-              this.activeTabId = String(savedActiveTab);
+            const stringId = String(savedActiveTab);
+            // Only restore if the note exists
+            if (this.notes.some(note => String(note.id) === stringId)) {
+              this.activeTabId = stringId;
               console.log('[Store] Loaded activeTabId:', this.activeTabId);
             } else {
-              // If saved active tab doesn't exist, use first tab or null
-              this.activeTabId = this.openTabs[0] || null;
-              console.log('[Store] Active tab not valid, using first tab:', this.activeTabId);
+              console.log('[Store] Active tab not valid, clearing');
+              this.activeTabId = null;
             }
           }
-          
-          // Save cleaned tabs back to storage
-          if (savedTabs) {
-            this.saveTabsToStorage();
-          }
         } catch (err) {
-          console.error('Failed to load tabs from storage:', err);
+          console.error('Failed to load active tab from storage:', err);
         }
       }
     },
 
     saveTabsToStorage(): void {
       if (process.client) {
-        console.log('[Store] Saving tabs to storage:', this.openTabs);
-        localStorage.setItem('open_tabs', JSON.stringify(this.openTabs));
         if (this.activeTabId !== null) {
           localStorage.setItem('active_tab', this.activeTabId);
         } else {
           localStorage.removeItem('active_tab');
         }
+        // Clean up legacy open_tabs storage
+        localStorage.removeItem('open_tabs');
       }
     },
 
     async openTab(noteId: string): Promise<void> {
-      // Ensure we're working with string IDs
       const stringId = String(noteId);
-      
-      // Check if note exists in notes array with full content
+
+      // Check if note exists in notes array
       let note = this.notes.find(note => String(note.id) === stringId);
-      
-      // If note doesn't exist or might be incomplete, fetch it
+
+      // If note doesn't exist, fetch it
       if (!note && process.client) {
         console.log('[Store] Note not found in array, fetching:', stringId);
         try {
@@ -911,86 +880,22 @@ export const useNotesStore = defineStore('notes', {
           note = this.notes.find(note => String(note.id) === stringId);
         } catch (err) {
           console.error('[Store] Failed to fetch note:', err);
-          // Still open the tab even if fetch fails (might be temp ID that gets updated later)
+          // Still set as active even if fetch fails (might be temp ID that gets updated later)
         }
       }
-      
-      // On mobile, close all other tabs before opening the new one
-      if (process.client && this.isMobile()) {
-        // On mobile, only allow one tab open at a time
-        // Set the new note as the only open tab
-        this.openTabs = [stringId];
-      } else {
-        // On desktop, add to tabs if not already open
-        if (!this.openTabs.includes(stringId)) {
-          this.openTabs.push(stringId);
-        }
-      }
-      
-      // Set as active tab
+
+      // Set as active note
       this.activeTabId = stringId;
       this.saveTabsToStorage();
     },
 
     closeTab(noteId: string): void {
       const stringId = String(noteId);
-      const index = this.openTabs.indexOf(stringId);
-      if (index === -1) return;
-
-      // Remove from tabs
-      this.openTabs.splice(index, 1);
-
-      // If closing the active tab, switch to another tab
+      // If closing the active note, clear it
       if (this.activeTabId === stringId) {
-        if (this.openTabs.length > 0) {
-          // Switch to the tab to the left, or the first tab if we closed the first one
-          this.activeTabId = this.openTabs[Math.max(0, index - 1)] || null;
-        } else {
-          this.activeTabId = null;
-        }
-      }
-
-      this.saveTabsToStorage();
-    },
-
-    setActiveTab(noteId: string): void {
-      const stringId = String(noteId);
-      if (this.openTabs.includes(stringId)) {
-        this.activeTabId = stringId;
+        this.activeTabId = null;
         this.saveTabsToStorage();
       }
-    },
-
-    reorderTabs(fromIndex: number, toIndex: number): void {
-      console.log('[Store] reorderTabs called:', { fromIndex, toIndex, currentOrder: [...this.openTabs] });
-      
-      if (fromIndex < 0 || fromIndex >= this.openTabs.length || 
-          toIndex < 0 || toIndex >= this.openTabs.length) {
-        console.warn('[Store] Invalid indices for reorderTabs');
-        return;
-      }
-
-      const [movedTab] = this.openTabs.splice(fromIndex, 1);
-      if (!movedTab) {
-        console.warn('[Store] No tab found at fromIndex');
-        return;
-      }
-      
-      this.openTabs.splice(toIndex, 0, movedTab);
-      console.log('[Store] New order:', [...this.openTabs]);
-      this.saveTabsToStorage();
-    },
-
-    closeAllTabs(): void {
-      this.openTabs = [];
-      this.activeTabId = null;
-      this.saveTabsToStorage();
-    },
-
-    // Helper to detect mobile devices (viewport width < 1024px)
-    isMobile(): boolean {
-      if (!process.client) return false;
-      return window.innerWidth < 1024;
     }
   }
 });

@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import type { User, UserSignupDto, UserLoginDto, AuthResponse } from '~/models';
 import { clearNotesCache } from '~/utils/notesCache';
+import { clearProfilePictureCache } from '~/utils/profilePictureCache';
 
 interface AuthState {
   user: User | null;
@@ -154,14 +155,17 @@ export const useAuthStore = defineStore('auth', {
       if (process.client) {
         // Clear notes cache
         await clearNotesCache();
-        
+
+        // Clear profile picture cache
+        await clearProfilePictureCache();
+
         // Clear folder caches
         Object.keys(localStorage).forEach(key => {
           if (key.startsWith('folders_cache_')) {
             localStorage.removeItem(key);
           }
         });
-        
+
         // Clear auth-related items
         localStorage.removeItem('session_version');
         localStorage.removeItem('cached_user');

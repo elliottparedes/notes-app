@@ -22,6 +22,12 @@ const sharedNotesStore = useSharedNotesStore();
 const toast = useToast();
 const { navigateToNote } = useNoteNavigation();
 
+// Cached profile picture
+const { cachedImageUrl: cachedProfilePicture } = useCachedProfilePicture(
+  authStore.user?.id,
+  authStore.user?.profile_picture_url
+);
+
 // Initial loading state
 const isMounted = ref(false);
 const hasInitialized = ref(false); // Track if data has been loaded
@@ -192,17 +198,8 @@ async function confirmDeleteSpace() {
       (n.space_id === spaceIdToDelete && !n.folder_id) // Assuming notes can directly belong to a space
     );
 
-    // Check if the active note is in this space BEFORE deletion/closing
+    // Check if the active note is in this space and clear it
     const isActiveNoteInSpace = activeNote.value && notesInSpace.some(n => n.id === activeNote.value?.id);
-
-    // Close tabs for all notes in the deleted space
-    notesInSpace.forEach(note => {
-      if (notesStore.openTabs.includes(note.id)) {
-        notesStore.closeTab(note.id);
-      }
-    });
-
-    // If the active note was in this space, force clear the active tab
     if (isActiveNoteInSpace) {
       notesStore.activeTabId = null;
       notesStore.saveTabsToStorage();
@@ -807,26 +804,13 @@ async function handleSelectSpace(spaceId: number) {
 
 async function handleDeleteFolder(folderId: number) {
   try {
-    // Check if active note is in this folder BEFORE deletion/closing
-    const isActiveNoteInFolder = activeNote.value && activeNote.value.folder_id === folderId;
-
     // If the deleted folder is the currently selected one, deselect it
     if (selectedFolderId.value === folderId) {
       selectedFolderId.value = null;
     }
-    
-    // Find all notes in this folder to close their tabs
-    const notesInFolder = notesStore.notes.filter(n => n.folder_id === folderId);
-    
-    notesInFolder.forEach(note => {
-      if (notesStore.openTabs.includes(note.id)) {
-        notesStore.closeTab(note.id);
-      }
-    });
 
-    // If the active note was in this folder, force clear the active tab
-    // because closeTab() might have auto-switched to another tab
-    if (isActiveNoteInFolder) {
+    // If the active note is in this folder, clear it
+    if (activeNote.value && activeNote.value.folder_id === folderId) {
       notesStore.activeTabId = null;
       notesStore.saveTabsToStorage();
     }
@@ -1741,9 +1725,9 @@ function handleNoteListResizeStart(e: MouseEvent) {
       <div class="p-3 border-t border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-lg">
         <div class="flex items-center gap-2">
           <div class="w-7 h-7 bg-blue-600 dark:bg-blue-500 flex items-center justify-center text-white text-xs font-medium overflow-hidden rounded-full">
-            <img 
-              v-if="authStore.currentUser?.profile_picture_url" 
-              :src="authStore.currentUser.profile_picture_url" 
+            <img
+              v-if="cachedProfilePicture"
+              :src="cachedProfilePicture"
               class="w-full h-full object-cover"
             />
             <span v-else>{{ authStore.currentUser?.name?.[0] || 'U' }}</span>

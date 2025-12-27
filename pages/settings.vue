@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import AnalyticsDashboard from '~/components/AnalyticsDashboard.vue';
+import { invalidateProfilePictureCache } from '~/utils/profilePictureCache';
 
 const authStore = useAuthStore();
 const toast = useToast();
@@ -9,6 +10,12 @@ const router = useRouter();
 const profileName = ref(authStore.user?.name || '');
 const profilePictureInput = ref<HTMLInputElement | null>(null);
 const uploadingProfilePicture = ref(false);
+
+// Cached profile picture
+const { cachedImageUrl: cachedProfilePicture, reload: reloadProfilePicture } = useCachedProfilePicture(
+  authStore.user?.id,
+  authStore.user?.profile_picture_url
+);
 
 // Dark mode toggle
 const colorMode = useColorMode();
@@ -80,6 +87,12 @@ async function handleProfilePictureUpload(event: Event) {
     authStore.user = updatedUser;
     if (process.client) {
       localStorage.setItem('cached_user', JSON.stringify(updatedUser));
+    }
+
+    // Invalidate cached profile picture and reload with new one
+    if (authStore.user?.id) {
+      await invalidateProfilePictureCache(authStore.user.id);
+      await reloadProfilePicture();
     }
 
     toast.add({
@@ -240,9 +253,9 @@ function goBack() {
           <div class="flex flex-col sm:flex-row items-center gap-6">
                           <div class="relative">
                             <div class="w-24 h-24 bg-gray-100 dark:bg-gray-700 overflow-hidden border border-gray-300 dark:border-gray-600 rounded-full">
-                              <img 
-                                v-if="authStore.user?.profile_picture_url" 
-                                :src="authStore.user.profile_picture_url" 
+                              <img
+                                v-if="cachedProfilePicture"
+                                :src="cachedProfilePicture"
                                 class="w-full h-full object-cover"
                               />
                               <div v-else class="w-full h-full flex items-center justify-center text-gray-400 dark:text-gray-500">
