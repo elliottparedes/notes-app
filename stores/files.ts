@@ -50,6 +50,9 @@ export const useFilesStore = defineStore('files', {
 
   actions: {
     async fetchFiles(folderPath: string = '/') {
+      const startTime = Date.now();
+      console.log('[STORE] fetchFiles starting...');
+
       const authStore = useAuthStore();
       if (!authStore.token) {
         this.error = 'Not authenticated';
@@ -61,20 +64,28 @@ export const useFilesStore = defineStore('files', {
       this.currentFolder = folderPath;
 
       try {
+        const fetchStart = Date.now();
         const response = await $fetch<{ files: FileItem[] }>(`/api/files?folder=${encodeURIComponent(folderPath)}`, {
           headers: {
             Authorization: `Bearer ${authStore.token}`,
           },
         });
+        console.log(`[STORE] fetchFiles API call complete (${Date.now() - fetchStart}ms), got ${response.files.length} files`);
 
+        const mapStart = Date.now();
         this.files = response.files.map(file => ({
           ...file,
           created_at: new Date(file.created_at),
           updated_at: new Date(file.updated_at),
         }));
+        console.log(`[STORE] Files mapping complete (${Date.now() - mapStart}ms)`);
 
         // Fetch user storage info
+        const storageStart = Date.now();
         await this.fetchStorageInfo();
+        console.log(`[STORE] fetchStorageInfo complete (${Date.now() - storageStart}ms)`);
+
+        console.log(`[STORE] fetchFiles total time: ${Date.now() - startTime}ms`);
       } catch (error: any) {
         console.error('Failed to fetch files:', error);
         this.error = error.data?.message || 'Failed to fetch files';
@@ -203,42 +214,54 @@ export const useFilesStore = defineStore('files', {
     },
 
     async fetchStorageInfo() {
+      const startTime = Date.now();
+      console.log('[STORE] fetchStorageInfo starting...');
+
       const authStore = useAuthStore();
       if (!authStore.token) {
         return;
       }
 
       try {
+        const fetchStart = Date.now();
         // Fetch user info to get storage_used
         const user = await $fetch<{ storage_used: number }>('/api/auth/me', {
           headers: {
             Authorization: `Bearer ${authStore.token}`,
           },
         });
+        console.log(`[STORE] fetchStorageInfo API call complete (${Date.now() - fetchStart}ms)`);
 
         if (user && typeof user.storage_used === 'number') {
           this.storageUsed = user.storage_used;
         }
+        console.log(`[STORE] fetchStorageInfo total time: ${Date.now() - startTime}ms`);
       } catch (error) {
         console.error('Failed to fetch storage info:', error);
       }
     },
 
     async syncStorage() {
+      const startTime = Date.now();
+      console.log('[STORE] syncStorage starting...');
+
       const authStore = useAuthStore();
       if (!authStore.token) {
         throw new Error('Not authenticated');
       }
 
       try {
+        const fetchStart = Date.now();
         const response = await $fetch<{ storage_used: number; storage_used_mb: number }>('/api/files/sync-storage', {
           method: 'POST',
           headers: {
             Authorization: `Bearer ${authStore.token}`,
           },
         });
+        console.log(`[STORE] syncStorage API call complete (${Date.now() - fetchStart}ms)`);
 
         this.storageUsed = response.storage_used;
+        console.log(`[STORE] syncStorage total time: ${Date.now() - startTime}ms`);
         return response;
       } catch (error: any) {
         console.error('Failed to sync storage:', error);

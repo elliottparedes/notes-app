@@ -7,9 +7,8 @@ import { useFoldersStore } from '~/stores/folders';
 import { useSpacesStore } from '~/stores/spaces';
 import { useSharedNotesStore } from '~/stores/sharedNotes';
 import { useToast } from '~/composables/useToast';
-import AppLoadingScreen from '~/components/AppLoadingScreen.vue';
 import { useNoteNavigation } from '~/composables/useNoteNavigation';
-import type { Note, CreateNoteDto, CreateFolderDto, Space } from '~/models';
+import type { Note, Space } from '~/models';
 import Sortable from 'sortablejs';
 
 const route = useRoute();
@@ -46,20 +45,20 @@ const showViewDropdown = ref(false);
 
 // Check for view query parameter on mount
 watch(() => route.query.view, (view) => {
-  if (view === 'storage') {
-    router.replace('/storage');
+  if (view === 'notebooks') {
+    router.replace('/notes');
   } else {
-    currentView.value = 'notebooks';
+    currentView.value = 'storage';
   }
 }, { immediate: true });
 
 // Provide view switching function for FileStorage component
 function switchToNotebooks() {
-  // Already on notebooks
+  router.push('/dashboard');
 }
 
 function switchToStorage() {
-  router.push('/storage');
+  // Already on storage
 }
 
 provide('switchView', { switchToNotebooks, switchToStorage });
@@ -86,27 +85,34 @@ const showDeleteSpaceModal = ref(false);
 const deletingSpaceId = ref<number | null>(null);
 const isDeletingSpace = ref(false);
 
-function isUrl(value: string | null | undefined): boolean {
-  if (!value) return false;
-  return value.includes('/') || value.startsWith('http');
-}
-
-function openEditSpaceModal(space: Space) {
-  editingSpace.value = space;
-  showSpaceModal.value = true;
-  showSpaceContextMenu.value = null;
-}
-
 function startSpaceRename(space: Space) {
-  openEditSpaceModal(space);
+  editingSpaceId.value = space.id;
+  editingSpaceName.value = space.name;
+  nextTick(() => {
+    spaceRenameInputRef.value?.focus();
+  });
 }
 
 async function saveSpaceRename() {
-  // Deprecated in favor of modal
+  if (editingSpaceId.value === null) return;
+  
+  const newName = editingSpaceName.value.trim();
+  if (newName) {
+    try {
+      await spacesStore.updateSpace(editingSpaceId.value, { name: newName });
+    } catch (error) {
+      console.error('Failed to rename space:', error);
+      toast.error('Failed to rename notebook');
+    }
+  }
+  
+  editingSpaceId.value = null;
+  editingSpaceName.value = '';
 }
 
 function cancelSpaceRename() {
-  // Deprecated in favor of modal
+  editingSpaceId.value = null;
+  editingSpaceName.value = '';
 }
 
 function toggleSpaceContextMenu(event: MouseEvent, spaceId: number) {
@@ -618,9 +624,7 @@ async function loadData() {
     await Promise.all([
       spacesStore.fetchSpaces(),
       // Fetch ALL folders for the sidebar tree
-      foldersStore.fetchFolders(null), 
-      notesStore.fetchNotes(),
-      sharedNotesStore.fetchSharedNotes()
+      foldersStore.fetchFolders(null)
     ]);
     hasInitialized.value = true;
   } catch (error) {
@@ -752,15 +756,12 @@ const isFullscreen = ref(false);
 const showSpaceModal = ref(false);
 const editingSpace = ref<Space | null>(null);
 
-// Folder Edit Modal State
-const showFolderEditModal = ref(false);
-const editingFolder = ref<any>(null);
-
-function openEditFolderModal(folder: any) {
-  editingFolder.value = folder;
-  showFolderEditModal.value = true;
-  openFolderContextMenuId.value = null;
-}
+// Initialize expanded state with current space if available
+watch(() => spacesStore.currentSpaceId, (newId) => {
+  if (newId !== null && !spacesStore.expandedSpaceIds.has(newId)) {
+    spacesStore.expandSpace(newId);
+  }
+}, { immediate: true });
 
 function openCreateSpaceModal() {
   editingSpace.value = null;
@@ -774,9 +775,6 @@ const sheetFolderId = ref<number | null>(null);
 const sheetDisplayNotes = computed(() => getOrderedNotesForFolder(sheetFolderId.value));
 
 const activeNote = computed(() => notesStore.activeNote);
-
-// Computed property for editor editable state
-const isEditorEditable = computed(() => !(isPolishing.value || isAskingAI.value));
 
 // Mobile Home view: cross-space recent notes
 const regularNotesSortedByUpdated = computed(() => {
@@ -853,9 +851,6 @@ async function handleSelectFolder(folderId: number) {
   const notes = getOrderedNotesForFolder(folderId);
   if (notes.length > 0) {
     await handleOpenNote(notes[0].id);
-  } else {
-    // If the folder is empty, clear the active note
-    notesStore.activeTabId = null;
   }
 }
 
@@ -1030,53 +1025,6 @@ function handleTitleChange() {
   }, 1000);
 }
 
-// Handle tags
-const tagInput = ref('');
-
-async function addTag() {
-  const trimmedTag = tagInput.value.trim();
-  if (!trimmedTag || !activeNote.value) return;
-  
-  // Ensure tags is an array
-  const currentTags = activeNote.value.tags || [];
-  
-  // Check if tag already exists
-  if (currentTags.includes(trimmedTag)) {
-    tagInput.value = '';
-    return;
-  }
-  
-  // Update local state
-  activeNote.value.tags = [...currentTags, trimmedTag];
-  tagInput.value = '';
-  
-  // Save changes
-  await saveTags();
-}
-
-async function removeTag(tag: string) {
-  if (!activeNote.value || !activeNote.value.tags) return;
-  
-  // Update local state
-  activeNote.value.tags = activeNote.value.tags.filter(t => t !== tag);
-  
-  // Save changes
-  await saveTags();
-}
-
-async function saveTags() {
-  if (!activeNote.value) return;
-  
-  try {
-    await notesStore.updateNote(activeNote.value.id, {
-      tags: activeNote.value.tags
-    });
-  } catch (error) {
-    console.error('Failed to save tags:', error);
-    toast.error('Failed to save tags');
-  }
-}
-
 // Auto-save content
 let contentSaveTimeout: NodeJS.Timeout | null = null;
 function handleContentChange(newContent: string) {
@@ -1094,7 +1042,7 @@ function handleContentChange(newContent: string) {
         content: activeNote.value.content
       });
     } catch (error) {
-      console.error('[Dashboard] Failed to save content:', error);
+      console.error('Failed to save content:', error);
       toast.error('Failed to save changes');
     }
   }, 2000); // Auto-save after 2 seconds
@@ -1104,12 +1052,8 @@ function handleContentChange(newContent: string) {
 const isPolishing = ref(false);
 async function polishNote() {
   if (!activeNote.value) return;
-
-  const originalNoteId = activeNote.value.id; // Capture original note ID
-  const originalNoteTitle = activeNote.value.title; // Capture original note title
-  const originalNoteContent = activeNote.value.content; // Capture original note content
   
-  if (!originalNoteTitle?.trim() && !originalNoteContent?.trim()) {
+  if (!activeNote.value.title?.trim() && !activeNote.value.content?.trim()) {
     toast.error('Add some content to your note first');
     return;
   }
@@ -1129,22 +1073,22 @@ async function polishNote() {
         Authorization: `Bearer ${authStore.token}`
       },
       body: {
-        title: originalNoteTitle || 'Untitled Note',
-        content: originalNoteContent || ''
+        title: activeNote.value.title || 'Untitled Note',
+        content: activeNote.value.content || ''
       }
     });
 
-    // Only update if the active note hasn't changed
-    if (activeNote.value && activeNote.value.id === originalNoteId) {
+    // Update the note with the polished content
+    if (activeNote.value) {
       activeNote.value.title = response.title;
       activeNote.value.content = response.content;
+      
+      // Save the changes
+      await notesStore.updateNote(activeNote.value.id, {
+        title: response.title,
+        content: response.content
+      });
     }
-    
-    // Always save changes to the original note ID
-    await notesStore.updateNote(originalNoteId, {
-      title: response.title,
-      content: response.content
-    });
 
     toast.success('Note polished! ✨');
   } catch (error: any) {
@@ -1203,10 +1147,6 @@ async function downloadPDF() {
 async function askAINote(prompt: string) {
   if (!activeNote.value) return;
   
-  const originalNoteId = activeNote.value.id; // Capture original note ID
-  const originalNoteTitle = activeNote.value.title; // Capture original note title
-  const originalNoteContent = activeNote.value.content; // Capture original note content
-
   if (!prompt || !prompt.trim()) {
     return;
   }
@@ -1226,21 +1166,21 @@ async function askAINote(prompt: string) {
         Authorization: `Bearer ${authStore.token}`
       },
       body: {
-        title: originalNoteTitle || 'Untitled Note',
-        content: originalNoteContent || '',
+        title: activeNote.value.title || 'Untitled Note',
+        content: activeNote.value.content || '',
         prompt: prompt
       }
     });
 
-    // Only update if the active note hasn't changed
-    if (activeNote.value && activeNote.value.id === originalNoteId) {
+    // Update the note with the AI-modified content
+    if (activeNote.value) {
       activeNote.value.content = response.content;
+      
+      // Save the changes
+      await notesStore.updateNote(activeNote.value.id, {
+        content: response.content
+      });
     }
-    
-    // Always save changes to the original note ID
-    await notesStore.updateNote(originalNoteId, {
-      content: response.content
-    });
 
     toast.success('Note updated! ✨');
   } catch (error: any) {
@@ -1305,9 +1245,10 @@ const restoreState = () => {
       // Restore selected folder
       selectedFolderId.value = note.folder_id;
       
-      // We no longer automatically expand the space on refresh to keep everything collapsed
+      // Expand the space containing this folder
       const folder = foldersStore.getFolderById(note.folder_id);
       if (folder && folder.space_id) {
+        spacesStore.expandSpace(folder.space_id);
         spacesStore.setCurrentSpace(folder.space_id);
       }
     }
@@ -1315,49 +1256,49 @@ const restoreState = () => {
 }
 
 // Close dropdown when clicking outside
-const handleClickOutsideViewDropdown = (event: MouseEvent) => {
-  const target = event.target as HTMLElement;
-  if (!target.closest('[data-view-dropdown]')) {
-    showViewDropdown.value = false;
-  }
-};
-
-const handleSpaceClickOutside = (event: MouseEvent) => {
-  if (showSpaceContextMenu.value === null) return;
-  
-  const target = event.target as HTMLElement;
-  
-  // Don't close if clicking the button itself
-  const buttonRefs = Array.from(spaceContextMenuRefs.value.values()).filter(Boolean);
-  if (buttonRefs.some(ref => ref && ref.contains(target))) {
-    return;
-  }
-  
-  // Don't close if clicking inside the menu
-  const menu = target.closest('[data-space-context-menu]');
-  if (menu) {
-    return;
-  }
-  
-  // Don't close if clicking on a button
-  if (target.tagName === 'BUTTON' || target.closest('button')) {
-    return;
-  }
-  
-  // Close if clicking anywhere else
-  showSpaceContextMenu.value = null;
-};
-
 onMounted(() => {
+  const handleClickOutside = (event: MouseEvent) => {
+    const target = event.target as HTMLElement;
+    if (!target.closest('[data-view-dropdown]')) {
+      showViewDropdown.value = false;
+    }
+  };
+  
   watch(() => showViewDropdown.value, (isOpen) => {
     if (isOpen) {
       setTimeout(() => {
-        document.addEventListener('click', handleClickOutsideViewDropdown);
+        document.addEventListener('click', handleClickOutside);
       }, 0);
     } else {
-      document.removeEventListener('click', handleClickOutsideViewDropdown);
+      document.removeEventListener('click', handleClickOutside);
     }
   });
+  
+  const handleSpaceClickOutside = (event: MouseEvent) => {
+    if (showSpaceContextMenu.value === null) return;
+    
+    const target = event.target as HTMLElement;
+    
+    // Don't close if clicking the button itself
+    const buttonRefs = Array.from(spaceContextMenuRefs.value.values()).filter(Boolean);
+    if (buttonRefs.some(ref => ref && ref.contains(target))) {
+      return;
+    }
+    
+    // Don't close if clicking inside the menu
+    const menu = target.closest('[data-space-context-menu]');
+    if (menu) {
+      return;
+    }
+    
+    // Don't close if clicking on a button
+    if (target.tagName === 'BUTTON' || target.closest('button')) {
+      return;
+    }
+    
+    // Close if clicking anywhere else
+    showSpaceContextMenu.value = null;
+  };
   
   watch(() => showSpaceContextMenu.value, (shouldListen) => {
     if (shouldListen) {
@@ -1368,34 +1309,33 @@ onMounted(() => {
       document.removeEventListener('click', handleSpaceClickOutside);
     }
   });
-});
-
-onUnmounted(() => {
-  document.removeEventListener('click', handleClickOutsideViewDropdown);
-  document.removeEventListener('click', handleSpaceClickOutside);
+  
+  onUnmounted(() => {
+    document.removeEventListener('click', handleSpaceClickOutside);
+  });
 });
 
 // Close folder context menu when clicking outside
-const handleFolderClickOutside = (event: MouseEvent) => {
-  if (openFolderContextMenuId.value === null) return;
-
-  const target = event.target as HTMLElement;
-
-  // Don't close if clicking the folder menu button
-  if (target.closest('[data-context-menu-button]')) {
-    return;
-  }
-
-  // Don't close if clicking inside the folder context menu
-  if (target.closest('[data-context-menu]')) {
-    return;
-  }
-
-  // Close for any other click
-  openFolderContextMenuId.value = null;
-};
-
 onMounted(() => {
+  const handleFolderClickOutside = (event: MouseEvent) => {
+    if (openFolderContextMenuId.value === null) return;
+
+    const target = event.target as HTMLElement;
+
+    // Don't close if clicking the folder menu button
+    if (target.closest('[data-context-menu-button]')) {
+      return;
+    }
+
+    // Don't close if clicking inside the folder context menu
+    if (target.closest('[data-context-menu]')) {
+      return;
+    }
+
+    // Close for any other click
+    openFolderContextMenuId.value = null;
+  };
+
   watch(() => openFolderContextMenuId.value, (folderId) => {
     if (folderId !== null) {
       setTimeout(() => {
@@ -1405,10 +1345,10 @@ onMounted(() => {
       document.removeEventListener('click', handleFolderClickOutside);
     }
   });
-});
 
-onUnmounted(() => {
-  document.removeEventListener('click', handleFolderClickOutside);
+  onUnmounted(() => {
+    document.removeEventListener('click', handleFolderClickOutside);
+  });
 });
 
 // Keyboard shortcut handler for search
@@ -1422,19 +1362,11 @@ function handleGlobalKeydown(event: KeyboardEvent) {
 
 // Watch for screen size changes and redirect accordingly
 watch(isMobileView, (isMobile) => {
-  if (isMobile && process.client && route.path === '/notes') {
+  if (isMobile && process.client && route.path === '/dashboard') {
     // Screen became mobile, redirect to mobile home
     router.replace('/mobile/home');
   }
 }, { immediate: false });
-
-// Listen for window resize to handle responsive routing
-const handleResize = () => {
-  if (window.innerWidth < 1024 && route.path === '/notes') {
-    // Screen became mobile, redirect
-    router.replace('/mobile/home');
-  }
-};
 
 onMounted(async () => {
   isMounted.value = true;
@@ -1462,14 +1394,24 @@ onMounted(async () => {
   // Add keyboard shortcut listener
   window.addEventListener('keydown', handleGlobalKeydown);
 
+  // Listen for window resize to handle responsive routing
+  const handleResize = () => {
+    if (window.innerWidth < 1024 && route.path === '/storage') {
+      // Screen became mobile, redirect
+      router.replace('/mobile/storage');
+    }
+  };
+
   window.addEventListener('resize', handleResize);
+  onUnmounted(() => {
+    window.removeEventListener('resize', handleResize);
+  });
 });
 
 onUnmounted(() => {
   if (titleSaveTimeout) clearTimeout(titleSaveTimeout);
   if (contentSaveTimeout) clearTimeout(contentSaveTimeout);
   window.removeEventListener('keydown', handleGlobalKeydown);
-  window.removeEventListener('resize', handleResize);
   cleanupScrollDetection();
 });
 
@@ -1543,618 +1485,14 @@ function handleNoteListResizeStart(e: MouseEvent) {
 </script>
 
 <template>
-  <AppLoadingScreen v-if="!hasInitialized" />
-  <div v-else class="flex h-screen w-full bg-white dark:bg-gray-900 overflow-hidden">
+  <div class="flex h-screen w-full bg-white dark:bg-gray-900 overflow-hidden">
     
-    <!-- Column 1: Notebooks & Sections (Sidebar) -->
-    <aside 
-      v-if="isDesktopSidebarVisible && !isFullscreen && currentView === 'notebooks'"
-      class="hidden lg:flex flex-col bg-gray-50 dark:bg-gray-900 border-r border-gray-300 dark:border-gray-700 flex-shrink-0 relative overflow-x-hidden"
-      :style="{ width: `${sidebarWidth}px` }"
-    >
-      <!-- Resize Handle -->
-      <div
-        @mousedown="handleSidebarResizeStart"
-        class="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-blue-500 z-10"
-      />
 
-      <!-- Header -->
-      <div class="h-12 flex items-center justify-between px-3 border-b border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800">
-        <div class="flex items-center gap-2">
-          <div class="flex items-center gap-1.5 font-medium text-sm px-2 py-1 text-gray-900 dark:text-gray-100">
-            <UIcon name="i-heroicons-book-open" class="w-4 h-4 text-gray-500 dark:text-gray-400" />
-            <span>Notebooks</span>
-          </div>
-          
-          <button 
-            v-if="currentView === 'notebooks'"
-            @click="showSearchModal = true"
-            class="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400 transition-colors"
-            title="Search Notes"
-          >
-            <UIcon name="i-heroicons-magnifying-glass" class="w-4 h-4" />
-          </button>
-        </div>
-        <button 
-          v-if="currentView === 'notebooks'"
-          @click="openCreateSpaceModal"
-          class="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400 transition-colors"
-          title="New Notebook"
-        >
-          <UIcon name="i-heroicons-plus" class="w-4 h-4" />
-        </button>
-      </div>
 
-      <!-- Notebooks List -->
-      <div v-if="currentView === 'notebooks'" ref="spacesListRef" class="notebooks-scroll flex-1 overflow-y-auto overflow-x-hidden p-1">
-        <div 
-          v-for="space in spacesStore.spaces" 
-          :key="space.id" 
-          class="space-item mb-0.5"
-          :data-space-id="space.id"
-        >
-            <!-- Notebook Header -->
-          <div v-if="editingSpaceId === space.id" class="flex-1 px-2 py-1">
-            <input
-              ref="spaceRenameInputRef"
-              v-model="editingSpaceName"
-              type="text"
-              class="w-full px-2 py-1 text-sm font-medium bg-white dark:bg-gray-800 border border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-              @blur="saveSpaceRename"
-              @keydown.enter="saveSpaceRename"
-              @keydown.esc="cancelSpaceRename"
-              @click.stop
-            />
-          </div>
-          <div 
-            v-else
-            class="space-item-header group/space relative flex items-center gap-1 transition-colors hover:bg-gray-100 dark:hover:bg-gray-800 active:bg-gray-200 dark:active:bg-gray-700 overflow-hidden min-w-0"
-            :class="{ 
-              // Subtle gray highlight when expanded but no folder is selected (or selected folder is in different notebook)
-              'bg-gray-100/50 dark:bg-gray-800/50': spacesStore.expandedSpaceIds.has(space.id) && 
-                (!selectedFolderId || foldersStore.getFolderById(selectedFolderId)?.space_id !== space.id)
-            }"
-          >
-            <button 
-              @click="handleSelectSpace(space.id)"
-              @dblclick="startSpaceRename(space)"
-              @dragenter="handleSpaceDragOver(space.id)"
-              class="space-button flex-1 flex items-center gap-2 px-2 py-2.5 transition-colors text-left min-w-0"
-            >
-              <UIcon 
-                :name="spacesStore.expandedSpaceIds.has(space.id) ? 'i-heroicons-chevron-down' : 'i-heroicons-chevron-right'" 
-                class="w-4 h-4 text-gray-500 dark:text-gray-400 flex-shrink-0"
-              />
-              <img 
-                v-if="isUrl(space.icon)" 
-                :src="space.icon!" 
-                class="w-5 h-5 object-contain rounded-sm flex-shrink-0"
-              />
-              <UIcon 
-                v-else
-                :name="space.icon ? `i-lucide-${space.icon}` : 'i-heroicons-book-open'" 
-                class="w-5 h-5 text-gray-700 dark:text-gray-300 flex-shrink-0" 
-              />
-              <span class="font-normal text-sm lg:text-base truncate flex-1 text-gray-900 dark:text-gray-100">{{ space.name }}</span>
-            </button>
-            
-            <!-- Context Menu Button -->
-            <button
-              :ref="(el) => setSpaceContextMenuRef(el, space.id)"
-              type="button"
-              @click.stop="toggleSpaceContextMenu($event, space.id)"
-              @mousedown.stop
-              class="no-drag flex-shrink-0 p-1 opacity-100 lg:opacity-0 lg:group-hover/space:opacity-100 hover:bg-gray-200 dark:hover:bg-gray-700 active:bg-gray-200 dark:active:bg-gray-700 transition-colors"
-              :class="showSpaceContextMenu === space.id ? 'bg-gray-200 dark:bg-gray-700' : ''"
-            >
-              <svg class="w-4 h-4 text-gray-500 dark:text-gray-400" fill="currentColor" viewBox="0 0 16 16">
-                <circle cx="8" cy="2" r="1.5"/>
-                <circle cx="8" cy="8" r="1.5"/>
-                <circle cx="8" cy="14" r="1.5"/>
-              </svg>
-            </button>
-          </div>
-          
-          <!-- Space Context Menu -->
-          <ClientOnly>
-            <Teleport to="body">
-              <Transition
-                enter-active-class="transition-all duration-150 ease"
-                enter-from-class="opacity-0 scale-0.95 translate-y-(-4px)"
-                enter-to-class="opacity-100 scale-100 translate-y-0"
-                leave-active-class="transition-all duration-150 ease"
-                leave-from-class="opacity-100 scale-100 translate-y-0"
-                leave-to-class="opacity-0 scale-0.95 translate-y-(-4px)"
-              >
-                <div
-                  v-if="showSpaceContextMenu === space.id"
-                  data-space-context-menu
-                  @click.stop
-                  class="fixed w-40 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 shadow-lg py-1 z-[9999]"
-                  :style="getSpaceMenuStyle(space.id)"
-                >
-                  <button
-                    type="button"
-                    @click="openEditSpaceModal(space)"
-                    class="w-full text-left px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 active:bg-gray-200 dark:active:bg-gray-600 flex items-center gap-2"
-                  >
-                    <UIcon name="i-heroicons-pencil" class="w-4 h-4" />
-                    <span>Edit</span>
-                  </button>
-                  <button
-                    type="button"
-                    @click="handleDeleteSpace(space.id)"
-                    class="w-full text-left px-3 py-1.5 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700 active:bg-gray-200 dark:active:bg-gray-600 flex items-center gap-2"
-                  >
-                    <UIcon name="i-heroicons-trash" class="w-4 h-4" />
-                    <span>Delete</span>
-                  </button>
-                </div>
-              </Transition>
-              <!-- Backdrop for mobile -->
-              <div
-                v-if="showSpaceContextMenu === space.id && isMobileView"
-                class="fixed inset-0 z-[9998] lg:hidden"
-                @click="showSpaceContextMenu = null"
-              />
-            </Teleport>
-          </ClientOnly>
-
-          <!-- Sections (Folders) - Only visible if space is active -->
-          <div v-show="spacesStore.expandedSpaceIds.has(space.id)">
-            <div 
-              class="pl-6 space-y-0.5 min-h-[5px]"
-              :ref="(el) => setFolderListRef(el, space.id)"
-            >
-              <FolderTreeItem
-                v-for="folder in getSpaceFolders(space.id)"
-                :key="folder.id"
-                :folder="folder"
-                :selected-id="selectedFolderId"
-                :open-menu-id="openFolderContextMenuId"
-                @select="handleSelectFolder"
-                @create-note="handleCreateNoteInFolder"
-                @delete="handleDeleteFolder"
-                @edit="openEditFolderModal"
-                @rename="(id) => console.log('Rename folder', id)"
-                @update:openMenuId="openFolderContextMenuId = $event"
-              />
-            </div>
-            
-            <!-- New Section Button -->
-            <div class="pl-6 mt-0.5">
-              <div class="relative flex items-center gap-2 transition-colors hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer group" @click="openCreateFolderModal(space.id)">
-                <div class="w-4" /> <!-- Spacer to align with sections -->
-                <div class="flex-1 flex items-center gap-2 py-1.5 pr-2 text-sm text-gray-600 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-gray-100 transition-colors">
-                  <UIcon name="i-heroicons-plus" class="w-3.5 h-3.5" />
-                  <span class="font-normal">New Section</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-      
-
-      
-      <!-- User Footer -->
-      <div class="p-3 border-t border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-lg">
-        <div class="flex items-center gap-2">
-          <div class="w-7 h-7 bg-blue-600 dark:bg-blue-500 flex items-center justify-center text-white text-xs font-medium overflow-hidden rounded-full">
-            <img 
-              v-if="authStore.currentUser?.profile_picture_url" 
-              :src="authStore.currentUser.profile_picture_url" 
-              class="w-full h-full object-cover"
-            />
-            <span v-else>{{ authStore.currentUser?.name?.[0] || 'U' }}</span>
-          </div>
-          <div class="flex-1 min-w-0">
-            <div class="text-sm font-normal truncate text-gray-900 dark:text-gray-100">{{ authStore.currentUser?.name }}</div>
-          </div>
-          <div class="flex items-center gap-0.5">
-            <NuxtLink
-              to="/settings"
-              class="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
-              title="Settings"
-            >
-              <UIcon name="i-heroicons-cog-6-tooth" class="w-4 h-4" />
-            </NuxtLink>
-            <button
-              @click="handleLogout"
-              class="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
-              title="Sign Out"
-            >
-              <UIcon name="i-heroicons-arrow-right-on-rectangle" class="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-      </div>
-    </aside>
-
-    <!-- Column 2: Note List (Middle) -->
-    <aside 
-      v-if="!isFullscreen && currentView === 'notebooks'"
-      class="hidden lg:flex flex-col bg-white dark:bg-gray-900 border-r border-gray-300 dark:border-gray-700 flex-shrink-0 relative"
-      :style="{ width: `${noteListWidth}px` }"
-    >
-      <!-- Resize Handle -->
-      <div
-        @mousedown="handleNoteListResizeStart"
-        class="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-blue-500 z-10"
-      />
-
-      <!-- Header -->
-      <div class="h-12 flex items-center justify-between px-3 border-b border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
-        <div class="flex items-center gap-2 overflow-hidden">
-          <span class="font-medium text-sm truncate text-gray-900 dark:text-gray-100">
-            {{ selectedFolderId ? foldersStore.getFolderById(selectedFolderId)?.name : 'Select Section' }}
-          </span>
-          <UIcon 
-            v-if="notesStore.isSyncing" 
-            name="i-heroicons-arrow-path" 
-            class="w-3.5 h-3.5 animate-spin text-gray-500 dark:text-gray-400 flex-shrink-0" 
-            title="Syncing..."
-          />
-        </div>
-        <button 
-          v-if="selectedFolderId"
-          @click="handleCreateNoteInFolder(selectedFolderId)"
-          class="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400 flex-shrink-0"
-          title="New Page"
-        >
-          <UIcon name="i-heroicons-plus" class="w-4 h-4" />
-        </button>
-      </div>
-
-      <!-- Note List -->
-      <div class="notes-scroll flex-1 overflow-y-auto">
-        <!-- Initial Loading State only -->
-        <div v-if="notesStore.loading && displayNotes.length === 0" class="p-8 text-center text-gray-500">
-          <UIcon name="i-heroicons-arrow-path" class="w-8 h-8 mx-auto animate-spin mb-2" />
-          Loading pages...
-        </div>
-        <div v-else-if="!selectedFolderId" class="p-8 text-center text-gray-500">
-          Select a section to view pages
-        </div>
-        <div v-else-if="displayNotes.length === 0" class="p-8 text-center text-gray-500">
-          No pages in this section
-        </div>
-        <div
-          v-else
-          class="divide-y divide-gray-200 dark:divide-gray-700"
-          ref="noteListRef"
-        >
-          <div 
-            v-for="(note, index) in displayNotes" 
-            :key="note.id"
-            :data-note-id="note.id"
-            :style="{ '--index': index, '--total-count': displayNotes.length }"
-            @click="handleOpenNote(note.id)"
-            class="note-item group px-3 py-2 cursor-pointer transition-colors relative border-l-2"
-            :class="{ 
-              'bg-blue-50 dark:bg-blue-900/20 border-l-blue-600 dark:border-l-blue-400': activeNote?.id === note.id,
-              'border-l-transparent hover:bg-gray-50 dark:hover:bg-gray-800': activeNote?.id !== note.id
-            }"
-          >
-            <div class="font-normal text-sm truncate select-none pr-8 text-gray-900 dark:text-gray-100">{{ note.title || 'Untitled Page' }}</div>
-            <!-- Delete Button -->
-            <button
-              @click.stop="handleDeleteClick(note.id, $event)"
-              class="absolute top-1/2 right-2 -translate-y-1/2 p-1.5 rounded-md transition-colors flex items-center justify-center"
-              :class="noteToDelete === note.id 
-                ? 'opacity-100 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20' 
-                : 'opacity-0 group-hover:opacity-100 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'"
-              :title="noteToDelete === note.id ? 'Click to confirm delete' : 'Delete note'"
-            >
-              <UIcon 
-                :name="noteToDelete === note.id ? 'i-heroicons-trash' : 'i-heroicons-x-mark'" 
-                class="w-4 h-4" 
-              />
-            </button>
-          </div>
-        </div>
-      </div>
-    </aside>
-
-    <!-- Column 3: Editor (Main) or Storage View -->
-    <main v-if="currentView === 'notebooks'" class="flex-1 flex flex-col min-w-0 bg-white dark:bg-gray-900 relative">
-      <!-- Empty state / Home / Mobile folder notes -->
-      <div v-if="!activeNote">
-        <!-- Desktop empty state -->
-        <div v-if="!isMobileView" class="flex-1 flex items-start justify-center text-gray-500 dark:text-gray-400 pt-[50vh]">
-          <div class="text-center">
-            <UIcon name="i-heroicons-pencil-square" class="w-12 h-12 mx-auto mb-3 opacity-40" />
-            <p class="text-sm">Select a page to start editing</p>
-          </div>
-        </div>
-
-        <!-- Mobile: Folder notes list screen -->
-        <div
-          v-else-if="selectedFolderId"
-          class="lg:hidden flex-1 overflow-y-auto pb-28"
-        >
-          <div class="px-4 pt-6 pb-3 flex items-center justify-between gap-2">
-            <button
-              type="button"
-              class="p-2 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-500 hover:text-gray-700 dark:hover:text-gray-200 active:scale-95 transition"
-              @click="handleBackToHomeFromFolder"
-            >
-              <UIcon name="i-heroicons-arrow-left" class="w-5 h-5" />
-            </button>
-            <div class="flex-1 min-w-0 text-center">
-              <p class="text-xs uppercase tracking-wide text-gray-400">Section</p>
-              <h1 class="text-sm font-semibold text-gray-900 dark:text-gray-50 truncate">
-                {{ foldersStore.getFolderById(selectedFolderId)?.name || 'Untitled section' }}
-              </h1>
-            </div>
-            <button
-              v-if="selectedFolderId"
-              type="button"
-              class="p-2 rounded-full bg-primary-50 dark:bg-primary-900/30 text-primary-600 dark:text-primary-300 active:scale-95 transition"
-              @click="handleCreateNoteInFolder(selectedFolderId)"
-            >
-              <UIcon name="i-heroicons-plus" class="w-5 h-5" />
-            </button>
-          </div>
-
-          <div class="px-4 space-y-4">
-            <div v-if="notesStore.loading && displayNotes.length === 0" class="py-10 text-center text-gray-500">
-              <UIcon name="i-heroicons-arrow-path" class="w-8 h-8 mx-auto mb-2 animate-spin" />
-              Loading notes...
-            </div>
-
-            <div v-else-if="displayNotes.length === 0" class="py-10 text-center text-gray-500 dark:text-gray-400">
-              <p class="mb-3 text-sm">No notes in this section yet.</p>
-              <UButton color="primary" size="md" @click="handleCreateNoteInFolder(selectedFolderId as number)">
-                New note
-              </UButton>
-            </div>
-
-            <div v-else class="space-y-2">
-              <button
-                v-for="note in displayNotes"
-                :key="note.id"
-                type="button"
-                class="w-full text-left rounded-2xl px-4 py-3 bg-gray-50/80 dark:bg-gray-800/80 active:scale-[0.99] transition flex flex-col gap-1"
-                @click="handleOpenNote(note.id)"
-              >
-                <div class="flex items-center justify-between gap-2">
-                  <p class="text-sm font-medium text-gray-900 dark:text-gray-50 truncate">
-                    {{ note.title || 'Untitled note' }}
-                  </p>
-                  <span class="text-xs text-gray-400 whitespace-nowrap">
-                    {{ formatTime(note.updated_at) }}
-                  </span>
-                </div>
-                <p class="text-[11px] text-gray-400">
-                  Last updated {{ formatDate(note.updated_at) }}
-                </p>
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <!-- Mobile Home tab: cross-space "what matters now" -->
-        <div v-else class="lg:hidden flex-1 overflow-y-auto pb-28">
-          <div class="px-4 pt-6 pb-4 flex items-center justify-between">
-            <div>
-              <p class="text-xs uppercase tracking-wide text-gray-400">Home</p>
-              <h1 class="text-xl font-semibold text-gray-900 dark:text-gray-50 mt-1">Welcome back</h1>
-            </div>
-            <button
-              type="button"
-              class="p-2 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-500 hover:text-gray-700 dark:hover:text-gray-200 active:scale-95 transition"
-              @click="showSearchModal = true"
-            >
-              <UIcon name="i-heroicons-magnifying-glass" class="w-5 h-5" />
-            </button>
-          </div>
-
-          <div class="px-4 space-y-6">
-            <!-- Continue writing -->
-            <section v-if="continueWritingNotes.length">
-              <h2 class="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">Continue writing</h2>
-              <div class="space-y-2">
-                <button
-                  v-for="note in continueWritingNotes"
-                  :key="note.id"
-                  type="button"
-                  class="w-full text-left rounded-2xl bg-gray-50/80 dark:bg-gray-800/80 px-4 py-3 active:scale-[0.99] transition flex flex-col gap-1"
-                  @click="handleOpenNote(note.id)"
-                >
-                  <div class="flex items-center justify-between gap-2">
-                    <p class="text-sm font-medium text-gray-900 dark:text-gray-50 truncate">
-                      {{ note.title || 'Untitled note' }}
-                    </p>
-                    <span class="text-xs text-gray-400">
-                      {{ formatTime(note.updated_at) }}
-                    </span>
-                  </div>
-                  <!-- Optional snippet area: keep minimal to avoid heavy parsing on mobile -->
-                  <div class="mt-1 flex items-center gap-2 text-[11px] text-gray-400">
-                    <template v-if="getNoteLocation(note).spaceName">
-                      <span class="truncate">
-                        {{ getNoteLocation(note).spaceName }}<span v-if="getNoteLocation(note).folderName"> · {{ getNoteLocation(note).folderName }}</span>
-                      </span>
-                    </template>
-                  </div>
-                </button>
-              </div>
-            </section>
-
-            <!-- Spaces entry -->
-            <section>
-              <button
-                type="button"
-                class="w-full rounded-2xl bg-gradient-to-r from-primary-50 via-primary-100 to-primary-50 dark:from-primary-900/40 dark:via-primary-800/40 dark:to-primary-900/40 border border-primary-100 dark:border-primary-800 px-4 py-4 flex items-center gap-3 active:scale-[0.99] transition shadow-sm"
-                @click="showMobileSpacesSheet = true"
-              >
-                <div class="flex items-center justify-center w-9 h-9 rounded-xl bg-white/90 dark:bg-gray-900/90 shadow-sm flex-shrink-0">
-                  <UIcon name="i-heroicons-book-open" class="w-5 h-5 text-primary-600 dark:text-primary-300" />
-                </div>
-                <div class="flex-1 text-left">
-                  <p class="text-sm font-semibold text-gray-900 dark:text-gray-50">
-                    Browse spaces & sections
-                  </p>
-                  <p class="text-xs text-gray-600 dark:text-gray-300 mt-0.5">
-                    Jump into any notebook and section to find the notes you need.
-                  </p>
-                </div>
-                <UIcon name="i-heroicons-chevron-up-down" class="w-4 h-4 text-primary-500/80 dark:text-primary-300/80" />
-              </button>
-            </section>
-
-            <!-- Account / Settings entry -->
-            <section>
-              <NuxtLink
-                to="/settings"
-                class="mt-3 w-full rounded-2xl bg-gray-50 dark:bg-gray-900/70 border border-gray-200 dark:border-gray-800 px-4 py-3 flex items-center gap-3 active:scale-[0.99] transition"
-              >
-                <div class="flex items-center justify-center w-9 h-9 rounded-full bg-primary-500/10 text-primary-700 dark:text-primary-300 flex-shrink-0">
-                  <UIcon name="i-heroicons-user-circle" class="w-5 h-5" />
-                </div>
-                <div class="flex-1 text-left min-w-0">
-                  <p class="text-sm font-medium text-gray-900 dark:text-gray-50 truncate">
-                    Account & Settings
-                  </p>
-                  <p class="text-xs text-gray-600 dark:text-gray-400">
-                    Manage your profile, theme, password, and more.
-                  </p>
-                </div>
-                <UIcon name="i-heroicons-chevron-right" class="w-4 h-4 text-gray-400 flex-shrink-0" />
-              </NuxtLink>
-            </section>
-
-            <!-- Empty state when there are no notes yet -->
-            <section v-if="!continueWritingNotes.length && !recentActivityNotes.length">
-              <div class="rounded-2xl border border-dashed border-gray-300 dark:border-gray-700 px-4 py-6 text-center text-gray-500 dark:text-gray-400">
-                <p class="mb-3 text-sm">No notes yet. Create your first note to get started.</p>
-                <UButton color="primary" size="md" block @click="handleMobileCreate">
-                  New note
-                </UButton>
-              </div>
-            </section>
-          </div>
-        </div>
-      </div>
-      
-      <template v-else>
-        <!-- Editor Title Area -->
-        <div class="px-6 pt-4 pb-3 relative border-b border-gray-200 dark:border-gray-700">
-          <!-- Desktop: Action Buttons / Mobile: Close Note -->
-          <div v-if="!isMobileView" class="absolute top-4 right-6 flex items-center gap-1 z-10">
-            <!-- Download PDF Button -->
-            <button
-              @click="downloadPDF"
-              class="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
-              title="Download as PDF"
-            >
-              <UIcon 
-                name="i-heroicons-arrow-down-tray"
-                class="w-4 h-4" 
-              />
-            </button>
-            <!-- Focus Mode Button -->
-            <button
-              @click="toggleFocusMode"
-              class="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
-              :title="isFullscreen ? 'Show Sidebars' : 'Hide Sidebars'"
-            >
-              <UIcon 
-                :name="isFullscreen ? 'i-heroicons-arrows-pointing-in' : 'i-heroicons-arrows-pointing-out'" 
-                class="w-4 h-4" 
-              />
-            </button>
-          </div>
-          <button
-            v-else
-            @click="handleCloseActiveNote"
-            class="absolute top-4 right-6 p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors z-10"
-            title="Close note"
-          >
-            <UIcon 
-              name="i-heroicons-x-mark"
-              class="w-4 h-4" 
-            />
-          </button>
-          
-          <input
-            v-model="activeNote.title"
-            class="w-full text-2xl font-semibold bg-transparent border-none outline-none placeholder-gray-400 dark:placeholder-gray-500 py-2 leading-tight text-gray-900 dark:text-gray-100"
-            :class="isMobileView ? 'pr-12' : 'pr-32'"
-            placeholder="Page Title"
-            @input="handleTitleChange"
-          />
-          <div class="text-xs text-gray-500 dark:text-gray-400 mt-1 flex items-center gap-2">
-            <ClientOnly>
-              <div class="flex items-center gap-2">
-                <template v-if="activeNote">
-                  <!-- Saved indicator -->
-                  <div v-if="notesStore.loading" class="flex items-center gap-1.5 text-gray-400">
-                    <UIcon name="i-heroicons-arrow-path" class="w-3.5 h-3.5 animate-spin" />
-                    <span>Saving...</span>
-                  </div>
-                  <div v-else class="flex items-center gap-1.5 text-green-600 dark:text-green-400 transition-all duration-300">
-                    <UIcon name="i-heroicons-check-circle" class="w-3.5 h-3.5" />
-                    <span>Saved</span>
-                  </div>
-                  <span class="text-gray-300 dark:text-gray-600 mx-1">|</span>
-                  <span>{{ formatHeaderDate(activeNote.updated_at) }}</span>
-                </template>
-              </div>
-            </ClientOnly>
-          </div>
-
-          <!-- Tags Input -->
-          <div class="mt-3 flex items-center gap-2 flex-wrap">
-            <UIcon name="i-heroicons-tag" class="w-4 h-4 text-gray-400 flex-shrink-0" />
-            
-            <div class="flex items-center gap-1.5 flex-wrap">
-              <span
-                v-for="tag in activeNote.tags || []"
-                :key="tag"
-                class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 group cursor-pointer hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400 transition-colors"
-                @click="removeTag(tag)"
-                title="Click to remove"
-              >
-                {{ tag }}
-                <UIcon name="i-heroicons-x-mark" class="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
-              </span>
-
-              <input
-                v-model="tagInput"
-                type="text"
-                class="bg-transparent border-none outline-none text-xs text-gray-600 dark:text-gray-400 placeholder-gray-400 min-w-[60px]"
-                placeholder="Add tag..."
-                @keydown.enter="addTag"
-                @blur="addTag"
-              />
-            </div>
-          </div>
-        </div>
-
-        <!-- Unified Editor -->
-        <div class="flex-1 overflow-hidden relative">
-            <UnifiedEditor
-              ref="editorRef"
-              v-model="activeNote.content"
-              :note-id="activeNote.id"
-              :editable="isEditorEditable"
-              :placeholder="'Start writing...'"
-              :is-collaborative="false"
-              :is-polishing="isPolishing"
-              :is-asking-a-i="isAskingAI"
-              :search-query="searchQueryForHighlight"
-              @update:model-value="handleContentChange"
-              @request-polish="polishNote"
-              @request-ask-ai="askAINote"
-              @note-link-clicked="(id) => handleSearchNoteSelected({ id } as Note)"
-            />
-        </div>
-      </template>
+    <!-- Storage View (Full Width) -->
+    <main class="flex-1 flex flex-col min-w-0 bg-white dark:bg-gray-900 relative">
+      <FileStorage />
     </main>
-    
-
 
     <!-- Mobile bottom navigation removed; Home now links to Settings directly -->
 
@@ -2171,7 +1509,7 @@ function handleNoteListResizeStart(e: MouseEvent) {
         >
           <div
             v-if="showMobileSpacesSheet && isMobileView"
-            class="fixed inset-0 z-40 lg:hidden"
+            class="fixed inset-0 z-40 md:hidden"
           >
             <div
               class="absolute inset-0 bg-black/40 backdrop-blur-sm"
@@ -2432,13 +1770,6 @@ function handleNoteListResizeStart(e: MouseEvent) {
       :space="editingSpace"
       @created="spacesStore.fetchSpaces"
       @updated="spacesStore.fetchSpaces"
-    />
-
-    <!-- Folder Edit Modal -->
-    <FolderEditModal
-      v-if="showFolderEditModal && editingFolder"
-      v-model="showFolderEditModal"
-      :folder="editingFolder"
     />
 
     <!-- Search Modal -->

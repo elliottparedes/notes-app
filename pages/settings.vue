@@ -3,6 +3,7 @@ import AnalyticsDashboard from '~/components/AnalyticsDashboard.vue';
 
 const authStore = useAuthStore();
 const toast = useToast();
+const router = useRouter();
 
 // Profile state
 const profileName = ref(authStore.user?.name || '');
@@ -187,7 +188,7 @@ async function handleChangePassword() {
 }
 
 function goBack() {
-  navigateTo('/notes');
+  router.back();
 }
 </script>
 
@@ -203,7 +204,7 @@ function goBack() {
           <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
           </svg>
-          Back to Notes
+          Back
         </button>
         
         <h1 class="text-2xl font-semibold text-gray-900 dark:text-white">Settings</h1>

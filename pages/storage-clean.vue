@@ -1,6 +1,5 @@
 <script setup lang="ts">
-// Clean storage page - only loads file storage, no notes infrastructure
-console.log('[STORAGE PAGE] Initializing clean storage page');
+// Clean storage page - no notes/folders/spaces stores loaded
 </script>
 
 <template>

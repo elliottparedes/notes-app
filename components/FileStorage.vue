@@ -518,15 +518,22 @@ function handleDrop(event: DragEvent) {
 
 // Folder operations
 async function fetchFolders() {
+  const startTime = Date.now();
+  console.log('[COMPONENT] fetchFolders starting...');
+
   foldersLoading.value = true;
   try {
+    const fetchStart = Date.now();
     const response = await $fetch<{ folders: Array<{ path: string; name: string }> }>(
       `/api/files/folders?parent=${encodeURIComponent(filesStore.currentFolder)}`,
       {
         headers: { Authorization: `Bearer ${authStore.token}` },
       }
     );
+    console.log(`[COMPONENT] fetchFolders API call complete (${Date.now() - fetchStart}ms), got ${response.folders.length} folders`);
+
     folders.value = response.folders;
+    console.log(`[COMPONENT] fetchFolders total time: ${Date.now() - startTime}ms`);
   } catch (error) {
     console.error('Failed to fetch folders:', error);
     folders.value = [];
@@ -1158,6 +1165,9 @@ async function deleteFolder(folder: { path: string; name: string }) {
 }
 
 onMounted(async () => {
+  const mountStartTime = Date.now();
+  console.log('[COMPONENT] onMounted starting...');
+
   // Load view mode from local storage
   if (process.client) {
     const savedViewMode = localStorage.getItem('fileStorageViewMode');
@@ -1168,11 +1178,21 @@ onMounted(async () => {
 
   // Set initial loading state
   foldersLoading.value = true;
-  
+
+  const syncStart = Date.now();
   await filesStore.syncStorage();
+  console.log(`[COMPONENT] syncStorage complete (${Date.now() - syncStart}ms)`);
+
+  const fetchFilesStart = Date.now();
   await filesStore.fetchFiles();
+  console.log(`[COMPONENT] fetchFiles complete (${Date.now() - fetchFilesStart}ms)`);
+
+  const fetchFoldersStart = Date.now();
   await fetchFolders();
-  
+  console.log(`[COMPONENT] fetchFolders complete (${Date.now() - fetchFoldersStart}ms)`);
+
+  console.log(`[COMPONENT] onMounted TOTAL TIME: ${Date.now() - mountStartTime}ms`);
+
   // Add global mouse event listeners for drag selection
   document.addEventListener('mousemove', handleSelectionMove);
   document.addEventListener('mouseup', handleSelectionEnd);
@@ -1234,63 +1254,23 @@ onMounted(() => {
   >
     <!-- Header - Matching Notebooks style -->
     <div class="h-12 flex items-center justify-between px-3 border-b border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800">
-      <div class="flex items-center gap-2 relative">
-        <!-- View Switcher Dropdown -->
-        <div class="relative" data-view-dropdown>
-            <button
-              @click.stop="showViewDropdown = !showViewDropdown"
-              class="flex items-center gap-1.5 font-medium text-sm hover:bg-gray-100 dark:hover:bg-gray-700 px-2 py-1 transition-colors"
-            >
-              <span>Storage</span>
-              <UIcon 
-                name="i-heroicons-chevron-down" 
-                class="w-3.5 h-3.5 transition-transform"
-                :class="{ 'rotate-180': showViewDropdown }"
-              />
-            </button>
-            
-            <!-- Dropdown Menu -->
-            <Transition
-              enter-active-class="transition-opacity duration-100"
-              enter-from-class="opacity-0"
-              enter-to-class="opacity-100"
-              leave-active-class="transition-opacity duration-100"
-              leave-from-class="opacity-100"
-              leave-to-class="opacity-0"
-            >
-              <div
-                v-if="showViewDropdown"
-                class="absolute top-full left-0 mt-0.5 w-48 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 shadow-lg py-1 z-50"
-                @click.stop
-              >
-              <button
-                @click="router.push('/notes'); showViewDropdown = false"
-                class="w-full text-left px-3 py-1.5 text-sm transition-colors text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
-              >
-                <UIcon name="i-heroicons-book-open" class="w-4 h-4" />
-                <span>Notebooks</span>
-              </button>
-              <button
-                @click="router.push('/kanban'); showViewDropdown = false"
-                class="w-full text-left px-3 py-1.5 text-sm transition-colors text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
-              >
-                <UIcon name="i-heroicons-view-columns" class="w-4 h-4" />
-                <span>Kanban</span>
-              </button>
-              <button
-                @click="showViewDropdown = false"
-                class="w-full text-left px-3 py-1.5 text-sm transition-colors bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 font-medium flex items-center gap-2"
-              >
-                <UIcon name="i-heroicons-folder" class="w-4 h-4" />
-                <span>Storage</span>
-              </button>
-            </div>
-          </Transition>
+      <div class="flex items-center gap-2">
+        <div class="flex items-center gap-1.5 font-medium text-sm px-2 py-1 text-gray-900 dark:text-gray-100">
+          <UIcon name="i-heroicons-folder" class="w-4 h-4 text-gray-500 dark:text-gray-400" />
+          <span>Storage</span>
         </div>
       </div>
       
       <!-- Right side actions -->
       <div class="flex items-center gap-2">
+        <NuxtLink
+          to="/settings"
+          class="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors rounded-lg"
+          title="Settings"
+        >
+          <UIcon name="i-heroicons-cog-6-tooth" class="w-4 h-4" />
+        </NuxtLink>
+
         <!-- View mode toggle -->
         <div class="flex items-center gap-0.5 p-0.5 bg-gray-100 dark:bg-gray-800">
           <button
