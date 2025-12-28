@@ -351,13 +351,13 @@ export default defineEventHandler(async (event) => {
       border-bottom: 1px solid var(--primary-light);
     }
     .content .note-link {
-      color: var(--primary) !important;
-      font-weight: 600;
+      color: inherit !important;
+      font-weight: normal;
       text-decoration: none !important;
-      display: inline-block;
-      background: var(--primary-light);
-      padding: 0 6px;
-      border-radius: 4px;
+      display: inline;
+      background: none;
+      padding: 0;
+      border-radius: 0;
     }
     .content hr {
       border: none;
