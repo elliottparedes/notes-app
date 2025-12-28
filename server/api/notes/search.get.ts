@@ -237,7 +237,7 @@ export default defineEventHandler(async (event): Promise<SearchResult[]> => {
       const fulltextWords = words.filter(w => w.length >= 3).join(' ');
       
       if (fulltextWords) {
-        conditions.push(`(MATCH(n.title, n.content) AGAINST(? IN BOOLEAN MODE) OR n.title LIKE ? OR n.content LIKE ? OR n.tags LIKE ?)`);
+        conditions.push(`(MATCH(n.title, n.content, n.tags_text) AGAINST(? IN BOOLEAN MODE) OR n.title LIKE ? OR n.content LIKE ? OR n.tags LIKE ?)`);
       } else {
         // For short words, use LIKE
         const likePattern = `%${escapedQueryLower}%`;
