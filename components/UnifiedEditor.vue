@@ -1152,7 +1152,8 @@ if (!props.isCollaborative) {
     
     // Only update if editor is not focused (prevents cursor jumping while typing)
     // AND if we're not in the middle of a note change (which is handled by noteId watcher)
-    if (!isFocused) {
+    // OR if we are explicitly polishing/asking AI (streaming content)
+    if (!isFocused || props.isPolishing || props.isAskingAI) {
       editor.value.chain()
         .setContent(newValue || '', { emitUpdate: false })
         .setMeta('isProgrammatic', true)
@@ -2008,6 +2009,7 @@ async function uploadFiles(files: File[]) {
   flex: 1;
   min-width: 0; /* Important for flex containers to allow text to wrap properly and have width */
   cursor: text; /* Ensure clicking wrapper sets cursor */
+  overflow: visible; /* Ensure cursor isn't clipped */
 }
 
 .unified-editor :deep(.note-link) {
@@ -2035,6 +2037,7 @@ async function uploadFiles(files: File[]) {
   display: block; /* Ensure block display */
   caret-color: black; /* Force visible caret color */
   cursor: text;
+  padding-left: 2px; /* Fix for cursor clipping */
 }
 
 .dark .unified-editor :deep(.ProseMirror ul[data-type="taskList"] li[data-type="taskItem"] p),

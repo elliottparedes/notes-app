@@ -1,3 +1,5 @@
+import { nextTick } from 'vue';
+
 export function useNoteEditor() {
   const notesStore = useNotesStore();
   const authStore = useAuthStore();
@@ -110,6 +112,9 @@ export function useNoteEditor() {
     }
 
     isPolishing.value = true;
+    await nextTick(); // Ensure loading state is rendered
+    
+    let accumulatedContent = '';
 
     try {
       if (!authStore.token) {
@@ -117,34 +122,52 @@ export function useNoteEditor() {
         return;
       }
 
-      const response = await $fetch<{ title: string; content: string }>('/api/notes/polish', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${authStore.token}`
-        },
-        body: {
+      let lastUpdate = 0;
+      let isFirstChunk = true;
+      
+      await streamAIResponse(
+        '/api/notes/polish',
+        {
           title: originalNoteTitle || 'Untitled Note',
           content: originalNoteContent || ''
+        },
+        (chunk) => {
+          accumulatedContent += chunk;
+          
+          // Clear content on first chunk to avoid empty editor state during connection
+          if (isFirstChunk) {
+            if (activeNote.id === originalNoteId) {
+              activeNote.content = '';
+            }
+            isFirstChunk = false;
+          }
+          
+          const now = Date.now();
+          if (activeNote.id === originalNoteId && now - lastUpdate > 50) {
+             activeNote.content = accumulatedContent;
+             lastUpdate = now;
+          }
         }
-      });
-
-      // Only update if the active note hasn't changed
-      const currentActiveNote = notesStore.activeNote;
-      if (currentActiveNote && currentActiveNote.id === originalNoteId) {
-        currentActiveNote.title = response.title;
-        currentActiveNote.content = response.content;
+      );
+      
+      // Ensure content is up to date after streaming finishes
+      if (activeNote.id === originalNoteId) {
+        activeNote.content = accumulatedContent;
       }
 
-      // Always save changes to the original note ID
+      // Final save
       await notesStore.updateNote(originalNoteId, {
-        title: response.title,
-        content: response.content
+        content: accumulatedContent
       });
 
       toast.success('Note polished! ✨');
     } catch (error: any) {
       console.error('Polish error:', error);
-      toast.error(error.data?.message || 'Failed to polish note with AI');
+      // Restore original content on error
+      if (activeNote.id === originalNoteId) {
+        activeNote.content = originalNoteContent;
+      }
+      toast.error(error.message || 'Failed to polish note with AI');
     } finally {
       isPolishing.value = false;
     }
@@ -163,6 +186,9 @@ export function useNoteEditor() {
     }
 
     isAskingAI.value = true;
+    await nextTick(); // Ensure loading state is rendered
+    
+    let accumulatedContent = '';
 
     try {
       if (!authStore.token) {
@@ -170,33 +196,53 @@ export function useNoteEditor() {
         return;
       }
 
-      const response = await $fetch<{ content: string }>('/api/notes/ask-ai', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${authStore.token}`
-        },
-        body: {
+      let lastUpdate = 0;
+      let isFirstChunk = true;
+
+      await streamAIResponse(
+        '/api/notes/ask-ai',
+        {
           title: originalNoteTitle || 'Untitled Note',
           content: originalNoteContent || '',
           prompt: prompt
+        },
+        (chunk) => {
+          accumulatedContent += chunk;
+          
+          // Clear content on first chunk
+          if (isFirstChunk) {
+            if (activeNote.id === originalNoteId) {
+              activeNote.content = '';
+            }
+            isFirstChunk = false;
+          }
+          
+          const now = Date.now();
+          if (activeNote.id === originalNoteId && now - lastUpdate > 50) {
+            activeNote.content = accumulatedContent;
+            lastUpdate = now;
+          }
         }
-      });
+      );
 
-      // Only update if the active note hasn't changed
-      const currentActiveNote = notesStore.activeNote;
-      if (currentActiveNote && currentActiveNote.id === originalNoteId) {
-        currentActiveNote.content = response.content;
+      // Ensure content is up to date after streaming finishes
+      if (activeNote.id === originalNoteId) {
+        activeNote.content = accumulatedContent;
       }
 
-      // Always save changes to the original note ID
+      // Final save
       await notesStore.updateNote(originalNoteId, {
-        content: response.content
+        content: accumulatedContent
       });
 
       toast.success('Note updated! ✨');
     } catch (error: any) {
       console.error('AskAI error:', error);
-      toast.error(error.data?.message || 'Failed to process AI request');
+      // Restore original content on error
+      if (activeNote.id === originalNoteId) {
+        activeNote.content = originalNoteContent;
+      }
+      toast.error(error.message || 'Failed to process AI request');
     } finally {
       isAskingAI.value = false;
     }

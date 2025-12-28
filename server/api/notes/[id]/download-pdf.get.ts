@@ -269,6 +269,11 @@ export default defineEventHandler(async (event) => {
       content: "☑";
       color: #4f46e5;
     }
+    /* Hide native checkbox from Tiptap output */
+    .content ul[data-type="taskList"] li[data-type="taskItem"] label,
+    .content ul[data-type="taskList"] li[data-type="taskItem"] input[type="checkbox"] {
+      display: none;
+    }
     .content ul[data-type="taskList"] li[data-type="taskItem"] > * {
       flex: 1;
     }

@@ -580,23 +580,24 @@ async function polishNote() {
   }
 
   isPolishing.value = true;
+  const originalContent = editForm.content;
+  let accumulatedContent = '';
 
   try {
-    const authStore = useAuthStore();
-    const response = await $fetch<{ title: string; content: string }>('/api/notes/polish', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${authStore.token}`
-      },
-      body: {
-        title: editForm.title || 'Untitled Note',
-        content: editForm.content || ''
-      }
-    });
+    // Clear content for streaming
+    editForm.content = '';
 
-    // Update the note with the polished content
-    editForm.title = response.title;
-    editForm.content = response.content;
+    await streamAIResponse(
+      '/api/notes/polish',
+      {
+        title: editForm.title || 'Untitled Note',
+        content: originalContent || ''
+      },
+      (chunk) => {
+        accumulatedContent += chunk;
+        editForm.content = accumulatedContent;
+      }
+    );
 
     toast.add({
       title: 'Note Polished! ✨',
@@ -608,9 +609,11 @@ async function polishNote() {
     await saveNote(true);
   } catch (error: any) {
     console.error('Polish error:', error);
+    // Restore original content
+    editForm.content = originalContent;
     toast.add({
       title: 'Polish Failed',
-      description: error.data?.message || 'Failed to polish note with AI',
+      description: error.message || 'Failed to polish note with AI',
       color: 'error'
     });
   } finally {
@@ -627,23 +630,25 @@ async function askAINote(prompt: string) {
   }
 
   isAskingAI.value = true;
+  const originalContent = editForm.content;
+  let accumulatedContent = '';
 
   try {
-    const authStore = useAuthStore();
-    const response = await $fetch<{ content: string }>('/api/notes/ask-ai', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${authStore.token}`
-      },
-      body: {
-        title: editForm.title || 'Untitled Note',
-        content: editForm.content || '',
-        prompt: prompt
-      }
-    });
+    // Clear content for streaming
+    editForm.content = '';
 
-    // Update the note with the AI-modified content
-    editForm.content = response.content;
+    await streamAIResponse(
+      '/api/notes/ask-ai',
+      {
+        title: editForm.title || 'Untitled Note',
+        content: originalContent || '',
+        prompt: prompt
+      },
+      (chunk) => {
+        accumulatedContent += chunk;
+        editForm.content = accumulatedContent;
+      }
+    );
 
     toast.add({
       title: 'Note Updated! ✨',
@@ -655,9 +660,11 @@ async function askAINote(prompt: string) {
     await saveNote(true);
   } catch (error: any) {
     console.error('AskAI error:', error);
+    // Restore original content
+    editForm.content = originalContent;
     toast.add({
       title: 'AI Request Failed',
-      description: error.data?.message || 'Failed to process AI request',
+      description: error.message || 'Failed to process AI request',
       color: 'error'
     });
   } finally {

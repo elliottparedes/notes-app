@@ -69,34 +69,42 @@ async function polishNote() {
   }
 
   isPolishing.value = true;
+  const originalContent = activeNote.value.content;
+  let accumulatedContent = '';
 
   try {
-    const authStore = useAuthStore();
-    const response = await $fetch<{ title: string; content: string }>('/api/notes/polish', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${authStore.token}`
-      },
-      body: {
-        title: activeNote.value.title || 'Untitled Note',
-        content: activeNote.value.content || ''
-      }
-    });
+    // Clear content for streaming
+    activeNote.value.content = '';
 
-    // Update the note with the polished content
-    activeNote.value.title = response.title;
-    activeNote.value.content = response.content;
+    await streamAIResponse(
+      '/api/notes/polish',
+      {
+        title: activeNote.value.title || 'Untitled Note',
+        content: originalContent || ''
+      },
+      (chunk) => {
+        accumulatedContent += chunk;
+        if (activeNote.value) {
+          activeNote.value.content = accumulatedContent;
+        }
+      }
+    );
 
     toast.success('Note Polished! ✨');
 
     // Save the changes
-    await notesStore.updateNote(activeNote.value.id, {
-      title: activeNote.value.title,
-      content: activeNote.value.content
-    });
+    if (activeNote.value) {
+      await notesStore.updateNote(activeNote.value.id, {
+        content: activeNote.value.content
+      });
+    }
   } catch (error: any) {
     console.error('Polish error:', error);
-    toast.error('Failed to polish note with AI');
+    // Restore original content
+    if (activeNote.value) {
+      activeNote.value.content = originalContent;
+    }
+    toast.error(error.message || 'Failed to polish note with AI');
   } finally {
     isPolishing.value = false;
   }
@@ -107,33 +115,43 @@ async function askAINote(prompt: string) {
   if (!activeNote.value || !prompt || !prompt.trim()) return;
 
   isAskingAI.value = true;
+  const originalContent = activeNote.value.content;
+  let accumulatedContent = '';
 
   try {
-    const authStore = useAuthStore();
-    const response = await $fetch<{ content: string }>('/api/notes/ask-ai', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${authStore.token}`
-      },
-      body: {
-        title: activeNote.value.title || 'Untitled Note',
-        content: activeNote.value.content || '',
-        prompt: prompt
-      }
-    });
+    // Clear content for streaming
+    activeNote.value.content = '';
 
-    // Update the note with the AI-modified content
-    activeNote.value.content = response.content;
+    await streamAIResponse(
+      '/api/notes/ask-ai',
+      {
+        title: activeNote.value.title || 'Untitled Note',
+        content: originalContent || '',
+        prompt: prompt
+      },
+      (chunk) => {
+        accumulatedContent += chunk;
+        if (activeNote.value) {
+          activeNote.value.content = accumulatedContent;
+        }
+      }
+    );
 
     toast.success('Note Updated! ✨');
 
     // Save the changes
-    await notesStore.updateNote(activeNote.value.id, {
-      content: activeNote.value.content
-    });
+    if (activeNote.value) {
+      await notesStore.updateNote(activeNote.value.id, {
+        content: activeNote.value.content
+      });
+    }
   } catch (error: any) {
     console.error('AskAI error:', error);
-    toast.error('Failed to process AI request');
+    // Restore original content
+    if (activeNote.value) {
+      activeNote.value.content = originalContent;
+    }
+    toast.error(error.message || 'Failed to process AI request');
   } finally {
     isAskingAI.value = false;
   }
