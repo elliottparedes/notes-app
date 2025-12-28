@@ -237,7 +237,7 @@ const emit = defineEmits<Emits>();
 const spacesStore = useSpacesStore();
 const foldersStore = useFoldersStore();
 const authStore = useAuthStore();
-const { cachedProfilePicture } = useCachedProfilePicture();
+const { cachedImageUrl: cachedProfilePicture } = useCachedProfilePicture(authStore.user?.id, authStore.user?.profile_picture_url);
 const { handleSidebarResizeStart } = useSidebarResize((width) => emit('update:sidebarWidth', width));
 const { handleSelectSpace, handleDeleteSpace } = useSpaceActions();
 

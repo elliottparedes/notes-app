@@ -1,7 +1,7 @@
 import { ref, watch, onUnmounted } from 'vue';
 import { getCachedProfilePicture, cacheProfilePicture } from '~/utils/profilePictureCache';
 
-export function useCachedProfilePicture(userId: string | undefined, url: string | undefined | null) {
+export function useCachedProfilePicture(userId: string | number | undefined, url: string | undefined | null) {
   const cachedImageUrl = ref<string | null>(null);
   const isLoading = ref(false);
   const error = ref<string | null>(null);

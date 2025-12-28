@@ -38,21 +38,22 @@ export async function initProfilePictureCache(): Promise<void> {
   }
 }
 
-export async function getCachedProfilePicture(userId: string, url: string): Promise<string | null> {
+export async function getCachedProfilePicture(userId: string | number, url: string): Promise<string | null> {
   if (!db || !process.client) return null;
 
   try {
-    const cached = await db.get('pictures', userId);
+    const userIdStr = String(userId);
+    const cached = await db.get('pictures', userIdStr);
 
     // Check if cached entry exists and URL matches
     if (cached && cached.url === url) {
       // Create object URL from cached blob
       const objectUrl = URL.createObjectURL(cached.blob);
-      console.log(`[ProfilePictureCache] ✅ Cache hit for user ${userId}`);
+      console.log(`[ProfilePictureCache] ✅ Cache hit for user ${userIdStr}`);
       return objectUrl;
     }
 
-    console.log(`[ProfilePictureCache] ⚠️ Cache miss for user ${userId}`);
+    console.log(`[ProfilePictureCache] ⚠️ Cache miss for user ${userIdStr}`);
     return null;
   } catch (error) {
     console.error('[ProfilePictureCache] Failed to get cached picture:', error);
@@ -60,10 +61,11 @@ export async function getCachedProfilePicture(userId: string, url: string): Prom
   }
 }
 
-export async function cacheProfilePicture(userId: string, url: string): Promise<string | null> {
+export async function cacheProfilePicture(userId: string | number, url: string): Promise<string | null> {
   if (!db || !process.client) return null;
 
   try {
+    const userIdStr = String(userId);
     const startTime = performance.now();
 
     // Fetch the image
@@ -76,14 +78,14 @@ export async function cacheProfilePicture(userId: string, url: string): Promise<
 
     // Store in IndexedDB
     await db.put('pictures', {
-      userId,
+      userId: userIdStr,
       url,
       blob,
       cachedAt: Date.now()
     });
 
     const duration = performance.now() - startTime;
-    console.log(`[ProfilePictureCache] ✅ Cached profile picture for user ${userId} in ${duration.toFixed(2)}ms`);
+    console.log(`[ProfilePictureCache] ✅ Cached profile picture for user ${userIdStr} in ${duration.toFixed(2)}ms`);
 
     // Return object URL
     return URL.createObjectURL(blob);
@@ -93,12 +95,13 @@ export async function cacheProfilePicture(userId: string, url: string): Promise<
   }
 }
 
-export async function invalidateProfilePictureCache(userId: string): Promise<void> {
+export async function invalidateProfilePictureCache(userId: string | number): Promise<void> {
   if (!db || !process.client) return;
 
   try {
-    await db.delete('pictures', userId);
-    console.log(`[ProfilePictureCache] ✅ Invalidated cache for user ${userId}`);
+    const userIdStr = String(userId);
+    await db.delete('pictures', userIdStr);
+    console.log(`[ProfilePictureCache] ✅ Invalidated cache for user ${userIdStr}`);
   } catch (error) {
     console.error('[ProfilePictureCache] Failed to invalidate cache:', error);
   }
