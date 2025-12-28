@@ -633,13 +633,12 @@ export const useNotesStore = defineStore('notes', {
     },
 
     async reorderNote(noteId: string, folderId: number | null, newIndex: number): Promise<void> {
-      // Don't set full loading state to prevent UI flicker
-      this.isSyncing = true;
+      // Optimistically assume success - no loading indicator
       this.error = null;
 
       try {
         const authStore = useAuthStore();
-        
+
         if (!authStore.token) {
           throw new Error('Not authenticated');
         }
@@ -661,12 +660,10 @@ export const useNotesStore = defineStore('notes', {
 
         // Refresh notes to get updated state
         // We can do this in background without triggering main loading state
-        await this.fetchNotes(false); 
+        await this.fetchNotes(false);
       } catch (err: unknown) {
         this.error = err instanceof Error ? err.message : 'Failed to reorder note';
         throw err;
-      } finally {
-        this.isSyncing = false;
       }
     },
 

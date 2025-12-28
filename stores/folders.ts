@@ -301,7 +301,7 @@ export const useFoldersStore = defineStore('folders', {
 
       try {
         const authStore = useAuthStore();
-        
+
         if (!authStore.token) {
           throw new Error('Not authenticated');
         }
@@ -314,8 +314,14 @@ export const useFoldersStore = defineStore('folders', {
           body: data
         });
 
-        // Refresh folders to get updated structure
-        await this.fetchFolders();
+        // Optimistic update: immediately update the folder in the state
+        const index = this.folders.findIndex(f => f.id === id);
+        if (index !== -1) {
+          this.folders[index] = folder;
+        }
+
+        // Refresh folders for the specific space to ensure consistency
+        await this.fetchFolders(folder.space_id, true);
 
         return folder;
       } catch (err: unknown) {

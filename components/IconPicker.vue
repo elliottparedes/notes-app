@@ -27,34 +27,169 @@ function isUrl(value: string | null | undefined): boolean {
 // Icons are stored in the database as strings (e.g., "folder", "home", etc.)
 // and displayed using Iconify format: i-lucide-{icon-name}
 const popularIcons = [
-  'folder', 'file', 'book', 'notebook', 'folder-open', 'archive',
-  'briefcase', 'building', 'building-2', 'store',
-  'school', 'book-open', 'library', 'bookmark', 'calendar', 'calendar-days',
-  'clock', 'alarm-clock', 'timer', 'inbox', 'mail', 'paperclip', 'send',
-  'message-square', 'users', 'user', 'user-plus', 'users-round',
-  'settings', 'cog', 'wrench', 'heart', 'star', 'thumbs-up', 'thumbs-down',
-  'smile', 'music', 'headphones', 'radio', 'tv', 'monitor', 'camera',
-  'palette', 'paintbrush', 'brush', 'pen', 'pencil', 'lightbulb', 'zap',
-  'sparkles', 'target', 'flag', 'trophy', 'award', 'medal', 'badge',
-  'lock', 'key', 'shield', 'shield-check', 'trash', 'trash-2', 'x',
-  'check', 'plus', 'minus', 'save', 'download', 'upload', 'share',
-  'link', 'external-link', 'arrow-right', 'arrow-left',
-  'chevron-right', 'chevron-left', 'chevron-up', 'chevron-down', 'menu',
-  'search', 'filter', 'grid-3x3', 'list', 'map', 'map-pin', 'navigation',
-  'compass', 'globe', 'plane', 'car', 'bike', 'truck', 'coffee', 'utensils',
-  'chef-hat', 'cake', 'gamepad-2', 'dice-6', 'puzzle', 'heart-pulse',
-  'activity', 'chart-line', 'trending-up', 'bar-chart-3', 'pie-chart',
-  'wallet', 'credit-card', 'dollar-sign', 'coins', 'receipt', 'laptop',
-  'smartphone', 'tablet', 'mouse', 'keyboard', 'hard-drive', 'cloud',
-  'cloud-upload', 'cloud-download', 'database', 'server', 'box', 'package',
-  'shopping-cart', 'shopping-bag', 'tag', 'ticket', 'bell', 'bell-ring',
-  'info', 'code', 'terminal', 'cpu', 'battery', 'plug', 'moon', 'sun',
-  'sunrise', 'sunset', 'cloud-sun', 'wind', 'umbrella', 'droplet', 'flame',
-  'snowflake', 'rainbow', 'flask-conical', 'beaker', 'microscope',
-  'atom', 'rocket', 'satellite', 'earth', 'leaf', 'tree-pine',
-  'flower', 'cherry', 'grape', 'milk', 'ice-cream-bowl', 'pizza',
-  'apple', 'fish', 'drumstick', 'beef', 'egg', 'croissant', 'sandwich', 'wheat', 'tree-deciduous', 'sprout',
-  'bug', 'dog', 'cat', 'bird', 'turtle', 'rabbit', 'paw-print', 'bone', 'feather', 'house'
+  // Files & Folders
+  'folder', 'folder-open', 'folder-plus', 'folder-minus', 'folder-check', 'folder-x', 'folder-clock',
+  'folder-lock', 'folder-key', 'folder-heart', 'folder-tree', 'folders',
+  'file', 'file-text', 'file-plus', 'file-minus', 'file-check', 'file-x', 'file-edit',
+  'file-search', 'file-clock', 'file-heart', 'file-code', 'file-json', 'file-image',
+  'file-video', 'file-audio', 'files', 'archive', 'package', 'box', 'inbox',
+
+  // Books & Learning
+  'book', 'book-open', 'book-marked', 'book-copy', 'notebook', 'library', 'bookmark',
+  'bookmark-plus', 'bookmark-minus', 'bookmark-check', 'graduation-cap', 'school',
+  'backpack', 'pencil-ruler', 'pen-tool', 'highlighter',
+
+  // Work & Business
+  'briefcase', 'building', 'building-2', 'store', 'factory', 'warehouse', 'landmark',
+  'presentation', 'projector', 'wallet', 'credit-card', 'banknote',
+  'dollar-sign', 'euro', 'pound-sterling', 'coins', 'receipt', 'calculator',
+  'scale',
+
+  // Communication
+  'mail', 'mail-open', 'mail-plus', 'mail-minus', 'mail-check', 'mail-x', 'inbox',
+  'send', 'send-horizontal', 'paperclip', 'at-sign', 'hash', 'phone', 'phone-call',
+  'phone-incoming', 'phone-outgoing', 'phone-missed', 'phone-off', 'voicemail',
+  'message-square', 'message-circle', 'messages-square', 'speech', 'quote',
+
+  // People & Users
+  'user', 'user-plus', 'user-minus', 'user-check', 'user-x', 'user-cog', 'user-circle',
+  'user-round', 'users', 'users-round', 'contact', 'contact-round', 'id-card',
+  'user-search', 'badge', 'smile', 'frown', 'meh', 'laugh', 'angry',
+
+  // Time & Calendar
+  'calendar', 'calendar-days', 'calendar-plus', 'calendar-minus', 'calendar-check', 'calendar-x',
+  'calendar-clock', 'calendar-heart', 'clock', 'alarm-clock', 'timer', 'hourglass',
+  'watch', 'calendar-range',
+
+  // Settings & Tools
+  'settings', 'settings-2', 'cog', 'wrench', 'hammer',
+  'sliders-horizontal', 'sliders-vertical', 'wand', 'wand-sparkles',
+  'palette', 'paintbrush', 'brush', 'pipette',
+
+  // Favorites & Reactions
+  'heart', 'heart-pulse', 'heart-handshake', 'star', 'star-half', 'thumbs-up', 'thumbs-down',
+  'hand', 'handshake', 'gem', 'diamond', 'crown', 'sparkles', 'sparkle',
+
+  // Media & Entertainment
+  'music', 'music-2', 'music-3', 'music-4', 'headphones', 'mic', 'mic-off', 'radio',
+  'podcast', 'disc', 'disc-2', 'disc-3', 'tv', 'monitor', 'monitor-speaker',
+  'camera', 'camera-off', 'video', 'video-off', 'film', 'clapperboard', 'image',
+  'gallery-vertical', 'gallery-horizontal', 'gallery-thumbnails', 'picture-in-picture',
+  'gamepad', 'gamepad-2', 'joystick', 'dice-1', 'dice-2', 'dice-3', 'dice-4', 'dice-5', 'dice-6',
+
+  // Writing & Design
+  'pen', 'pen-line', 'pencil', 'pencil-line', 'edit', 'edit-2', 'edit-3',
+  'feather', 'type', 'text', 'text-cursor', 'italic', 'bold', 'underline',
+  'strikethrough', 'subscript', 'superscript', 'heading', 'heading-1', 'heading-2',
+  'pilcrow', 'quote', 'list', 'list-ordered', 'list-checks', 'list-todo',
+
+  // Ideas & Innovation
+  'lightbulb', 'lamp', 'lamp-desk', 'lamp-floor', 'zap', 'zap-off', 'flashlight',
+  'flame', 'sun', 'moon', 'stars', 'sparkles', 'wand-sparkles', 'rocket',
+  'atom', 'orbit', 'cylinder', 'square-asterisk',
+
+  // Goals & Achievement
+  'target', 'flag', 'flag-triangle-right', 'trophy', 'award', 'medal', 'gift',
+  'ribbon', 'badge-check', 'badge-alert', 'badge-info', 'badge-help',
+  'check-circle', 'check-square', 'check', 'circle-check', 'square-check',
+
+  // Security & Privacy
+  'lock', 'lock-open', 'unlock', 'key', 'key-round', 'shield', 'shield-check',
+  'shield-alert', 'shield-x', 'shield-off', 'fingerprint', 'scan', 'scan-face',
+  'scan-eye', 'eye', 'eye-off',
+
+  // Actions
+  'trash', 'trash-2', 'x', 'x-circle', 'x-square', 'check', 'plus', 'plus-circle',
+  'plus-square', 'minus', 'minus-circle', 'minus-square', 'save', 'save-all',
+  'download', 'upload', 'copy', 'clipboard', 'clipboard-copy', 'clipboard-check',
+  'clipboard-list', 'scissors', 'rotate-ccw', 'rotate-cw', 'refresh-ccw',
+  'refresh-cw', 'repeat', 'repeat-1', 'shuffle', 'skip-back', 'skip-forward',
+  'rewind', 'fast-forward', 'play', 'pause', 'volume', 'volume-1',
+  'volume-2', 'volume-x', 'maximize', 'minimize', 'expand', 'shrink',
+
+  // Sharing & Connection
+  'share', 'share-2', 'link', 'link-2', 'external-link', 'unlink', 'wifi', 'wifi-off',
+  'bluetooth', 'cast', 'airplay', 'rss', 'podcast', 'git-branch', 'git-commit',
+  'git-fork', 'git-merge', 'git-pull-request',
+
+  // Navigation & Arrows
+  'arrow-right', 'arrow-left', 'arrow-up', 'arrow-down', 'arrow-up-right', 'arrow-up-left',
+  'arrow-down-right', 'arrow-down-left', 'chevron-right', 'chevron-left', 'chevron-up',
+  'chevron-down', 'chevrons-right', 'chevrons-left', 'chevrons-up', 'chevrons-down',
+  'chevron-first', 'chevron-last', 'move', 'move-diagonal', 'move-horizontal',
+  'move-vertical', 'corner-up-right', 'corner-up-left', 'corner-down-right',
+  'corner-down-left', 'trending-up', 'trending-down',
+
+  // UI & Layout
+  'menu', 'more-horizontal', 'more-vertical', 'grip', 'grip-horizontal', 'grip-vertical',
+  'align-left', 'align-center', 'align-right', 'align-justify', 'grid-3x3', 'grid-2x2',
+  'layout', 'layout-grid', 'layout-list', 'sidebar', 'sidebar-open', 'sidebar-close',
+  'panel-left', 'panel-right', 'panel-top', 'panel-bottom', 'columns', 'rows',
+  'maximize-2', 'minimize-2', 'picture-in-picture-2', 'split', 'columns-3',
+
+  // Search & Filter
+  'search', 'search-check', 'search-x', 'filter', 'filter-x', 'scan-search',
+  'zoom-in', 'zoom-out', 'focus', 'crosshair', 'scan-line',
+
+  // Location & Travel
+  'map', 'map-pin', 'map-pinned', 'navigation', 'navigation-2', 'compass', 'route',
+  'signpost', 'milestone', 'footprints', 'plane', 'plane-takeoff', 'plane-landing',
+  'car', 'car-front', 'bike', 'bus', 'train', 'train-front', 'ship', 'sailboat',
+  'truck', 'tractor', 'hotel', 'bed', 'tent', 'luggage', 'ticket', 'tickets',
+
+  // Food & Drink
+  'coffee', 'cup-soda', 'beer', 'wine', 'glass-water', 'utensils', 'utensils-crossed',
+  'chef-hat', 'cake', 'cake-slice', 'pizza', 'croissant', 'sandwich', 'egg',
+  'egg-fried', 'apple', 'banana', 'cherry', 'grape', 'carrot', 'wheat',
+  'ice-cream-cone', 'ice-cream-bowl', 'milk', 'popcorn', 'cookie', 'candy',
+  'fish', 'drumstick', 'beef', 'salad',
+
+  // Health & Fitness
+  'heart-pulse', 'activity', 'stethoscope', 'syringe', 'pill', 'thermometer',
+  'dumbbell', 'bike', 'footprints', 'watch', 'heart', 'cross', 'ambulance',
+
+  // Nature & Weather
+  'globe', 'earth', 'leaf', 'tree-pine', 'tree-deciduous', 'flower', 'flower-2',
+  'sprout', 'palmtree', 'mountain', 'waves', 'sun', 'moon', 'sunrise',
+  'sunset', 'cloud', 'cloud-sun', 'cloud-moon', 'cloud-rain', 'cloud-snow',
+  'cloud-lightning', 'cloud-drizzle', 'cloud-fog', 'wind', 'snowflake', 'droplet',
+  'droplets', 'umbrella', 'rainbow', 'flame', 'shell', 'bug', 'squirrel', 'bird',
+  'fish', 'rabbit', 'turtle', 'dog', 'cat', 'paw-print', 'bone', 'feather',
+
+  // Science & Technology
+  'atom', 'microscope', 'telescope', 'flask-conical', 'flask-round', 'beaker',
+  'test-tube', 'test-tubes', 'dna', 'brain', 'cpu', 'hard-drive', 'server',
+  'database', 'laptop', 'smartphone', 'tablet', 'watch', 'monitor', 'mouse',
+  'mouse-pointer', 'keyboard', 'webcam', 'printer', 'usb', 'bluetooth',
+  'wifi', 'signal', 'battery', 'battery-charging', 'battery-low', 'plug', 'plug-zap',
+  'power', 'power-off', 'zap', 'satellite', 'satellite-dish', 'radio-tower',
+  'router', 'gauge', 'gauge-circle',
+
+  // Shopping & Commerce
+  'shopping-cart', 'shopping-bag', 'shopping-basket', 'store', 'tag', 'tags',
+  'ticket', 'barcode', 'qr-code', 'receipt', 'percent', 'gift', 'package',
+  'truck', 'megaphone', 'trending-up', 'trending-down',
+
+  // Alerts & Info
+  'bell', 'bell-ring', 'bell-off', 'bell-plus', 'bell-minus', 'info', 'help-circle',
+  'alert-circle', 'alert-triangle', 'alert-octagon', 'construction', 'cone',
+  'octagon-x', 'triangle-alert', 'circle-alert', 'badge-alert', 'badge-info',
+
+  // Code & Development
+  'code', 'code-2', 'terminal', 'braces', 'brackets', 'parentheses', 'slash',
+  'binary', 'hash', 'regex', 'function-square', 'variable', 'equal',
+  'bug', 'bug-off', 'package-check', 'package-plus', 'package-minus', 'package-x',
+
+  // Home & Living
+  'house', 'home', 'door-open', 'door-closed', 'warehouse', 'armchair', 'sofa',
+  'bed', 'bed-double', 'bed-single', 'lamp', 'lamp-ceiling', 'lamp-desk', 'lamp-floor',
+  'bath', 'shower-head', 'refrigerator', 'microwave', 'washing-machine',
+  'shirt',
+
+  // Miscellaneous
+  'puzzle', 'dice-6', 'piano', 'guitar', 'drum', 'palette', 'frame', 'anchor',
+  'ferris-wheel', 'key-square', 'key-round', 'megaphone', 'pyramid',
+  'trophy', 'volleyball', 'dumbbell', 'bike'
 ];
 
 // Map icon names to their search keywords for better searchability

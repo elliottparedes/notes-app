@@ -1,4 +1,4 @@
-export function useSidebarResize() {
+export function useSidebarResize(onSidebarWidthChange?: (width: number) => void, onNoteListWidthChange?: (width: number) => void) {
   const sidebarWidth = ref(260);
   const noteListWidth = ref(280);
   const isResizing = ref(false);
@@ -15,6 +15,9 @@ export function useSidebarResize() {
       const diff = e.clientX - startX;
       const newWidth = Math.max(200, Math.min(500, startWidth + diff));
       sidebarWidth.value = newWidth;
+      if (onSidebarWidthChange) {
+        onSidebarWidthChange(newWidth);
+      }
     }
 
     function handleMouseUp() {
@@ -42,6 +45,9 @@ export function useSidebarResize() {
       const diff = e.clientX - startX;
       const newWidth = Math.max(200, Math.min(500, startWidth + diff));
       noteListWidth.value = newWidth;
+      if (onNoteListWidthChange) {
+        onNoteListWidthChange(newWidth);
+      }
     }
 
     function handleMouseUp() {

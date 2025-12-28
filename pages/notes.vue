@@ -213,6 +213,23 @@ function handleGlobalKeydown(e: KeyboardEvent) {
 // Lifecycle
 onMounted(async () => {
   await loadData();
+
+  // If there's an active note but no selected folder, select the note's folder
+  if (activeNote.value && !selectedFolderId.value) {
+    const note = activeNote.value;
+    if (note.folder_id) {
+      selectedFolderId.value = note.folder_id;
+      // Expand the space that contains this folder
+      const folder = foldersStore.getFolderById(note.folder_id);
+      if (folder) {
+        spacesStore.expandSpace(folder.space_id);
+      }
+    } else {
+      // Note has no folder, clear the active note
+      notesStore.closeTab(note.id);
+    }
+  }
+
   window.addEventListener('keydown', handleGlobalKeydown);
 });
 
@@ -230,7 +247,7 @@ onUnmounted(() => {
       v-if="currentView === 'notebooks'"
       :selected-folder-id="selectedFolderId"
       :is-fullscreen="isFullscreen"
-      :sidebar-width="sidebarWidth"
+      v-model:sidebar-width="sidebarWidth"
       @select-folder="handleFolderSelect"
       @create-note-in-folder="handleCreateNoteInFolder"
       @delete-folder="handleFolderDelete"
@@ -239,13 +256,14 @@ onUnmounted(() => {
       @open-create-folder="openCreateFolderModal"
       @logout="handleLogout"
       @edit-folder="openEditFolderModal"
+      @edit-space="openEditSpaceModal"
     />
 
     <!-- Desktop: Note List Column -->
     <NoteListColumn
       v-if="currentView === 'notebooks'"
       :selected-folder-id="selectedFolderId"
-      :note-list-width="noteListWidth"
+      v-model:note-list-width="noteListWidth"
       :is-fullscreen="isFullscreen"
       @open-note="handleOpenNote"
       @create-note-in-folder="handleCreateNoteInFolder"

@@ -6,8 +6,11 @@
   >
     <!-- Resize Handle -->
     <div
-      @mousedown="handleSidebarResizeStart"
-      class="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-blue-500 z-10"
+      @mousedown.stop="handleSidebarResizeStart"
+      @dragstart.prevent.stop
+      draggable="false"
+      class="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-blue-500 z-50 pointer-events-auto"
+      style="margin-right: -2px;"
     />
 
     <!-- Header -->
@@ -44,14 +47,17 @@
       >
         <!-- Notebook Header -->
         <div
-          class="space-item-header group/space relative flex items-center gap-1 transition-colors hover:bg-gray-100 dark:hover:bg-gray-800 active:bg-gray-200 dark:active:bg-gray-700 overflow-hidden min-w-0"
+          class="space-item-header group/space relative flex items-center gap-1 transition-all duration-150 hover:bg-gray-100 dark:hover:bg-gray-800 active:bg-gray-200 dark:active:bg-gray-700 overflow-hidden min-w-0"
           :class="{
-            'bg-gray-100/50 dark:bg-gray-800/50': spacesStore.expandedSpaceIds.has(space.id) &&
-              (!selectedFolderId || foldersStore.getFolderById(selectedFolderId)?.space_id !== space.id)
+            'bg-blue-50 dark:bg-blue-900/20': dragOverSpaceId === space.id && !spacesStore.expandedSpaceIds.has(space.id)
           }"
+          @dragover="handleSpaceDragOver($event, space.id)"
+          @dragleave="handleSpaceDragLeave(space.id)"
+          @drop="handleSpaceDrop($event, space.id)"
         >
           <button
             @click="handleSelectSpace(space.id)"
+            draggable="false"
             class="space-button flex-1 flex items-center gap-2 px-2 py-2.5 transition-colors text-left min-w-0"
           >
             <UIcon
@@ -76,6 +82,7 @@
             type="button"
             @click.stop="toggleSpaceMenu(space.id, $event)"
             @mousedown.stop
+            draggable="false"
             class="no-drag flex-shrink-0 p-1 opacity-100 lg:opacity-0 lg:group-hover/space:opacity-100 hover:bg-gray-200 dark:hover:bg-gray-700 active:bg-gray-200 dark:active:bg-gray-700 transition-colors"
             :class="showSpaceMenuId === space.id ? 'bg-gray-200 dark:bg-gray-700' : ''"
           >
@@ -118,7 +125,23 @@
 
         <!-- Sections (Folders) -->
         <div v-show="spacesStore.expandedSpaceIds.has(space.id)">
-          <div class="pl-6 space-y-0.5 min-h-[5px]">
+          <div class="relative pl-6 space-y-0.5 min-h-[5px]">
+            <!-- Vertical ruler line -->
+            <div
+              class="absolute left-[18px] top-0 bottom-0 w-[1px] bg-gray-200 dark:bg-gray-700"
+              aria-hidden="true"
+            />
+            <!-- Drop zone at top of folder list -->
+            <div
+              @dragover="handleDragOverTopOfSpace($event, space.id)"
+              @dragleave="handleDragLeaveTopOfSpace"
+              @drop="handleDropTopOfSpace($event, space.id)"
+              class="h-2 -mt-1 transition-all border-b-2 relative z-10"
+              :class="{
+                '[border-bottom-width:3px] border-b-blue-500 dark:border-b-blue-400 h-3': dragOverTopOfSpace === space.id,
+                'border-b-transparent': dragOverTopOfSpace !== space.id
+              }"
+            />
             <FolderTreeItem
               v-for="folder in getSpaceFolders(space.id, foldersStore.folders)"
               :key="folder.id"
@@ -205,6 +228,7 @@ interface Emits {
   (e: 'logout'): void
   (e: 'edit-folder', folder: any): void
   (e: 'delete-folder', folderId: number): void
+  (e: 'edit-space', space: Space): void
 }
 
 const props = defineProps<Props>();
@@ -214,12 +238,17 @@ const spacesStore = useSpacesStore();
 const foldersStore = useFoldersStore();
 const authStore = useAuthStore();
 const { cachedProfilePicture } = useCachedProfilePicture();
-const { handleSidebarResizeStart } = useSidebarResize();
+const { handleSidebarResizeStart } = useSidebarResize((width) => emit('update:sidebarWidth', width));
 const { handleSelectSpace, handleDeleteSpace } = useSpaceActions();
 
 const showSpaceMenuId = ref<number | null>(null);
 const openFolderMenuId = ref<number | null>(null);
 const spaceMenuPosition = ref({ top: '0px', left: '0px' });
+
+// Drag and drop state
+const dragOverSpaceId = ref<number | null>(null);
+const dragOverTopOfSpace = ref<number | null>(null);
+const expandTimer = ref<NodeJS.Timeout | null>(null);
 
 function toggleSpaceMenu(spaceId: number, event: MouseEvent) {
   event.stopPropagation();
@@ -238,12 +267,95 @@ function toggleSpaceMenu(spaceId: number, event: MouseEvent) {
 
 function editSpace(space: Space) {
   showSpaceMenuId.value = null;
-  // Emit event to open space modal (handled by parent)
+  emit('edit-space', space);
 }
 
 function deleteSpace(spaceId: number) {
   showSpaceMenuId.value = null;
   handleDeleteSpace(spaceId);
+}
+
+// Drag and drop handlers for auto-expanding spaces
+function handleSpaceDragOver(event: DragEvent, spaceId: number) {
+  event.preventDefault();
+  if (!event.dataTransfer) return;
+
+  const data = event.dataTransfer.types.includes('application/json');
+  if (!data) return;
+
+  dragOverSpaceId.value = spaceId;
+
+  // If space is not expanded, set a timer to auto-expand
+  if (!spacesStore.expandedSpaceIds.has(spaceId)) {
+    if (!expandTimer.value) {
+      expandTimer.value = setTimeout(() => {
+        spacesStore.expandSpace(spaceId);
+        expandTimer.value = null;
+      }, 800); // Auto-expand after 800ms
+    }
+  }
+}
+
+function handleSpaceDragLeave(spaceId: number) {
+  if (dragOverSpaceId.value === spaceId) {
+    dragOverSpaceId.value = null;
+  }
+
+  // Clear expand timer
+  if (expandTimer.value) {
+    clearTimeout(expandTimer.value);
+    expandTimer.value = null;
+  }
+}
+
+function handleSpaceDrop(event: DragEvent, spaceId: number) {
+  event.preventDefault();
+  dragOverSpaceId.value = null;
+
+  // Clear expand timer
+  if (expandTimer.value) {
+    clearTimeout(expandTimer.value);
+    expandTimer.value = null;
+  }
+}
+
+// Drop zone at top of folder list handlers
+function handleDragOverTopOfSpace(event: DragEvent, spaceId: number) {
+  event.preventDefault();
+  if (!event.dataTransfer) return;
+
+  event.dataTransfer.dropEffect = 'move';
+  dragOverTopOfSpace.value = spaceId;
+}
+
+function handleDragLeaveTopOfSpace() {
+  dragOverTopOfSpace.value = null;
+}
+
+async function handleDropTopOfSpace(event: DragEvent, spaceId: number) {
+  event.preventDefault();
+  event.stopPropagation();
+  dragOverTopOfSpace.value = null;
+
+  if (!event.dataTransfer) return;
+
+  try {
+    const data = JSON.parse(event.dataTransfer.getData('application/json'));
+
+    if (data.type === 'folder') {
+      const draggedFolderId = data.folderId;
+      const draggedSpaceId = data.spaceId;
+
+      // If moving to a different space
+      if (draggedSpaceId !== spaceId) {
+        await foldersStore.moveFolder(draggedFolderId, spaceId);
+      }
+      // Reorder to index 0 (top of list)
+      await foldersStore.reorderFolder(draggedFolderId, 0);
+    }
+  } catch (error) {
+    console.error('Failed to handle folder drop at top:', error);
+  }
 }
 
 // Close menu when clicking outside
@@ -257,6 +369,10 @@ onMounted(() => {
   document.addEventListener('click', handleClickOutside);
   onUnmounted(() => {
     document.removeEventListener('click', handleClickOutside);
+    // Clear expand timer on unmount
+    if (expandTimer.value) {
+      clearTimeout(expandTimer.value);
+    }
   });
 });
 </script>

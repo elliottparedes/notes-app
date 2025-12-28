@@ -32,8 +32,8 @@ const props = withDefaults(defineProps<Props>(), {
 });
 
 const emit = defineEmits<Emits>();
-const notesStore = useNotesStore();
 const foldersStore = useFoldersStore();
+const notesStore = useNotesStore();
 
 // Get note count for this folder
 const noteCount = computed(() => {
@@ -86,18 +86,18 @@ function openEditModal() {
 function toggleContextMenu(event: MouseEvent) {
   event.stopPropagation();
   event.preventDefault();
-  
+
   if (!process.client) return;
-  
+
   // Calculate position for the menu
   if (contextMenuButtonRef.value) {
     const rect = contextMenuButtonRef.value.getBoundingClientRect();
     const menuWidth = 192; // 192px = w-48
     const viewportWidth = window.innerWidth;
-    
+
     // Position directly to the right of the button
     let left = rect.right + 4;
-    
+
     // If menu would overflow on the right, position it to the left instead
     if (left + menuWidth > viewportWidth - 8) {
       left = rect.left - menuWidth - 4;
@@ -105,10 +105,10 @@ function toggleContextMenu(event: MouseEvent) {
         left = 8;
       }
     }
-    
+
     // Align top of menu with top of button (like space menu)
     const top = rect.top;
-    
+
     menuPosition.value = {
       top: top,
       left: left,
@@ -116,11 +116,160 @@ function toggleContextMenu(event: MouseEvent) {
     };
     menuOpensUpward.value = false;
   }
-  
+
   if (isMenuOpen.value) {
     emit('update:openMenuId', null);
   } else {
     emit('update:openMenuId', props.folder.id);
+  }
+}
+
+// Drag and drop functionality
+const isDragging = ref(false);
+const isDragOver = ref(false);
+const canDrag = ref(false);
+const dragStartTimer = ref<NodeJS.Timeout | null>(null);
+const mouseDownPos = ref<{ x: number; y: number } | null>(null);
+
+function handleMouseDown(event: MouseEvent) {
+  // Don't initiate drag on context menu button
+  const target = event.target as HTMLElement;
+  if (target.closest('[data-context-menu-button]')) {
+    return;
+  }
+
+  mouseDownPos.value = { x: event.clientX, y: event.clientY };
+
+  // Allow drag after 200ms delay or 5px movement
+  dragStartTimer.value = setTimeout(() => {
+    canDrag.value = true;
+  }, 200);
+}
+
+function handleMouseMove(event: MouseEvent) {
+  if (!mouseDownPos.value || canDrag.value) return;
+
+  const deltaX = Math.abs(event.clientX - mouseDownPos.value.x);
+  const deltaY = Math.abs(event.clientY - mouseDownPos.value.y);
+
+  // If moved more than 5px, allow drag immediately
+  if (deltaX > 5 || deltaY > 5) {
+    if (dragStartTimer.value) {
+      clearTimeout(dragStartTimer.value);
+    }
+    canDrag.value = true;
+  }
+}
+
+function handleMouseUp() {
+  if (dragStartTimer.value) {
+    clearTimeout(dragStartTimer.value);
+  }
+  mouseDownPos.value = null;
+  canDrag.value = false;
+}
+
+function handleDragStart(event: DragEvent) {
+  if (!canDrag.value) {
+    event.preventDefault();
+    return;
+  }
+
+  if (!event.dataTransfer) return;
+  isDragging.value = true;
+
+  // Store folder data
+  event.dataTransfer.effectAllowed = 'move';
+  event.dataTransfer.setData('application/json', JSON.stringify({
+    type: 'folder',
+    folderId: props.folder.id,
+    spaceId: props.folder.space_id
+  }));
+
+  // Add visual feedback
+  if (event.target instanceof HTMLElement) {
+    event.target.style.opacity = '0.5';
+  }
+}
+
+function handleDragEnd(event: DragEvent) {
+  isDragging.value = false;
+  canDrag.value = false;
+  mouseDownPos.value = null;
+
+  if (dragStartTimer.value) {
+    clearTimeout(dragStartTimer.value);
+    dragStartTimer.value = null;
+  }
+
+  // Remove visual feedback
+  if (event.target instanceof HTMLElement) {
+    event.target.style.opacity = '1';
+  }
+}
+
+// Cleanup on unmount
+onUnmounted(() => {
+  if (dragStartTimer.value) {
+    clearTimeout(dragStartTimer.value);
+  }
+});
+
+function handleDragOver(event: DragEvent) {
+  event.preventDefault();
+  if (!event.dataTransfer) return;
+
+  event.dataTransfer.dropEffect = 'move';
+  isDragOver.value = true;
+}
+
+function handleDragLeave() {
+  isDragOver.value = false;
+}
+
+async function handleDrop(event: DragEvent) {
+  event.preventDefault();
+  event.stopPropagation();
+  isDragOver.value = false;
+
+  if (!event.dataTransfer) return;
+
+  try {
+    const data = JSON.parse(event.dataTransfer.getData('application/json'));
+
+    if (data.type === 'folder' && data.folderId !== props.folder.id) {
+      const draggedFolderId = data.folderId;
+      const draggedSpaceId = data.spaceId;
+      const targetSpaceId = props.folder.space_id;
+
+      // Get target folder's siblings to determine new index
+      const siblings = foldersStore.getSiblings(props.folder.id);
+      const targetIndex = siblings.findIndex(f => f.id === props.folder.id);
+
+      // If moving to a different space
+      if (draggedSpaceId !== targetSpaceId) {
+        await foldersStore.moveFolder(draggedFolderId, targetSpaceId);
+        // Then reorder to be right after the target folder
+        if (targetIndex >= 0) {
+          await foldersStore.reorderFolder(draggedFolderId, targetIndex + 1);
+        }
+      } else {
+        // Same space, just reorder
+        await foldersStore.reorderFolder(draggedFolderId, targetIndex + 1);
+      }
+    } else if (data.type === 'note') {
+      // Moving a note to this folder
+      const draggedNoteId = data.noteId;
+      const targetFolderId = props.folder.id;
+
+      // Move note to this folder (append to end)
+      const note = notesStore.notes.find(n => n.id === draggedNoteId);
+      if (note && note.folder_id !== targetFolderId) {
+        await notesStore.moveNote(draggedNoteId, targetFolderId);
+      }
+    }
+  } catch (error) {
+    console.error('Failed to handle drop:', error);
   }
 }
 </script>
@@ -128,12 +277,24 @@ function toggleContextMenu(event: MouseEvent) {
 <template>
   <!-- Folder Item - Premium Apple Design -->
     <div
-    class="folder-item group/folder relative flex items-center gap-2 transition-colors active:bg-gray-100 dark:active:bg-gray-700 cursor-grab active:cursor-grabbing"
+    draggable="true"
+    class="folder-item group/folder relative flex items-center gap-2 transition-all duration-150 active:bg-gray-100 dark:active:bg-gray-700 cursor-grab active:cursor-grabbing border-l-2 border-b-2"
     :data-folder-id="folder.id"
-    :class="{ 
-      'bg-blue-50 dark:bg-blue-900/20': selectedId === folder.id,
-      'md:hover:bg-gray-50 dark:hover:bg-gray-800': selectedId !== folder.id
+    :class="{
+      'bg-gray-50 dark:bg-gray-800/50 border-l-blue-600 dark:border-l-blue-400 [border-left-width:3px]': selectedId === folder.id,
+      'border-l-transparent md:hover:bg-gray-50 dark:hover:bg-gray-800': selectedId !== folder.id,
+      'opacity-50': isDragging,
+      '[border-bottom-width:3px] border-b-blue-500 dark:border-b-blue-400': isDragOver,
+      'border-b-transparent': !isDragOver
     }"
+    @mousedown="handleMouseDown"
+    @mousemove="handleMouseMove"
+    @mouseup="handleMouseUp"
+    @dragstart="handleDragStart"
+    @dragend="handleDragEnd"
+    @dragover="handleDragOver"
+    @dragleave="handleDragLeave"
+    @drop="handleDrop"
     >
       <div class="w-4" /> <!-- Spacing instead of expand button -->
 
@@ -141,6 +302,7 @@ function toggleContextMenu(event: MouseEvent) {
       <button
         @click.stop="handleSelect"
         @dblclick.stop="openEditModal"
+        draggable="false"
         class="flex-1 flex items-center gap-2.5 py-2.5 pr-2 font-normal transition-colors min-w-0 text-gray-900 dark:text-gray-100 active:bg-gray-100 dark:active:bg-gray-700"
         :class="{ 'md:hover:bg-gray-50 dark:hover:bg-gray-800': selectedId !== folder.id }"
         :style="{ fontSize: 'clamp(0.875rem, 0.6vw + 0.5rem, 1rem)' }"
@@ -150,9 +312,9 @@ function toggleContextMenu(event: MouseEvent) {
           :src="folder.icon!" 
           class="w-5 h-5 flex-shrink-0 object-contain rounded-sm"
         />
-        <UIcon 
+        <UIcon
           :name="folder.icon ? `i-lucide-${folder.icon}` : 'i-heroicons-folder'"
-          class="w-5 h-5 flex-shrink-0 transition-colors text-blue-600 dark:text-blue-400"
+          class="w-5 h-5 flex-shrink-0 transition-colors text-gray-700 dark:text-gray-300"
         />
         <span class="truncate flex-1 text-left font-normal">{{ folder.name }}</span>
         <span 
@@ -171,6 +333,7 @@ function toggleContextMenu(event: MouseEvent) {
         type="button"
         @click.stop="toggleContextMenu"
         @mousedown.stop
+        draggable="false"
         class="no-drag flex-shrink-0 p-1 hidden md:flex opacity-100 md:opacity-0 md:group-hover/folder:opacity-100 hover:bg-gray-200 dark:hover:bg-gray-700 active:bg-gray-200 dark:active:bg-gray-700 transition-colors"
         :class="isMenuOpen ? 'bg-gray-200 dark:bg-gray-700' : ''"
       >

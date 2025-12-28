@@ -2,6 +2,14 @@
   <div v-if="activeNote" class="flex flex-col h-full">
     <!-- Editor Title Area -->
     <div class="px-6 pt-4 pb-3 relative border-b border-gray-200 dark:border-gray-700">
+      <!-- Breadcrumb Trail -->
+      <div class="mb-2 flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 hidden sm:flex">
+        <UIcon name="i-heroicons-home" class="w-3.5 h-3.5" />
+        <span class="max-w-[150px] truncate">{{ notebookName }}</span>
+        <UIcon name="i-heroicons-chevron-right" class="w-3 h-3" />
+        <span class="text-gray-700 dark:text-gray-300 max-w-[150px] truncate">{{ sectionName }}</span>
+      </div>
+
       <!-- Desktop: Action Buttons / Mobile: Close Note -->
       <div v-if="!isMobileView" class="absolute top-4 right-6 flex items-center gap-1 z-10">
         <!-- Download PDF Button -->
@@ -137,6 +145,8 @@ const props = withDefaults(defineProps<Props>(), {
 const emit = defineEmits<Emits>();
 
 const notesStore = useNotesStore();
+const foldersStore = useFoldersStore();
+const spacesStore = useSpacesStore();
 const { formatHeaderDate } = useNotesFormatting();
 const {
   tagInput,
@@ -154,6 +164,20 @@ const {
 const editorRef = ref();
 
 const activeNote = computed(() => notesStore.activeNote);
+
+const notebookName = computed(() => {
+  if (!activeNote.value) return '';
+  const folder = foldersStore.getFolderById(activeNote.value.folder_id);
+  if (!folder) return 'Unknown';
+  const space = spacesStore.spaces.find(s => s.id === folder.space_id);
+  return space?.name || 'Unknown';
+});
+
+const sectionName = computed(() => {
+  if (!activeNote.value) return '';
+  const folder = foldersStore.getFolderById(activeNote.value.folder_id);
+  return folder?.name || 'Unknown';
+});
 
 const isMobileView = computed(() => {
   if (!process.client) return false;
