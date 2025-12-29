@@ -66,7 +66,9 @@ Creates a new note.
 | `title` | string | (Optional) Title of the note. Defaults to "Untitled". |
 | `content` | string | (Optional) HTML or text content. |
 | `tags` | array | (Optional) Array of string tags. |
-| `section_id` | number | (Optional) ID of the notebook section to place the note in. |
+| `section_id` | number | (Optional) ID of the notebook section (folder) to place the note in. |
+
+> **Note on Ordering:** When creating a note, it is not automatically added to the custom manual sort order. It will appear based on the default sort (usually by date) until you explicitly move or reorder it using the endpoints below.
 
 #### cURL Example
 ```bash
