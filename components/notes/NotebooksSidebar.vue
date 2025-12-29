@@ -40,59 +40,69 @@
 
     <!-- Notebooks List -->
     <div class="flex-1 overflow-y-auto overflow-x-hidden p-1">
-      <div
-        v-for="space in spacesStore.spaces"
-        :key="space.id"
-        class="space-item mb-0.5"
-      >
-        <!-- Notebook Header -->
+      <TransitionGroup name="space-list">
         <div
-          class="space-item-header group/space relative flex items-center gap-1 transition-all duration-150 hover:bg-gray-100 dark:hover:bg-gray-800 active:bg-gray-200 dark:active:bg-gray-700 overflow-hidden min-w-0"
-          :class="{
-            'bg-blue-50 dark:bg-blue-900/20': dragOverSpaceId === space.id && !spacesStore.expandedSpaceIds.has(space.id)
-          }"
-          @dragover="handleSpaceDragOver($event, space.id)"
-          @dragleave="handleSpaceDragLeave(space.id)"
-          @drop="handleSpaceDrop($event, space.id)"
+          v-for="space in spacesStore.spaces"
+          :key="space.id"
+          class="space-item mb-0.5"
         >
-          <button
-            @click="handleSelectSpace(space.id)"
-            draggable="false"
-            class="space-button flex-1 flex items-center gap-2 px-2 py-2.5 transition-colors text-left min-w-0"
+          <!-- Notebook Header -->
+          <div
+            draggable="true"
+            class="space-item-header group/space relative flex items-center gap-1 transition-all duration-150 hover:bg-gray-100 dark:hover:bg-gray-800 active:bg-gray-200 dark:active:bg-gray-700 overflow-hidden min-w-0 cursor-grab active:cursor-grabbing border-t-2"
+            :class="{
+              'bg-blue-50 dark:bg-blue-900/20': dragOverSpaceId === space.id && !spacesStore.expandedSpaceIds.has(space.id),
+              'opacity-50': isDraggingSpace && draggedSpaceId === space.id,
+              'border-t-blue-500 dark:border-t-blue-400 [border-top-width:3px]': dragOverSpaceReorderId === space.id,
+              'border-t-transparent': dragOverSpaceReorderId !== space.id
+            }"
+            @mousedown="handleSpaceMouseDown($event, space.id)"
+            @mousemove="handleSpaceMouseMove"
+            @mouseup="handleSpaceMouseUp"
+            @dragstart="handleSpaceDragStart($event, space.id)"
+            @dragend="handleSpaceDragEnd"
+            @dragover="handleSpaceReorderDragOver($event, space.id)"
+            @dragleave="handleSpaceReorderDragLeave"
+            @drop="handleSpaceReorderDrop($event, space.id)"
           >
-            <UIcon
-              :name="spacesStore.expandedSpaceIds.has(space.id) ? 'i-heroicons-chevron-down' : 'i-heroicons-chevron-right'"
-              class="w-4 h-4 text-gray-500 dark:text-gray-400 flex-shrink-0"
-            />
-            <img
-              v-if="isUrl(space.icon)"
-              :src="space.icon!"
-              class="w-5 h-5 object-contain rounded-sm flex-shrink-0"
-            />
-            <UIcon
-              v-else
-              :name="space.icon ? `i-lucide-${space.icon}` : 'i-heroicons-book-open'"
-              class="w-5 h-5 text-gray-700 dark:text-gray-300 flex-shrink-0"
-            />
-            <span class="font-normal text-sm lg:text-base truncate flex-1 text-gray-900 dark:text-gray-100">{{ space.name }}</span>
-          </button>
+            <button
+              @click="handleSelectSpace(space.id)"
+              draggable="false"
+              class="space-button flex-1 flex items-center gap-2 px-2 py-2.5 transition-colors text-left min-w-0"
+            >
+              <UIcon
+                :name="spacesStore.expandedSpaceIds.has(space.id) ? 'i-heroicons-chevron-down' : 'i-heroicons-chevron-right'"
+                class="w-4 h-4 text-gray-500 dark:text-gray-400 flex-shrink-0"
+              />
+              <img
+                v-if="isUrl(space.icon)"
+                :src="space.icon!"
+                class="w-5 h-5 object-contain rounded-sm flex-shrink-0"
+              />
+              <UIcon
+                v-else
+                :name="space.icon ? `i-lucide-${space.icon}` : 'i-heroicons-book-open'"
+                class="w-5 h-5 text-gray-700 dark:text-gray-300 flex-shrink-0"
+              />
+              <span class="font-normal text-sm lg:text-base truncate flex-1 text-gray-900 dark:text-gray-100">{{ space.name }}</span>
+            </button>
 
-          <!-- Context Menu Button -->
-          <button
-            type="button"
-            @click.stop="toggleSpaceMenu(space.id, $event)"
-            @mousedown.stop
-            draggable="false"
-            class="no-drag flex-shrink-0 p-1 opacity-100 lg:opacity-0 lg:group-hover/space:opacity-100 hover:bg-gray-200 dark:hover:bg-gray-700 active:bg-gray-200 dark:active:bg-gray-700 transition-colors"
-            :class="showSpaceMenuId === space.id ? 'bg-gray-200 dark:bg-gray-700' : ''"
-          >
-            <svg class="w-4 h-4 text-gray-500 dark:text-gray-400" fill="currentColor" viewBox="0 0 16 16">
-              <circle cx="8" cy="2" r="1.5"/>
-              <circle cx="8" cy="8" r="1.5"/>
-              <circle cx="8" cy="14" r="1.5"/>
-            </svg>
-          </button>
-        </div>
+            <!-- Context Menu Button -->
+            <button
+              type="button"
+              @click.stop="toggleSpaceMenu(space.id, $event)"
+              @mousedown.stop
+              draggable="false"
+              class="no-drag flex-shrink-0 p-1 opacity-100 lg:opacity-0 lg:group-hover/space:opacity-100 hover:bg-gray-200 dark:hover:bg-gray-700 active:bg-gray-200 dark:active:bg-gray-700 transition-colors"
+              :class="showSpaceMenuId === space.id ? 'bg-gray-200 dark:bg-gray-700' : ''"
+            >
+              <svg class="w-4 h-4 text-gray-500 dark:text-gray-400" fill="currentColor" viewBox="0 0 16 16">
+                <circle cx="8" cy="2" r="1.5"/>
+                <circle cx="8" cy="8" r="1.5"/>
+                <circle cx="8" cy="14" r="1.5"/>
+              </svg>
+            </button>
+          </div>
 
         <!-- Space Context Menu -->
         <ClientOnly>
@@ -136,23 +146,43 @@
               @dragover="handleDragOverTopOfSpace($event, space.id)"
               @dragleave="handleDragLeaveTopOfSpace"
               @drop="handleDropTopOfSpace($event, space.id)"
-              class="h-2 -mt-1 transition-all border-b-2 relative z-10"
+              class="h-1 transition-all border-t-2 relative"
               :class="{
-                '[border-bottom-width:3px] border-b-blue-500 dark:border-b-blue-400 h-3': dragOverTopOfSpace === space.id,
-                'border-b-transparent': dragOverTopOfSpace !== space.id
+                '[border-top-width:3px] border-t-blue-500 dark:border-t-blue-400 h-2': dragOverTopOfSpace === space.id,
+                'border-t-transparent': dragOverTopOfSpace !== space.id
               }"
             />
-            <FolderTreeItem
-              v-for="folder in getSpaceFolders(space.id, foldersStore.folders)"
-              :key="folder.id"
-              :folder="folder"
-              :selected-id="selectedFolderId"
-              :open-menu-id="openFolderMenuId"
-              @select="(id) => $emit('select-folder', id)"
-              @create-note="(id) => $emit('create-note-in-folder', id)"
-              @delete="(id) => $emit('delete-folder', id)"
-              @edit="(folder) => $emit('edit-folder', folder)"
-              @update:openMenuId="openFolderMenuId = $event"
+            <TransitionGroup name="folder-list">
+              <FolderTreeItem
+                v-for="folder in getSpaceFolders(space.id, foldersStore.folders)"
+                :key="folder.id"
+                :folder="folder"
+                :selected-id="selectedFolderId"
+                :open-menu-id="openFolderMenuId"
+                :dragged-folder-id="draggedFolderId"
+                :drag-over-folder-id="dragOverFolderReorderId"
+                @select="(id) => $emit('select-folder', id)"
+                @create-note="(id) => $emit('create-note-in-folder', id)"
+                @delete="(id) => $emit('delete-folder', id)"
+                @edit="(folder) => $emit('edit-folder', folder)"
+                @update:openMenuId="openFolderMenuId = $event"
+                @drag-start="handleFolderDragStart"
+                @drag-end="handleFolderDragEnd"
+                @drag-over="handleFolderReorderDragOver"
+                @drag-leave="handleFolderReorderDragLeave"
+                @drop="handleFolderReorderDrop"
+              />
+            </TransitionGroup>
+            <!-- Drop zone at bottom of folder list -->
+            <div
+              @dragover="handleDragOverBottomOfSpace($event, space.id)"
+              @dragleave="handleDragLeaveBottomOfSpace"
+              @drop="handleDropBottomOfSpace($event, space.id)"
+              class="h-1 transition-all border-t-2 relative"
+              :class="{
+                '[border-top-width:3px] border-t-blue-500 dark:border-t-blue-400 h-2': dragOverBottomOfSpace === space.id,
+                'border-t-transparent': dragOverBottomOfSpace !== space.id
+              }"
             />
           </div>
 
@@ -170,7 +200,20 @@
             </div>
           </div>
         </div>
-      </div>
+        </div>
+      </TransitionGroup>
+
+      <!-- Drop zone at bottom of spaces list -->
+      <div
+        @dragover="handleDragOverBottomOfSpacesList"
+        @dragleave="handleDragLeaveBottomOfSpacesList"
+        @drop="handleDropBottomOfSpacesList"
+        class="h-2 transition-all border-t-2"
+        :class="{
+          '[border-top-width:3px] border-t-blue-500 dark:border-t-blue-400 h-3': dragOverBottomOfSpacesList,
+          'border-t-transparent': !dragOverBottomOfSpacesList
+        }"
+      />
     </div>
 
     <!-- User Footer -->
@@ -245,10 +288,23 @@ const showSpaceMenuId = ref<number | null>(null);
 const openFolderMenuId = ref<number | null>(null);
 const spaceMenuPosition = ref({ top: '0px', left: '0px' });
 
-// Drag and drop state
+// Drag and drop state for folders
 const dragOverSpaceId = ref<number | null>(null);
 const dragOverTopOfSpace = ref<number | null>(null);
+const dragOverBottomOfSpace = ref<number | null>(null);
 const expandTimer = ref<NodeJS.Timeout | null>(null);
+const draggedFolderId = ref<number | null>(null);
+const dragOverFolderReorderId = ref<number | null>(null);
+
+// Drag and drop state for spaces
+const draggedSpaceId = ref<number | null>(null);
+const isDraggingSpace = ref(false);
+const canDragSpace = ref(false);
+const dragStartSpaceTimer = ref<NodeJS.Timeout | null>(null);
+const mouseDownSpacePos = ref<{ x: number; y: number } | null>(null);
+const dragOverSpaceReorderId = ref<number | null>(null);
+const dragOverBottomOfSpacesList = ref(false);
+const expandedSpacesBeforeDrag = ref<Set<number>>(new Set());
 
 function toggleSpaceMenu(spaceId: number, event: MouseEvent) {
   event.stopPropagation();
@@ -324,6 +380,12 @@ function handleDragOverTopOfSpace(event: DragEvent, spaceId: number) {
   event.preventDefault();
   if (!event.dataTransfer) return;
 
+  // Only show indicator when dragging folders, not spaces
+  if (isDraggingSpace.value) {
+    dragOverTopOfSpace.value = null;
+    return;
+  }
+
   event.dataTransfer.dropEffect = 'move';
   dragOverTopOfSpace.value = spaceId;
 }
@@ -345,16 +407,444 @@ async function handleDropTopOfSpace(event: DragEvent, spaceId: number) {
     if (data.type === 'folder') {
       const draggedFolderId = data.folderId;
       const draggedSpaceId = data.spaceId;
+      const draggedFolder = foldersStore.getFolderById(draggedFolderId);
 
-      // If moving to a different space
-      if (draggedSpaceId !== spaceId) {
-        await foldersStore.moveFolder(draggedFolderId, spaceId);
+      if (!draggedFolder) return;
+
+      const isCrossSpace = draggedSpaceId !== spaceId;
+
+      if (isCrossSpace) {
+        // Do optimistic update locally ONCE with final position
+        const oldSpaceId = draggedFolder.space_id;
+
+        // 1. Update space_id
+        draggedFolder.space_id = spaceId;
+
+        // 2. Remove from old position
+        const allFolders = [...foldersStore.folders];
+        const draggedIndex = allFolders.findIndex(f => f.id === draggedFolderId);
+        allFolders.splice(draggedIndex, 1);
+
+        // 3. Get new space folders and insert at position 0
+        const newSpaceFolders = allFolders.filter(f => f.space_id === spaceId);
+        const otherFolders = allFolders.filter(f => f.space_id !== spaceId);
+        newSpaceFolders.unshift(draggedFolder);
+
+        // 4. Update store in one go
+        foldersStore.folders = [...otherFolders, ...newSpaceFolders];
+
+        // Now make API calls in background
+        try {
+          await foldersStore.moveFolder(draggedFolderId, spaceId);
+          await foldersStore.reorderFolder(draggedFolderId, 0);
+        } catch (error) {
+          // Revert on error
+          draggedFolder.space_id = oldSpaceId;
+          await foldersStore.fetchFolders(undefined, true);
+          throw error;
+        }
+      } else {
+        // Same space, just reorder
+        await foldersStore.reorderFolder(draggedFolderId, 0);
       }
-      // Reorder to index 0 (top of list)
-      await foldersStore.reorderFolder(draggedFolderId, 0);
     }
   } catch (error) {
     console.error('Failed to handle folder drop at top:', error);
+  }
+}
+
+// Drop zone at bottom of folder list handlers
+function handleDragOverBottomOfSpace(event: DragEvent, spaceId: number) {
+  event.preventDefault();
+  if (!event.dataTransfer) return;
+
+  // Only show indicator when dragging folders, not spaces
+  if (isDraggingSpace.value) {
+    dragOverBottomOfSpace.value = null;
+    return;
+  }
+
+  event.dataTransfer.dropEffect = 'move';
+  dragOverBottomOfSpace.value = spaceId;
+}
+
+function handleDragLeaveBottomOfSpace() {
+  dragOverBottomOfSpace.value = null;
+}
+
+async function handleDropBottomOfSpace(event: DragEvent, spaceId: number) {
+  event.preventDefault();
+  event.stopPropagation();
+  dragOverBottomOfSpace.value = null;
+
+  if (!event.dataTransfer) return;
+
+  try {
+    const data = JSON.parse(event.dataTransfer.getData('application/json'));
+
+    if (data.type === 'folder') {
+      const draggedFolderId = data.folderId;
+      const draggedSpaceId = data.spaceId;
+      const draggedFolder = foldersStore.getFolderById(draggedFolderId);
+
+      if (!draggedFolder) return;
+
+      const isCrossSpace = draggedSpaceId !== spaceId;
+
+      // Calculate the last position
+      const foldersInSpace = foldersStore.folders.filter(f => f.space_id === spaceId && f.id !== draggedFolderId);
+      const lastIndex = foldersInSpace.length;
+
+      if (isCrossSpace) {
+        // Do optimistic update locally ONCE with final position
+        const oldSpaceId = draggedFolder.space_id;
+
+        // 1. Update space_id
+        draggedFolder.space_id = spaceId;
+
+        // 2. Remove from old position
+        const allFolders = [...foldersStore.folders];
+        const draggedIndex = allFolders.findIndex(f => f.id === draggedFolderId);
+        allFolders.splice(draggedIndex, 1);
+
+        // 3. Get new space folders and insert at last position
+        const newSpaceFolders = allFolders.filter(f => f.space_id === spaceId);
+        const otherFolders = allFolders.filter(f => f.space_id !== spaceId);
+        newSpaceFolders.push(draggedFolder);
+
+        // 4. Update store in one go
+        foldersStore.folders = [...otherFolders, ...newSpaceFolders];
+
+        // Now make API calls in background
+        try {
+          await foldersStore.moveFolder(draggedFolderId, spaceId);
+          await foldersStore.reorderFolder(draggedFolderId, lastIndex);
+        } catch (error) {
+          // Revert on error
+          draggedFolder.space_id = oldSpaceId;
+          await foldersStore.fetchFolders(undefined, true);
+          throw error;
+        }
+      } else {
+        // Same space, just reorder
+        await foldersStore.reorderFolder(draggedFolderId, lastIndex);
+      }
+    }
+  } catch (error) {
+    console.error('Failed to handle folder drop at bottom:', error);
+  }
+}
+
+// Folder drag handlers
+function handleFolderDragStart(folderId: number) {
+  draggedFolderId.value = folderId;
+  dragOverSpaceReorderId.value = null; // Clear space indicator when dragging folder
+}
+
+function handleFolderDragEnd() {
+  draggedFolderId.value = null;
+  dragOverFolderReorderId.value = null;
+  dragOverSpaceReorderId.value = null;
+}
+
+function handleFolderReorderDragOver(event: DragEvent, folderId: number) {
+  event.preventDefault();
+  if (!event.dataTransfer) return;
+
+  const hasData = event.dataTransfer.types.includes('application/json');
+  if (!hasData) return;
+
+  // Don't show indicator if dragging over self
+  if (draggedFolderId.value === folderId) {
+    dragOverFolderReorderId.value = null;
+    return;
+  }
+
+  event.dataTransfer.dropEffect = 'move';
+  dragOverFolderReorderId.value = folderId;
+}
+
+function handleFolderReorderDragLeave() {
+  dragOverFolderReorderId.value = null;
+}
+
+async function handleFolderReorderDrop(event: DragEvent, targetFolderId: number) {
+  event.preventDefault();
+  event.stopPropagation();
+  dragOverFolderReorderId.value = null;
+
+  if (!event.dataTransfer) return;
+
+  try {
+    const data = JSON.parse(event.dataTransfer.getData('application/json'));
+
+    if (data.type === 'folder' && data.folderId !== targetFolderId) {
+      const draggedFolderId = data.folderId;
+      const draggedFolder = foldersStore.getFolderById(draggedFolderId);
+      const targetFolder = foldersStore.getFolderById(targetFolderId);
+
+      if (!draggedFolder || !targetFolder) return;
+
+      const isCrossSpace = draggedFolder.space_id !== targetFolder.space_id;
+
+      // Calculate target index
+      const targetSpaceFolders = foldersStore.folders.filter(f => f.space_id === targetFolder.space_id);
+      const targetIndex = targetSpaceFolders.findIndex(f => f.id === targetFolderId);
+
+      if (targetIndex < 0) return;
+
+      if (isCrossSpace) {
+        // Do optimistic update locally ONCE with final position
+        const oldSpaceId = draggedFolder.space_id;
+
+        // 1. Update space_id
+        draggedFolder.space_id = targetFolder.space_id;
+
+        // 2. Remove from old position
+        const allFolders = [...foldersStore.folders];
+        const draggedIndex = allFolders.findIndex(f => f.id === draggedFolderId);
+        allFolders.splice(draggedIndex, 1);
+
+        // 3. Get new space folders and insert at correct position
+        const newSpaceFolders = allFolders.filter(f => f.space_id === targetFolder.space_id);
+        const otherFolders = allFolders.filter(f => f.space_id !== targetFolder.space_id);
+        newSpaceFolders.splice(targetIndex, 0, draggedFolder);
+
+        // 4. Update store in one go
+        foldersStore.folders = [...otherFolders, ...newSpaceFolders];
+
+        // Now make API calls in background
+        try {
+          await foldersStore.moveFolder(draggedFolderId, targetFolder.space_id);
+          await foldersStore.reorderFolder(draggedFolderId, targetIndex);
+        } catch (error) {
+          // Revert on error
+          draggedFolder.space_id = oldSpaceId;
+          await foldersStore.fetchFolders(undefined, true);
+          throw error;
+        }
+      } else {
+        // Same space, just reorder
+        await foldersStore.reorderFolder(draggedFolderId, targetIndex);
+      }
+    }
+  } catch (error) {
+    console.error('Failed to handle folder drop:', error);
+  }
+}
+
+// Space drag handlers
+function handleSpaceMouseDown(event: MouseEvent, spaceId: number) {
+  // Don't initiate drag on context menu button
+  const target = event.target as HTMLElement;
+  if (target.closest('button[type="button"]')) {
+    return;
+  }
+
+  mouseDownSpacePos.value = { x: event.clientX, y: event.clientY };
+  draggedSpaceId.value = spaceId;
+
+  // Allow drag after 200ms delay or 5px movement
+  dragStartSpaceTimer.value = setTimeout(() => {
+    canDragSpace.value = true;
+  }, 200);
+}
+
+function handleSpaceMouseMove(event: MouseEvent) {
+  if (!mouseDownSpacePos.value || canDragSpace.value) return;
+
+  const deltaX = Math.abs(event.clientX - mouseDownSpacePos.value.x);
+  const deltaY = Math.abs(event.clientY - mouseDownSpacePos.value.y);
+
+  // If moved more than 5px, allow drag immediately
+  if (deltaX > 5 || deltaY > 5) {
+    if (dragStartSpaceTimer.value) {
+      clearTimeout(dragStartSpaceTimer.value);
+    }
+    canDragSpace.value = true;
+  }
+}
+
+function handleSpaceMouseUp() {
+  if (dragStartSpaceTimer.value) {
+    clearTimeout(dragStartSpaceTimer.value);
+  }
+  mouseDownSpacePos.value = null;
+  canDragSpace.value = false;
+}
+
+function handleSpaceDragStart(event: DragEvent, spaceId: number) {
+  if (!canDragSpace.value) {
+    event.preventDefault();
+    return;
+  }
+
+  if (!event.dataTransfer) return;
+  isDraggingSpace.value = true;
+
+  // Store space data
+  event.dataTransfer.effectAllowed = 'move';
+  event.dataTransfer.setData('application/json', JSON.stringify({
+    type: 'space',
+    spaceId: spaceId
+  }));
+
+  // Save currently expanded spaces and collapse all
+  expandedSpacesBeforeDrag.value = new Set(spacesStore.expandedSpaceIds);
+  spacesStore.expandedSpaceIds.clear();
+  spacesStore.expandedSpaceIds = new Set(); // Trigger reactivity
+
+  // Add visual feedback
+  if (event.target instanceof HTMLElement) {
+    event.target.style.opacity = '0.5';
+  }
+}
+
+function handleSpaceDragEnd(event: DragEvent) {
+  isDraggingSpace.value = false;
+  canDragSpace.value = false;
+  mouseDownSpacePos.value = null;
+  draggedSpaceId.value = null;
+  dragOverSpaceReorderId.value = null;
+  dragOverBottomOfSpacesList.value = false;
+
+  if (dragStartSpaceTimer.value) {
+    clearTimeout(dragStartSpaceTimer.value);
+    dragStartSpaceTimer.value = null;
+  }
+
+  // Restore expanded spaces
+  spacesStore.expandedSpaceIds = new Set(expandedSpacesBeforeDrag.value);
+  expandedSpacesBeforeDrag.value = new Set();
+
+  // Remove visual feedback
+  if (event.target instanceof HTMLElement) {
+    event.target.style.opacity = '1';
+  }
+}
+
+function handleSpaceReorderDragOver(event: DragEvent, spaceId: number) {
+  event.preventDefault();
+  if (!event.dataTransfer) return;
+
+  const hasData = event.dataTransfer.types.includes('application/json');
+  if (!hasData) return;
+
+  // Only show indicator for space drags, not folder drags
+  try {
+    // Check if we're dragging a space (only spaces can be reordered here)
+    const types = Array.from(event.dataTransfer.types);
+    if (!types.includes('application/json')) {
+      dragOverSpaceReorderId.value = null;
+      return;
+    }
+  } catch (error) {
+    // Can't determine type during dragover, ignore
+  }
+
+  // Don't show indicator if dragging over self
+  if (draggedSpaceId.value === spaceId) {
+    dragOverSpaceReorderId.value = null;
+    return;
+  }
+
+  // Only show indicator if we're actually dragging a space
+  // (All spaces are collapsed during drag, so no need to check for expanded state)
+  if (isDraggingSpace.value) {
+    event.dataTransfer.dropEffect = 'move';
+    dragOverSpaceReorderId.value = spaceId;
+  } else if (draggedFolderId.value) {
+    // Dragging a folder - enable auto-expand for collapsed spaces
+    dragOverSpaceReorderId.value = null;
+
+    // If space is not expanded, set a timer to auto-expand
+    if (!spacesStore.expandedSpaceIds.has(spaceId)) {
+      if (!expandTimer.value) {
+        expandTimer.value = setTimeout(() => {
+          spacesStore.expandSpace(spaceId);
+          expandTimer.value = null;
+        }, 800); // Auto-expand after 800ms
+      }
+    }
+  } else {
+    // Not dragging a space or folder, don't show indicator
+    dragOverSpaceReorderId.value = null;
+  }
+}
+
+function handleSpaceReorderDragLeave() {
+  dragOverSpaceReorderId.value = null;
+
+  // Clear expand timer when leaving the space
+  if (expandTimer.value) {
+    clearTimeout(expandTimer.value);
+    expandTimer.value = null;
+  }
+}
+
+async function handleSpaceReorderDrop(event: DragEvent, targetSpaceId: number) {
+  event.preventDefault();
+  event.stopPropagation();
+  dragOverSpaceReorderId.value = null;
+
+  if (!event.dataTransfer) return;
+
+  try {
+    const data = JSON.parse(event.dataTransfer.getData('application/json'));
+
+    if (data.type === 'space' && data.spaceId !== targetSpaceId) {
+      const draggedSpaceId = data.spaceId;
+      const targetIndex = spacesStore.spaces.findIndex(s => s.id === targetSpaceId);
+
+      if (targetIndex >= 0) {
+        await spacesStore.reorderSpace(draggedSpaceId, targetIndex);
+      }
+    }
+  } catch (error) {
+    console.error('Failed to handle space drop:', error);
+  }
+}
+
+// Bottom drop zone handlers for spaces
+function handleDragOverBottomOfSpacesList(event: DragEvent) {
+  event.preventDefault();
+  if (!event.dataTransfer) return;
+
+  // Only show indicator when dragging spaces
+  if (isDraggingSpace.value) {
+    event.dataTransfer.dropEffect = 'move';
+    dragOverBottomOfSpacesList.value = true;
+  } else {
+    dragOverBottomOfSpacesList.value = false;
+  }
+}
+
+function handleDragLeaveBottomOfSpacesList() {
+  dragOverBottomOfSpacesList.value = false;
+}
+
+async function handleDropBottomOfSpacesList(event: DragEvent) {
+  event.preventDefault();
+  event.stopPropagation();
+  dragOverBottomOfSpacesList.value = false;
+
+  if (!event.dataTransfer) return;
+
+  try {
+    const data = JSON.parse(event.dataTransfer.getData('application/json'));
+
+    if (data.type === 'space') {
+      const draggedSpaceId = data.spaceId;
+      const lastIndex = spacesStore.spaces.length - 1;
+
+      // Only reorder if not already at the end
+      const currentIndex = spacesStore.spaces.findIndex(s => s.id === draggedSpaceId);
+      if (currentIndex !== lastIndex) {
+        await spacesStore.reorderSpace(draggedSpaceId, lastIndex);
+      }
+    }
+  } catch (error) {
+    console.error('Failed to handle space drop at bottom:', error);
   }
 }
 
@@ -369,10 +859,25 @@ onMounted(() => {
   document.addEventListener('click', handleClickOutside);
   onUnmounted(() => {
     document.removeEventListener('click', handleClickOutside);
-    // Clear expand timer on unmount
+    // Clear timers on unmount
     if (expandTimer.value) {
       clearTimeout(expandTimer.value);
+    }
+    if (dragStartSpaceTimer.value) {
+      clearTimeout(dragStartSpaceTimer.value);
     }
   });
 });
 </script>
+
+<style scoped>
+/* Space list transition animations */
+.space-list-move {
+  transition: transform 0.3s ease;
+}
+
+/* Folder list transition animations */
+.folder-list-move {
+  transition: transform 0.3s ease;
+}
+</style>

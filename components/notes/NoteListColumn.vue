@@ -52,41 +52,31 @@
         No pages in this section
       </div>
       <!-- Note List -->
-      <div v-else class="divide-y divide-gray-200 dark:divide-gray-700" ref="noteListRef">
-        <!-- Drop zone at top of list -->
-        <div
-          @dragover="handleDragOverTop"
-          @dragleave="handleDragLeaveTop"
-          @drop="handleDropTop"
-          class="h-2 -mt-1 transition-all border-b-2"
-          :class="{
-            '[border-bottom-width:3px] border-b-blue-500 dark:border-b-blue-400 h-3': dragOverTop,
-            'border-b-transparent': !dragOverTop
-          }"
-        />
-        <div
-          v-for="(note, index) in displayNotes"
-          :key="note.id"
-          :data-note-id="note.id"
-          draggable="true"
-          @click="$emit('open-note', note.id)"
-          @mousedown="handleNoteMouseDown"
-          @mousemove="handleNoteMouseMove"
-          @mouseup="handleNoteMouseUp"
-          @dragstart="handleDragStart($event, note.id)"
-          @dragend="handleDragEnd"
-          @dragover="handleDragOver($event, note.id)"
-          @dragleave="handleDragLeave"
-          @drop="handleDrop($event, note.id, index)"
-          class="note-item group px-3 py-2 cursor-grab active:cursor-grabbing transition-all duration-150 relative border-l-2 border-b-2"
-          :class="{
-            'bg-gray-50 dark:bg-gray-800/50 [border-left-width:3px] border-l-blue-600 dark:border-l-blue-400': activeNote?.id === note.id,
-            'border-l-transparent hover:bg-gray-50 dark:hover:bg-gray-800': activeNote?.id !== note.id,
-            'opacity-50': draggingNoteId === note.id,
-            '[border-bottom-width:3px] border-b-blue-500 dark:border-b-blue-400': dragOverNoteId === note.id,
-            'border-b-transparent': dragOverNoteId !== note.id
-          }"
-        >
+      <div v-else class="divide-y divide-gray-200 dark:divide-gray-700" ref="noteListRef" :key="selectedFolderId">
+        <TransitionGroup name="note-list">
+          <div
+            v-for="(note, index) in displayNotes"
+            :key="note.id"
+            :data-note-id="note.id"
+            draggable="true"
+            @click="$emit('open-note', note.id)"
+            @mousedown="handleNoteMouseDown"
+            @mousemove="handleNoteMouseMove"
+            @mouseup="handleNoteMouseUp"
+            @dragstart="handleDragStart($event, note.id)"
+            @dragend="handleDragEnd"
+            @dragover="handleDragOver($event, note.id)"
+            @dragleave="handleDragLeave"
+            @drop="handleDrop($event, note.id, index)"
+            class="note-item group px-3 py-2 cursor-grab active:cursor-grabbing transition-all duration-150 relative border-l-2 border-t-2"
+            :class="{
+              'bg-gray-50 dark:bg-gray-800/50 [border-left-width:3px] border-l-blue-600 dark:border-l-blue-400': activeNote?.id === note.id,
+              'border-l-transparent hover:bg-gray-50 dark:hover:bg-gray-800': activeNote?.id !== note.id,
+              'opacity-50': draggingNoteId === note.id,
+              'border-t-blue-500 dark:border-t-blue-400 [border-top-width:3px]': dragOverNoteId === note.id,
+              'border-t-transparent': dragOverNoteId !== note.id
+            }"
+          >
           <div class="font-normal text-sm truncate select-none pr-8 text-gray-900 dark:text-gray-100">{{ note.title || 'Untitled Page' }}</div>
           <!-- Delete Button -->
           <button
@@ -103,11 +93,19 @@
               class="w-4 h-4"
             />
           </button>
-        </div>
+          </div>
+        </TransitionGroup>
       </div>
     </div>
   </aside>
 </template>
+
+<style scoped>
+/* Note list transition animations */
+.note-list-move {
+  transition: transform 0.3s ease;
+}
+</style>
 
 <script setup lang="ts">
 interface Props {

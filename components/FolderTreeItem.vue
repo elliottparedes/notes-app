@@ -6,6 +6,8 @@ interface Props {
   selectedId: number | null;
   isExpanded?: boolean;
   openMenuId?: number | null;
+  draggedFolderId?: number | null;
+  dragOverFolderId?: number | null;
 }
 
 interface Emits {
@@ -24,11 +26,18 @@ interface Emits {
   (e: 'move-down', folderId: number): void;
   (e: 'reorder-folder', folderId: number, newIndex: number): void;
   (e: 'update:openMenuId', value: number | null): void;
+  (e: 'drag-start', folderId: number): void;
+  (e: 'drag-end'): void;
+  (e: 'drag-over', event: DragEvent, folderId: number): void;
+  (e: 'drag-leave'): void;
+  (e: 'drop', event: DragEvent, folderId: number): void;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   isExpanded: false,
-  openMenuId: null
+  openMenuId: null,
+  draggedFolderId: null,
+  dragOverFolderId: null
 });
 
 const emit = defineEmits<Emits>();
@@ -190,6 +199,9 @@ function handleDragStart(event: DragEvent) {
   if (event.target instanceof HTMLElement) {
     event.target.style.opacity = '0.5';
   }
+
+  // Emit drag start
+  emit('drag-start', props.folder.id);
 }
 
 function handleDragEnd(event: DragEvent) {
@@ -206,6 +218,9 @@ function handleDragEnd(event: DragEvent) {
   if (event.target instanceof HTMLElement) {
     event.target.style.opacity = '1';
   }
+
+  // Emit drag end
+  emit('drag-end');
 }
 
 // Cleanup on unmount
@@ -219,12 +234,26 @@ function handleDragOver(event: DragEvent) {
   event.preventDefault();
   if (!event.dataTransfer) return;
 
+  const hasData = event.dataTransfer.types.includes('application/json');
+  if (!hasData) return;
+
   event.dataTransfer.dropEffect = 'move';
-  isDragOver.value = true;
+
+  // Emit for folder reordering
+  emit('drag-over', event, props.folder.id);
+
+  // Show visual feedback for note drops
+  try {
+    // We can't access dataTransfer.getData during dragover, so show indicator for all drags
+    isDragOver.value = true;
+  } catch (error) {
+    // Ignore
+  }
 }
 
 function handleDragLeave() {
   isDragOver.value = false;
+  emit('drag-leave');
 }
 
 async function handleDrop(event: DragEvent) {
@@ -237,32 +266,14 @@ async function handleDrop(event: DragEvent) {
   try {
     const data = JSON.parse(event.dataTransfer.getData('application/json'));
 
-    if (data.type === 'folder' && data.folderId !== props.folder.id) {
-      const draggedFolderId = data.folderId;
-      const draggedSpaceId = data.spaceId;
-      const targetSpaceId = props.folder.space_id;
-
-      // Get target folder's siblings to determine new index
-      const siblings = foldersStore.getSiblings(props.folder.id);
-      const targetIndex = siblings.findIndex(f => f.id === props.folder.id);
-
-      // If moving to a different space
-      if (draggedSpaceId !== targetSpaceId) {
-        await foldersStore.moveFolder(draggedFolderId, targetSpaceId);
-        // Then reorder to be right after the target folder
-        if (targetIndex >= 0) {
-          await foldersStore.reorderFolder(draggedFolderId, targetIndex + 1);
-        }
-      } else {
-        // Same space, just reorder
-        await foldersStore.reorderFolder(draggedFolderId, targetIndex + 1);
-      }
+    if (data.type === 'folder') {
+      // Emit for folder reordering
+      emit('drop', event, props.folder.id);
     } else if (data.type === 'note') {
-      // Moving a note to this folder
+      // Handle note drops
       const draggedNoteId = data.noteId;
       const targetFolderId = props.folder.id;
 
-      // Move note to this folder (append to end)
       const note = notesStore.notes.find(n => n.id === draggedNoteId);
       if (note && note.folder_id !== targetFolderId) {
         await notesStore.moveNote(draggedNoteId, targetFolderId);
@@ -278,14 +289,15 @@ async function handleDrop(event: DragEvent) {
   <!-- Folder Item - Premium Apple Design -->
     <div
     draggable="true"
-    class="folder-item group/folder relative flex items-center gap-2 transition-all duration-150 active:bg-gray-100 dark:active:bg-gray-700 cursor-grab active:cursor-grabbing border-l-2 border-b-2"
+    class="folder-item group/folder relative flex items-center gap-2 transition-all duration-150 active:bg-gray-100 dark:active:bg-gray-700 cursor-grab active:cursor-grabbing border-l-2 border-t-2"
     :data-folder-id="folder.id"
     :class="{
       'bg-gray-50 dark:bg-gray-800/50 border-l-blue-600 dark:border-l-blue-400 [border-left-width:3px]': selectedId === folder.id,
       'border-l-transparent md:hover:bg-gray-50 dark:hover:bg-gray-800': selectedId !== folder.id,
       'opacity-50': isDragging,
-      '[border-bottom-width:3px] border-b-blue-500 dark:border-b-blue-400': isDragOver,
-      'border-b-transparent': !isDragOver
+      'bg-blue-50 dark:bg-blue-900/20': isDragOver && dragOverFolderId !== folder.id,
+      'border-t-blue-500 dark:border-t-blue-400 [border-top-width:3px]': dragOverFolderId === folder.id,
+      'border-t-transparent': dragOverFolderId !== folder.id
     }"
     @mousedown="handleMouseDown"
     @mousemove="handleMouseMove"
