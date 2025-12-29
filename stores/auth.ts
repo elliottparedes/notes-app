@@ -11,6 +11,7 @@ interface AuthState {
   initialized: boolean;
   initPromise: Promise<void> | null;
   needsPasswordReset: boolean;
+  showDeveloperUI: boolean;
 }
 
 export const useAuthStore = defineStore('auth', {
@@ -21,7 +22,8 @@ export const useAuthStore = defineStore('auth', {
     error: null,
     initialized: false,
     initPromise: null,
-    needsPasswordReset: false
+    needsPasswordReset: false,
+    showDeveloperUI: process.client ? localStorage.getItem('show_developer_ui') === 'true' : false
   }),
 
   getters: {
@@ -30,10 +32,18 @@ export const useAuthStore = defineStore('auth', {
       // This enables access to locally cached notes when server is down
       return !!state.token;
     },
-    currentUser: (state): User | null => state.user
+    currentUser: (state): User | null => state.user,
+    isDeveloperUIEnabled: (state): boolean => state.showDeveloperUI
   },
 
   actions: {
+    toggleDeveloperUI() {
+      this.showDeveloperUI = !this.showDeveloperUI;
+      if (process.client) {
+        localStorage.setItem('show_developer_ui', String(this.showDeveloperUI));
+      }
+    },
+    
     async signup(data: UserSignupDto): Promise<void> {
       this.loading = true;
       this.error = null;

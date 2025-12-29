@@ -397,6 +397,47 @@ function goBack() {
         </div>
       </div>
 
+      <!-- Developer Settings -->
+      <div class="mb-6 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800">
+        <div class="px-4 py-3 border-b border-gray-300 dark:border-gray-700">
+          <h2 class="text-base font-semibold text-gray-900 dark:text-white">Developer Settings</h2>
+        </div>
+        <div class="p-4 space-y-4">
+          <div class="flex items-center justify-between py-2">
+            <div class="flex-1">
+              <label class="block text-sm font-normal text-gray-700 dark:text-gray-300 mb-1">
+                Developer UI
+              </label>
+              <p class="text-xs text-gray-600 dark:text-gray-400">
+                Show IDs for notes, folders, and spaces to assist with API usage
+              </p>
+            </div>
+            <!-- Custom Toggle Switch -->
+            <button
+              @click="authStore.toggleDeveloperUI()"
+              type="button"
+              role="switch"
+              :aria-checked="authStore.showDeveloperUI"
+              class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-1 focus:ring-blue-500 ml-4"
+              :class="authStore.showDeveloperUI ? 'bg-blue-600' : 'bg-gray-300 dark:bg-gray-600'"
+            >
+              <span
+                class="pointer-events-none inline-block h-5 w-5 transform bg-white transition duration-200 ease-in-out"
+                :class="authStore.showDeveloperUI ? 'translate-x-5' : 'translate-x-0'"
+              >
+                <span class="absolute inset-0 flex items-center justify-center">
+                  <UIcon 
+                    name="i-heroicons-code-bracket"
+                    class="h-3.5 w-3.5"
+                    :class="authStore.showDeveloperUI ? 'text-blue-600' : 'text-gray-400'"
+                  />
+                </span>
+              </span>
+            </button>
+          </div>
+        </div>
+      </div>
+
       <!-- Change Password -->
       <div class="mb-6 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800">
         <div class="px-4 py-3 border-b border-gray-300 dark:border-gray-700">

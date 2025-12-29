@@ -85,6 +85,15 @@
                 class="w-5 h-5 text-gray-700 dark:text-gray-300 flex-shrink-0"
               />
               <span class="font-normal text-sm lg:text-base truncate flex-1 text-gray-900 dark:text-gray-100">{{ space.name }}</span>
+              <!-- Developer UI: ID Badge -->
+              <button 
+                v-if="authStore.isDeveloperUIEnabled"
+                class="px-1.5 py-0.5 rounded text-[10px] font-mono font-medium bg-indigo-50 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-700/50 cursor-copy hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition-colors"
+                @click.stop="copyId(space.id)"
+                title="Click to copy Notebook ID"
+              >
+                ID:{{ space.id }}
+              </button>
             </button>
 
             <!-- Context Menu Button -->
@@ -280,9 +289,17 @@ const emit = defineEmits<Emits>();
 const spacesStore = useSpacesStore();
 const foldersStore = useFoldersStore();
 const authStore = useAuthStore();
+const toast = useToast();
 const { cachedImageUrl: cachedProfilePicture } = useCachedProfilePicture(authStore.user?.id, authStore.user?.profile_picture_url);
 const { handleSidebarResizeStart } = useSidebarResize((width) => emit('update:sidebarWidth', width));
 const { handleSelectSpace, handleDeleteSpace } = useSpaceActions();
+
+function copyId(id: number) {
+  if (process.client) {
+    navigator.clipboard.writeText(String(id));
+    toast.success('Notebook ID copied to clipboard');
+  }
+}
 
 const showSpaceMenuId = ref<number | null>(null);
 const openFolderMenuId = ref<number | null>(null);

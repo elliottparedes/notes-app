@@ -34,9 +34,9 @@ export default defineEventHandler(async (event): Promise<Note> => {
     const rows = await executeQuery<NoteRow[]>(
       `SELECT n.*, 
         sn.permission as share_permission,
-        (SELECT COUNT(*) FROM shared_notes WHERE page_id = n.id) > 0 as is_shared
+        (SELECT COUNT(*) FROM shared_pages WHERE page_id = n.id) > 0 as is_shared
        FROM pages n
-       LEFT JOIN shared_notes sn ON n.id = sn.page_id AND sn.shared_with_user_id = ?
+       LEFT JOIN shared_pages sn ON n.id = sn.page_id AND sn.shared_with_user_id = ?
        WHERE n.id = ? AND (n.user_id = ? OR sn.shared_with_user_id IS NOT NULL)
        LIMIT 1`,
       [userId, noteId, userId]

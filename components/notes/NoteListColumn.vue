@@ -89,7 +89,18 @@
               'border-b-transparent': dragOverNoteId !== note.id
             }"
           >
-          <div class="font-normal text-sm truncate select-none pr-8 text-gray-900 dark:text-gray-100">{{ note.title || 'Untitled Page' }}</div>
+          <div class="flex flex-col gap-0.5 pr-8">
+            <div class="font-normal text-sm truncate select-none text-gray-900 dark:text-gray-100">{{ note.title || 'Untitled Page' }}</div>
+            <!-- Developer UI: ID Badge -->
+            <button 
+              v-if="authStore.isDeveloperUIEnabled" 
+              class="text-[10px] font-mono font-medium text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/40 px-1 rounded w-fit max-w-full cursor-copy hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition-colors border border-indigo-200 dark:border-indigo-700/50"
+              @click.stop="copyId(note.id)"
+              title="Click to copy Page ID"
+            >
+              ID: {{ note.id }}
+            </button>
+          </div>
           <!-- Delete Button -->
           <button
             @click.stop="handleDeleteClick(note.id, $event)"
@@ -138,9 +149,18 @@ const emit = defineEmits<Emits>();
 
 const notesStore = useNotesStore();
 const foldersStore = useFoldersStore();
+const authStore = useAuthStore();
+const toast = useToast();
 const { getOrderedNotesForFolder } = useNotesFormatting();
 const { handleNoteListResizeStart } = useSidebarResize(undefined, (width) => emit('update:noteListWidth', width));
 const { noteToDelete, handleDeleteClick } = useNoteActions();
+
+function copyId(id: string) {
+  if (process.client) {
+    navigator.clipboard.writeText(id);
+    toast.success('Note ID copied to clipboard');
+  }
+}
 
 const noteListRef = ref<HTMLElement | null>(null);
 

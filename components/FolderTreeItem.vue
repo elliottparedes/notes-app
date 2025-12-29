@@ -43,6 +43,15 @@ const props = withDefaults(defineProps<Props>(), {
 const emit = defineEmits<Emits>();
 const foldersStore = useFoldersStore();
 const notesStore = useNotesStore();
+const authStore = useAuthStore();
+const toast = useToast();
+
+function copyId(id: number) {
+  if (process.client) {
+    navigator.clipboard.writeText(String(id));
+    toast.success('Folder ID copied to clipboard');
+  }
+}
 
 // Get note count for this folder
 const noteCount = computed(() => {
@@ -329,6 +338,15 @@ async function handleDrop(event: DragEvent) {
           class="w-5 h-5 flex-shrink-0 transition-colors text-gray-700 dark:text-gray-300"
         />
         <span class="truncate flex-1 text-left font-normal">{{ folder.name }}</span>
+        <!-- Developer UI: ID Badge -->
+        <button 
+          v-if="authStore.isDeveloperUIEnabled"
+          class="px-1.5 py-0.5 rounded text-[10px] font-mono font-medium bg-indigo-50 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-700/50 mr-2 cursor-copy hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition-colors"
+          @click.stop="copyId(folder.id)"
+          title="Click to copy Folder ID"
+        >
+          ID:{{ folder.id }}
+        </button>
         <span 
           v-if="noteCount > 0"
           class="px-2 py-0.5 bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 flex-shrink-0 font-normal text-xs"
