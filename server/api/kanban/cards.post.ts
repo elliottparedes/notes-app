@@ -10,8 +10,8 @@ interface KanbanCardRow {
   content: string | null;
   status: string;
   card_order: number;
-  folder_id: number | null;
-  space_id: number | null;
+  section_id: number | null;
+  notebook_id: number | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -20,7 +20,7 @@ export default defineEventHandler(async (event): Promise<KanbanCard> => {
   const userId = await requireAuth(event);
   const body = await readBody<CreateKanbanCardDto>(event);
 
-  const { title, content, status, folder_id, space_id } = body;
+  const { title, content, status, section_id, notebook_id } = body;
 
   if (!title || !status) {
     throw createError({
@@ -31,20 +31,20 @@ export default defineEventHandler(async (event): Promise<KanbanCard> => {
 
   try {
     // Determine the next order for the card in the given status/folder/space
-    const [maxOrderRow] = await executeQuery<{ max_order: number }[]>(
-      `SELECT MAX(card_order) as max_order FROM kanban_cards WHERE user_id = ? AND status = ? AND folder_id ${folder_id ? '= ?' : 'IS NULL'} AND space_id ${space_id ? '= ?' : 'IS NULL'}`,
-      [userId, status, ...(folder_id ? [folder_id] : []), ...(space_id ? [space_id] : [])]
+    const maxOrderRow = await executeQuery<{ max_order: number }[]>(
+      `SELECT MAX(card_order) as max_order FROM kanban_cards WHERE user_id = ? AND status = ? AND section_id ${section_id ? '= ?' : 'IS NULL'} AND notebook_id ${notebook_id ? '= ?' : 'IS NULL'}`,
+      [userId, status, ...(section_id ? [section_id] : []), ...(notebook_id ? [notebook_id] : [])]
     );
     const nextOrder = (maxOrderRow?.max_order || 0) + 1;
 
     const result = await executeQuery<ResultSetHeader>(
-      `INSERT INTO kanban_cards (user_id, title, content, status, card_order, folder_id, space_id) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [userId, title, content || null, status, nextOrder, folder_id || null, space_id || null]
+      `INSERT INTO kanban_cards (user_id, title, content, status, card_order, section_id, notebook_id) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [userId, title, content || null, status, nextOrder, section_id || null, notebook_id || null]
     );
 
     const insertedId = result.insertId;
 
-    const [row] = await executeQuery<KanbanCardRow[]>(
+    const row = await executeQuery<KanbanCardRow[]>(
       `SELECT * FROM kanban_cards WHERE id = ?`,
       [insertedId]
     );
@@ -60,8 +60,8 @@ export default defineEventHandler(async (event): Promise<KanbanCard> => {
       content: row.content,
       status: row.status,
       card_order: row.card_order,
-      folder_id: row.folder_id,
-      space_id: row.space_id,
+      section_id: row.section_id,
+      notebook_id: row.notebook_id,
       created_at: row.created_at,
       updated_at: row.updated_at,
     };

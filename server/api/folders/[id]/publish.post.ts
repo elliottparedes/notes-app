@@ -27,7 +27,7 @@ export default defineEventHandler(async (event): Promise<PublishResponse> => {
 
     // Verify folder ownership
     const folderResults = await executeQuery<FolderOwnerRow[]>(
-      'SELECT user_id FROM folders WHERE id = ?',
+      'SELECT user_id FROM sections WHERE id = ?',
       [folderId]
     );
 
@@ -42,7 +42,7 @@ export default defineEventHandler(async (event): Promise<PublishResponse> => {
 
     // Check if already published
     const existing = await executeQuery<PublishedRow[]>(
-      'SELECT share_id, created_at FROM published_folders WHERE folder_id = ? AND owner_id = ?',
+      'SELECT share_id, created_at FROM published_folders WHERE section_id = ? AND owner_id = ?',
       [folderId, userId]
     );
 
@@ -52,7 +52,7 @@ export default defineEventHandler(async (event): Promise<PublishResponse> => {
     if (existing.length > 0) {
       // Reactivate if inactive
       await executeQuery(
-        'UPDATE published_folders SET is_active = TRUE, updated_at = CURRENT_TIMESTAMP WHERE folder_id = ? AND owner_id = ?',
+        'UPDATE published_folders SET is_active = TRUE, updated_at = CURRENT_TIMESTAMP WHERE section_id = ? AND owner_id = ?',
         [folderId, userId]
       );
       shareId = existing[0].share_id;
@@ -61,7 +61,7 @@ export default defineEventHandler(async (event): Promise<PublishResponse> => {
       // Create new publish entry
       shareId = randomUUID();
       await executeQuery(
-        'INSERT INTO published_folders (folder_id, share_id, owner_id, is_active) VALUES (?, ?, ?, TRUE)',
+        'INSERT INTO published_folders (section_id, share_id, owner_id, is_active) VALUES (?, ?, ?, TRUE)',
         [folderId, shareId, userId]
       );
       const newPublishResults = await executeQuery<PublishedRow[]>(
@@ -73,28 +73,28 @@ export default defineEventHandler(async (event): Promise<PublishResponse> => {
 
     // Auto-publish all notes in this folder
     const notesInFolder = await executeQuery<Array<{ id: string }>>(
-      'SELECT id FROM notes WHERE folder_id = ? AND user_id = ?',
+      'SELECT id FROM pages WHERE section_id = ? AND user_id = ?',
       [folderId, userId]
     );
 
     for (const note of notesInFolder) {
       // Check if note is already published
       const existingNoteResults = await executeQuery<Array<{ share_id: string }>>(
-        'SELECT share_id FROM published_notes WHERE note_id = ? AND owner_id = ?',
+        'SELECT share_id FROM published_notes WHERE page_id = ? AND owner_id = ?',
         [note.id, userId]
       );
 
       if (existingNoteResults.length > 0) {
         // Reactivate if inactive
         await executeQuery(
-          'UPDATE published_notes SET is_active = TRUE, updated_at = CURRENT_TIMESTAMP WHERE note_id = ? AND owner_id = ?',
+          'UPDATE published_notes SET is_active = TRUE, updated_at = CURRENT_TIMESTAMP WHERE page_id = ? AND owner_id = ?',
           [note.id, userId]
         );
       } else {
         // Create new publish entry for note
         const noteShareId = randomUUID();
         await executeQuery(
-          'INSERT INTO published_notes (note_id, share_id, owner_id, is_active) VALUES (?, ?, ?, TRUE)',
+          'INSERT INTO published_notes (page_id, share_id, owner_id, is_active) VALUES (?, ?, ?, TRUE)',
           [note.id, noteShareId, userId]
         );
       }

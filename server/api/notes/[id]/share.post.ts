@@ -14,7 +14,7 @@ interface NoteOwnerRow {
 
 interface ShareRow {
   id: number;
-  note_id: string;
+  page_id: string;
   owner_id: number;
   shared_with_user_id: number;
   permission: 'viewer' | 'editor';
@@ -35,10 +35,10 @@ export default defineEventHandler(async (event): Promise<SharedNote> => {
   }
 
   // Verify note ownership or edit permission
-  const [note] = await executeQuery<NoteOwnerRow[]>(
+  const note = await executeQuery<NoteOwnerRow[]>(
     `SELECT n.user_id 
-     FROM notes n
-     LEFT JOIN shared_notes sn ON n.id = sn.note_id AND sn.shared_with_user_id = ?
+     FROM pages n
+     LEFT JOIN shared_notes sn ON n.id = sn.page_id AND sn.shared_with_user_id = ?
      WHERE n.id = ? AND (n.user_id = ? OR (sn.permission = 'editor' AND sn.shared_with_user_id = ?))`,
     [userId, noteId, userId, userId]
   );
@@ -51,7 +51,7 @@ export default defineEventHandler(async (event): Promise<SharedNote> => {
   }
 
   // Find user by email
-  const [targetUser] = await executeQuery<UserRow[]>(
+  const targetUser = await executeQuery<UserRow[]>(
     'SELECT id, email, name FROM users WHERE email = ?',
     [body.user_email]
   );
@@ -72,15 +72,15 @@ export default defineEventHandler(async (event): Promise<SharedNote> => {
 
   // Create or update share
   await executeQuery(
-    `INSERT INTO shared_notes (note_id, owner_id, shared_with_user_id, permission)
+    `INSERT INTO shared_notes (page_id, owner_id, shared_with_user_id, permission)
      VALUES (?, ?, ?, ?)
      ON DUPLICATE KEY UPDATE permission = VALUES(permission), updated_at = CURRENT_TIMESTAMP`,
     [noteId, userId, targetUser.id, body.permission || 'editor']
   );
 
   // Return the created/updated share
-  const [share] = await executeQuery<ShareRow[]>(
-    'SELECT * FROM shared_notes WHERE note_id = ? AND shared_with_user_id = ?',
+  const share = await executeQuery<ShareRow[]>(
+    'SELECT * FROM shared_notes WHERE page_id = ? AND shared_with_user_id = ?',
     [noteId, targetUser.id]
   );
 

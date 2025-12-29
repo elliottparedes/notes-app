@@ -17,7 +17,7 @@ const toast = useToast();
 
 // Search state
 const searchQuery = ref('');
-const searchResults = ref<Note[]>([]);
+const searchResults = ref<Page[]>([]);
 const isSearching = ref(false);
 
 // Current view: 'notebooks' or 'storage'
@@ -68,13 +68,13 @@ function openEditSpaceModal(space: any) {
   openSpaceMenuId.value = null;
 }
 
-function handleDeleteSpaceClick(spaceId: number) {
+function handleDeleteSpaceClick(notebookId: number) {
   if (spacesStore.spaces.length <= 1) {
     toast.error('Cannot delete the last remaining notebook');
     openSpaceMenuId.value = null;
     return;
   }
-  itemToDeleteId.value = spaceId;
+  itemToDeleteId.value = notebookId;
   showDeleteSpaceModal.value = true;
   openSpaceMenuId.value = null;
 }
@@ -94,8 +94,8 @@ async function confirmDeleteSpace() {
   }
 }
 
-function handleDeleteFolderClick(folderId: number) {
-  itemToDeleteId.value = folderId;
+function handleDeleteFolderClick(sectionId: number) {
+  itemToDeleteId.value = sectionId;
   showDeleteFolderModal.value = true;
   openFolderMenuId.value = null;
 }
@@ -126,7 +126,7 @@ async function performSearch(query: string) {
   isSearching.value = true;
   
   try {
-    const results = await $fetch<Array<Note & { relevance_score: number; match_context?: string }>>('/api/notes/search', {
+    const results = await $fetch<Array<Note & { relevance_score: number; match_context?: string }>>('/api/pages/search', {
       params: { q: query.trim() },
       headers: {
         Authorization: `Bearer ${authStore.token}`
@@ -141,7 +141,7 @@ async function performSearch(query: string) {
       tags: note.tags,
       is_favorite: note.is_favorite,
       folder: note.folder,
-      folder_id: note.folder_id,
+      section_id: note.section_id,
       created_at: note.created_at,
       updated_at: note.updated_at,
       is_shared: note.is_shared,
@@ -183,11 +183,11 @@ const recentNotes = computed(() => {
 });
 
 // Get note location
-function getNoteLocation(note: Note) {
-  if (!note.folder_id) return {};
-  const folder = foldersStore.getFolderById(note.folder_id);
+function getNoteLocation(note: Page) {
+  if (!note.section_id) return {};
+  const folder = foldersStore.getFolderById(note.section_id);
   if (!folder) return {};
-  const space = spacesStore.spaces.find((s) => s.id === folder.space_id);
+  const space = spacesStore.spaces.find((s) => s.id === folder.notebook_id);
   return {
     spaceName: space?.name,
     folderName: folder.name
@@ -220,38 +220,38 @@ function formatDate(date: string | Date): string {
   });
 }
 
-async function handleOpenNote(noteId: string) {
-  await notesStore.openTab(noteId);
+async function handleOpenNote(pageId: string) {
+  await notesStore.openTab(pageId);
   // Navigate to mobile note view
-  router.push(`/mobile/notes/${noteId}`);
+  router.push(`/mobile/notes/${pageId}`);
 }
 
-function toggleSpace(spaceId: number) {
-  spacesStore.toggleSpace(spaceId);
-  if (spacesStore.expandedSpaceIds.has(spaceId)) {
-    spacesStore.setCurrentSpace(spaceId);
+function toggleSpace(notebookId: number) {
+  spacesStore.toggleSpace(notebookId);
+  if (spacesStore.expandedSpaceIds.has(notebookId)) {
+    spacesStore.setCurrentSpace(notebookId);
   }
 }
 
-function getSpaceFolders(spaceId: number) {
-  return foldersStore.folders.filter(f => f.space_id === spaceId);
+function getSpaceFolders(notebookId: number) {
+  return foldersStore.folders.filter(f => f.notebook_id === notebookId);
 }
 
-function getFolderNotes(folderId: number) {
-  return notesStore.notes.filter(n => n.folder_id === folderId && !n.share_permission);
+function getFolderNotes(sectionId: number) {
+  return notesStore.notes.filter(n => n.section_id === sectionId && !n.share_permission);
 }
 
-function toggleFolder(folderId: number) {
-  foldersStore.toggleFolder(folderId);
+function toggleFolder(sectionId: number) {
+  foldersStore.toggleFolder(sectionId);
 }
 
 // Get ordered notes for a folder
-function getOrderedNotesForFolder(folderId: number) {
+function getOrderedNotesForFolder(sectionId: number) {
   const notesInFolder = notesStore.notes.filter(note => 
-    note.folder_id === folderId && !note.share_permission
+    note.section_id === sectionId && !note.share_permission
   );
 
-  const folderKey = `folder_${folderId}`;
+  const folderKey = `folder_${sectionId}`;
   const order = notesStore.noteOrder[folderKey];
 
   if (order && order.length > 0) {
@@ -273,12 +273,12 @@ function getOrderedNotesForFolder(folderId: number) {
   return notesInFolder.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
 }
 
-async function handleCreateNoteInFolder(folderId: number) {
+async function handleCreateNoteInFolder(sectionId: number) {
   try {
     const newNote = await notesStore.createNote({
       title: '',
       content: '',
-      folder_id: folderId
+      section_id: sectionId
     });
     await handleOpenNote(newNote.id);
     openFolderMenuId.value = null;
@@ -294,7 +294,7 @@ async function handleCreateFolder() {
   try {
     await foldersStore.createFolder({
       name: newFolderName.value.trim(),
-      space_id: targetSpaceIdForFolderCreation.value || spacesStore.currentSpaceId || undefined
+      notebook_id: targetSpaceIdForFolderCreation.value || spacesStore.currentSpaceId || undefined
     });
     showCreateFolderModal.value = false;
     newFolderName.value = '';
@@ -306,9 +306,9 @@ async function handleCreateFolder() {
   }
 }
 
-function openCreateFolderModal(spaceId?: number) {
+function openCreateFolderModal(notebookId?: number) {
   newFolderName.value = '';
-  targetSpaceIdForFolderCreation.value = spaceId;
+  targetSpaceIdForFolderCreation.value = notebookId;
   showCreateFolderModal.value = true;
   openSpaceMenuId.value = null;
 }
@@ -356,19 +356,19 @@ onMounted(async () => {
     // Auto-expand context of the active note (if any) and collapse others
     if (notesStore.activeTabId) {
       const activeNote = notesStore.notes.find(n => n.id === notesStore.activeTabId);
-      if (activeNote && activeNote.folder_id) {
-         const folder = foldersStore.getFolderById(activeNote.folder_id);
-         if (folder && folder.space_id) {
+      if (activeNote && activeNote.section_id) {
+         const folder = foldersStore.getFolderById(activeNote.section_id);
+         if (folder && folder.notebook_id) {
             // 1. Collapse all first
             spacesStore.expandedSpaceIds.clear();
             foldersStore.expandedFolderIds.clear();
             
             // 2. Expand target
-            spacesStore.expandSpace(folder.space_id);
+            spacesStore.expandSpace(folder.notebook_id);
             foldersStore.expandFolder(folder.id);
             
             // 3. Set current space
-            spacesStore.setCurrentSpace(folder.space_id);
+            spacesStore.setCurrentSpace(folder.notebook_id);
             
             // 4. Persist
             spacesStore.saveExpandedState();

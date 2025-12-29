@@ -26,7 +26,7 @@ onMounted(async () => {
     if (publishedSpace.value) {
       const expandAll = (folders: PublishedFolderWithDetails[]) => {
         folders.forEach(folder => {
-          expandedFolders.value.add(folder.folder_id);
+          expandedFolders.value.add(folder.section_id);
           if (folder.subfolders.length > 0) {
             expandAll(folder.subfolders);
           }
@@ -42,11 +42,11 @@ onMounted(async () => {
   }
 });
 
-function toggleFolder(folderId: number) {
-  if (expandedFolders.value.has(folderId)) {
-    expandedFolders.value.delete(folderId);
+function toggleFolder(sectionId: number) {
+  if (expandedFolders.value.has(sectionId)) {
+    expandedFolders.value.delete(sectionId);
   } else {
-    expandedFolders.value.add(folderId);
+    expandedFolders.value.add(sectionId);
   }
 }
 
@@ -177,15 +177,15 @@ useHead({
             <TransitionGroup name="list" tag="div" class="space-y-1">
               <div
                 v-for="note in publishedSpace.notes"
-                :key="note.note_id"
+                :key="note.page_id"
                 class="flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-all duration-200 group"
-                :class="selectedNote?.note_id === note.note_id 
+                :class="selectedNote?.page_id === note.page_id 
                   ? 'bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 shadow-sm border border-primary-200 dark:border-primary-800' 
                   : 'hover:bg-white dark:hover:bg-gray-800/60 text-gray-700 dark:text-gray-300 border border-transparent'"
                 @click="openNote(note.share_id)"
               >
                 <UIcon name="i-heroicons-document-text" class="w-4 h-4 flex-shrink-0 text-gray-400 dark:text-gray-500 group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors" />
-                <span class="text-sm font-medium truncate flex-1 leading-snug">{{ note.note_title }}</span>
+                <span class="text-sm font-medium truncate flex-1 leading-snug">{{ note.page_title }}</span>
               </div>
             </TransitionGroup>
           </div>
@@ -197,10 +197,10 @@ useHead({
             </h3>
             <PublishedFolderTree
               v-for="folder in publishedSpace.folders"
-              :key="folder.folder_id"
+              :key="folder.section_id"
               :folder="folder"
               :expanded-folders="expandedFolders"
-              :selected-note-id="selectedNote?.note_id"
+              :selected-note-id="selectedNote?.page_id"
               @toggle-folder="toggleFolder"
               @open-note="openNote"
             />

@@ -263,15 +263,15 @@ interface Props {
 
 interface Emits {
   (e: 'update:sidebarWidth', width: number): void
-  (e: 'select-folder', folderId: number): void
-  (e: 'create-note-in-folder', folderId: number): void
+  (e: 'select-folder', sectionId: number): void
+  (e: 'create-note-in-folder', sectionId: number): void
   (e: 'open-search'): void
   (e: 'open-create-space'): void
-  (e: 'open-create-folder', spaceId?: number): void
+  (e: 'open-create-folder', notebookId?: number): void
   (e: 'logout'): void
   (e: 'edit-folder', folder: any): void
-  (e: 'delete-folder', folderId: number): void
-  (e: 'edit-space', space: Space): void
+  (e: 'delete-folder', sectionId: number): void
+  (e: 'edit-space', space: Notebook): void
 }
 
 const props = defineProps<Props>();
@@ -306,12 +306,12 @@ const dragOverSpaceReorderId = ref<number | null>(null);
 const dragOverBottomOfSpacesList = ref(false);
 const expandedSpacesBeforeDrag = ref<Set<number>>(new Set());
 
-function toggleSpaceMenu(spaceId: number, event: MouseEvent) {
+function toggleSpaceMenu(notebookId: number, event: MouseEvent) {
   event.stopPropagation();
-  if (showSpaceMenuId.value === spaceId) {
+  if (showSpaceMenuId.value === notebookId) {
     showSpaceMenuId.value = null;
   } else {
-    showSpaceMenuId.value = spaceId;
+    showSpaceMenuId.value = notebookId;
     const target = event.currentTarget as HTMLElement;
     const rect = target.getBoundingClientRect();
     spaceMenuPosition.value = {
@@ -321,39 +321,39 @@ function toggleSpaceMenu(spaceId: number, event: MouseEvent) {
   }
 }
 
-function editSpace(space: Space) {
+function editSpace(space: Notebook) {
   showSpaceMenuId.value = null;
   emit('edit-space', space);
 }
 
-function deleteSpace(spaceId: number) {
+function deleteSpace(notebookId: number) {
   showSpaceMenuId.value = null;
-  handleDeleteSpace(spaceId);
+  handleDeleteSpace(notebookId);
 }
 
 // Drag and drop handlers for auto-expanding spaces
-function handleSpaceDragOver(event: DragEvent, spaceId: number) {
+function handleSpaceDragOver(event: DragEvent, notebookId: number) {
   event.preventDefault();
   if (!event.dataTransfer) return;
 
   const data = event.dataTransfer.types.includes('application/json');
   if (!data) return;
 
-  dragOverSpaceId.value = spaceId;
+  dragOverSpaceId.value = notebookId;
 
   // If space is not expanded, set a timer to auto-expand
-  if (!spacesStore.expandedSpaceIds.has(spaceId)) {
+  if (!spacesStore.expandedSpaceIds.has(notebookId)) {
     if (!expandTimer.value) {
       expandTimer.value = setTimeout(() => {
-        spacesStore.expandSpace(spaceId);
+        spacesStore.expandSpace(notebookId);
         expandTimer.value = null;
       }, 800); // Auto-expand after 800ms
     }
   }
 }
 
-function handleSpaceDragLeave(spaceId: number) {
-  if (dragOverSpaceId.value === spaceId) {
+function handleSpaceDragLeave(notebookId: number) {
+  if (dragOverSpaceId.value === notebookId) {
     dragOverSpaceId.value = null;
   }
 
@@ -364,7 +364,7 @@ function handleSpaceDragLeave(spaceId: number) {
   }
 }
 
-function handleSpaceDrop(event: DragEvent, spaceId: number) {
+function handleSpaceDrop(event: DragEvent, notebookId: number) {
   event.preventDefault();
   dragOverSpaceId.value = null;
 
@@ -376,7 +376,7 @@ function handleSpaceDrop(event: DragEvent, spaceId: number) {
 }
 
 // Drop zone at top of folder list handlers
-function handleDragOverTopOfSpace(event: DragEvent, spaceId: number) {
+function handleDragOverTopOfSpace(event: DragEvent, notebookId: number) {
   event.preventDefault();
   if (!event.dataTransfer) return;
 
@@ -387,14 +387,14 @@ function handleDragOverTopOfSpace(event: DragEvent, spaceId: number) {
   }
 
   event.dataTransfer.dropEffect = 'move';
-  dragOverTopOfSpace.value = spaceId;
+  dragOverTopOfSpace.value = notebookId;
 }
 
 function handleDragLeaveTopOfSpace() {
   dragOverTopOfSpace.value = null;
 }
 
-async function handleDropTopOfSpace(event: DragEvent, spaceId: number) {
+async function handleDropTopOfSpace(event: DragEvent, notebookId: number) {
   event.preventDefault();
   event.stopPropagation();
   dragOverTopOfSpace.value = null;
@@ -405,20 +405,20 @@ async function handleDropTopOfSpace(event: DragEvent, spaceId: number) {
     const data = JSON.parse(event.dataTransfer.getData('application/json'));
 
     if (data.type === 'folder') {
-      const draggedFolderId = data.folderId;
-      const draggedSpaceId = data.spaceId;
+      const draggedFolderId = data.sectionId;
+      const draggedSpaceId = data.notebookId;
       const draggedFolder = foldersStore.getFolderById(draggedFolderId);
 
       if (!draggedFolder) return;
 
-      const isCrossSpace = draggedSpaceId !== spaceId;
+      const isCrossSpace = draggedSpaceId !== notebookId;
 
       if (isCrossSpace) {
         // Do optimistic update locally ONCE with final position
-        const oldSpaceId = draggedFolder.space_id;
+        const oldSpaceId = draggedFolder.notebook_id;
 
         // 1. Update space_id
-        draggedFolder.space_id = spaceId;
+        draggedFolder.notebook_id = notebookId;
 
         // 2. Remove from old position
         const allFolders = [...foldersStore.folders];
@@ -426,8 +426,8 @@ async function handleDropTopOfSpace(event: DragEvent, spaceId: number) {
         allFolders.splice(draggedIndex, 1);
 
         // 3. Get new space folders and insert at position 0
-        const newSpaceFolders = allFolders.filter(f => f.space_id === spaceId);
-        const otherFolders = allFolders.filter(f => f.space_id !== spaceId);
+        const newSpaceFolders = allFolders.filter(f => f.notebook_id === notebookId);
+        const otherFolders = allFolders.filter(f => f.notebook_id !== notebookId);
         newSpaceFolders.unshift(draggedFolder);
 
         // 4. Update store in one go
@@ -435,11 +435,11 @@ async function handleDropTopOfSpace(event: DragEvent, spaceId: number) {
 
         // Now make API calls in background
         try {
-          await foldersStore.moveFolder(draggedFolderId, spaceId);
+          await foldersStore.moveFolder(draggedFolderId, notebookId);
           await foldersStore.reorderFolder(draggedFolderId, 0);
         } catch (error) {
           // Revert on error
-          draggedFolder.space_id = oldSpaceId;
+          draggedFolder.notebook_id = oldSpaceId;
           await foldersStore.fetchFolders(undefined, true);
           throw error;
         }
@@ -454,7 +454,7 @@ async function handleDropTopOfSpace(event: DragEvent, spaceId: number) {
 }
 
 // Drop zone at bottom of folder list handlers
-function handleDragOverBottomOfSpace(event: DragEvent, spaceId: number) {
+function handleDragOverBottomOfSpace(event: DragEvent, notebookId: number) {
   event.preventDefault();
   if (!event.dataTransfer) return;
 
@@ -465,14 +465,14 @@ function handleDragOverBottomOfSpace(event: DragEvent, spaceId: number) {
   }
 
   event.dataTransfer.dropEffect = 'move';
-  dragOverBottomOfSpace.value = spaceId;
+  dragOverBottomOfSpace.value = notebookId;
 }
 
 function handleDragLeaveBottomOfSpace() {
   dragOverBottomOfSpace.value = null;
 }
 
-async function handleDropBottomOfSpace(event: DragEvent, spaceId: number) {
+async function handleDropBottomOfSpace(event: DragEvent, notebookId: number) {
   event.preventDefault();
   event.stopPropagation();
   dragOverBottomOfSpace.value = null;
@@ -483,24 +483,24 @@ async function handleDropBottomOfSpace(event: DragEvent, spaceId: number) {
     const data = JSON.parse(event.dataTransfer.getData('application/json'));
 
     if (data.type === 'folder') {
-      const draggedFolderId = data.folderId;
-      const draggedSpaceId = data.spaceId;
+      const draggedFolderId = data.sectionId;
+      const draggedSpaceId = data.notebookId;
       const draggedFolder = foldersStore.getFolderById(draggedFolderId);
 
       if (!draggedFolder) return;
 
-      const isCrossSpace = draggedSpaceId !== spaceId;
+      const isCrossSpace = draggedSpaceId !== notebookId;
 
       // Calculate the last position
-      const foldersInSpace = foldersStore.folders.filter(f => f.space_id === spaceId && f.id !== draggedFolderId);
+      const foldersInSpace = foldersStore.folders.filter(f => f.notebook_id === notebookId && f.id !== draggedFolderId);
       const lastIndex = foldersInSpace.length;
 
       if (isCrossSpace) {
         // Do optimistic update locally ONCE with final position
-        const oldSpaceId = draggedFolder.space_id;
+        const oldSpaceId = draggedFolder.notebook_id;
 
         // 1. Update space_id
-        draggedFolder.space_id = spaceId;
+        draggedFolder.notebook_id = notebookId;
 
         // 2. Remove from old position
         const allFolders = [...foldersStore.folders];
@@ -508,8 +508,8 @@ async function handleDropBottomOfSpace(event: DragEvent, spaceId: number) {
         allFolders.splice(draggedIndex, 1);
 
         // 3. Get new space folders and insert at last position
-        const newSpaceFolders = allFolders.filter(f => f.space_id === spaceId);
-        const otherFolders = allFolders.filter(f => f.space_id !== spaceId);
+        const newSpaceFolders = allFolders.filter(f => f.notebook_id === notebookId);
+        const otherFolders = allFolders.filter(f => f.notebook_id !== notebookId);
         newSpaceFolders.push(draggedFolder);
 
         // 4. Update store in one go
@@ -517,11 +517,11 @@ async function handleDropBottomOfSpace(event: DragEvent, spaceId: number) {
 
         // Now make API calls in background
         try {
-          await foldersStore.moveFolder(draggedFolderId, spaceId);
+          await foldersStore.moveFolder(draggedFolderId, notebookId);
           await foldersStore.reorderFolder(draggedFolderId, lastIndex);
         } catch (error) {
           // Revert on error
-          draggedFolder.space_id = oldSpaceId;
+          draggedFolder.notebook_id = oldSpaceId;
           await foldersStore.fetchFolders(undefined, true);
           throw error;
         }
@@ -536,8 +536,8 @@ async function handleDropBottomOfSpace(event: DragEvent, spaceId: number) {
 }
 
 // Folder drag handlers
-function handleFolderDragStart(folderId: number) {
-  draggedFolderId.value = folderId;
+function handleFolderDragStart(sectionId: number) {
+  draggedFolderId.value = sectionId;
   dragOverSpaceReorderId.value = null; // Clear space indicator when dragging folder
 }
 
@@ -547,7 +547,7 @@ function handleFolderDragEnd() {
   dragOverSpaceReorderId.value = null;
 }
 
-function handleFolderReorderDragOver(event: DragEvent, folderId: number) {
+function handleFolderReorderDragOver(event: DragEvent, sectionId: number) {
   event.preventDefault();
   if (!event.dataTransfer) return;
 
@@ -555,13 +555,13 @@ function handleFolderReorderDragOver(event: DragEvent, folderId: number) {
   if (!hasData) return;
 
   // Don't show indicator if dragging over self
-  if (draggedFolderId.value === folderId) {
+  if (draggedFolderId.value === sectionId) {
     dragOverFolderReorderId.value = null;
     return;
   }
 
   event.dataTransfer.dropEffect = 'move';
-  dragOverFolderReorderId.value = folderId;
+  dragOverFolderReorderId.value = sectionId;
 }
 
 function handleFolderReorderDragLeave() {
@@ -578,27 +578,27 @@ async function handleFolderReorderDrop(event: DragEvent, targetFolderId: number)
   try {
     const data = JSON.parse(event.dataTransfer.getData('application/json'));
 
-    if (data.type === 'folder' && data.folderId !== targetFolderId) {
-      const draggedFolderId = data.folderId;
+    if (data.type === 'folder' && data.sectionId !== targetFolderId) {
+      const draggedFolderId = data.sectionId;
       const draggedFolder = foldersStore.getFolderById(draggedFolderId);
       const targetFolder = foldersStore.getFolderById(targetFolderId);
 
       if (!draggedFolder || !targetFolder) return;
 
-      const isCrossSpace = draggedFolder.space_id !== targetFolder.space_id;
+      const isCrossSpace = draggedFolder.notebook_id !== targetFolder.notebook_id;
 
       // Calculate target index
-      const targetSpaceFolders = foldersStore.folders.filter(f => f.space_id === targetFolder.space_id);
+      const targetSpaceFolders = foldersStore.folders.filter(f => f.notebook_id === targetFolder.notebook_id);
       const targetIndex = targetSpaceFolders.findIndex(f => f.id === targetFolderId);
 
       if (targetIndex < 0) return;
 
       if (isCrossSpace) {
         // Do optimistic update locally ONCE with final position
-        const oldSpaceId = draggedFolder.space_id;
+        const oldSpaceId = draggedFolder.notebook_id;
 
         // 1. Update space_id
-        draggedFolder.space_id = targetFolder.space_id;
+        draggedFolder.notebook_id = targetFolder.notebook_id;
 
         // 2. Remove from old position
         const allFolders = [...foldersStore.folders];
@@ -606,8 +606,8 @@ async function handleFolderReorderDrop(event: DragEvent, targetFolderId: number)
         allFolders.splice(draggedIndex, 1);
 
         // 3. Get new space folders and insert at correct position
-        const newSpaceFolders = allFolders.filter(f => f.space_id === targetFolder.space_id);
-        const otherFolders = allFolders.filter(f => f.space_id !== targetFolder.space_id);
+        const newSpaceFolders = allFolders.filter(f => f.notebook_id === targetFolder.notebook_id);
+        const otherFolders = allFolders.filter(f => f.notebook_id !== targetFolder.notebook_id);
         newSpaceFolders.splice(targetIndex, 0, draggedFolder);
 
         // 4. Update store in one go
@@ -615,11 +615,11 @@ async function handleFolderReorderDrop(event: DragEvent, targetFolderId: number)
 
         // Now make API calls in background
         try {
-          await foldersStore.moveFolder(draggedFolderId, targetFolder.space_id);
+          await foldersStore.moveFolder(draggedFolderId, targetFolder.notebook_id);
           await foldersStore.reorderFolder(draggedFolderId, targetIndex);
         } catch (error) {
           // Revert on error
-          draggedFolder.space_id = oldSpaceId;
+          draggedFolder.notebook_id = oldSpaceId;
           await foldersStore.fetchFolders(undefined, true);
           throw error;
         }
@@ -634,7 +634,7 @@ async function handleFolderReorderDrop(event: DragEvent, targetFolderId: number)
 }
 
 // Space drag handlers
-function handleSpaceMouseDown(event: MouseEvent, spaceId: number) {
+function handleSpaceMouseDown(event: MouseEvent, notebookId: number) {
   // Don't initiate drag on context menu button
   const target = event.target as HTMLElement;
   if (target.closest('button[type="button"]')) {
@@ -642,7 +642,7 @@ function handleSpaceMouseDown(event: MouseEvent, spaceId: number) {
   }
 
   mouseDownSpacePos.value = { x: event.clientX, y: event.clientY };
-  draggedSpaceId.value = spaceId;
+  draggedSpaceId.value = notebookId;
 
   // Allow drag after 200ms delay or 5px movement
   dragStartSpaceTimer.value = setTimeout(() => {
@@ -673,7 +673,7 @@ function handleSpaceMouseUp() {
   canDragSpace.value = false;
 }
 
-function handleSpaceDragStart(event: DragEvent, spaceId: number) {
+function handleSpaceDragStart(event: DragEvent, notebookId: number) {
   if (!canDragSpace.value) {
     event.preventDefault();
     return;
@@ -686,7 +686,7 @@ function handleSpaceDragStart(event: DragEvent, spaceId: number) {
   event.dataTransfer.effectAllowed = 'move';
   event.dataTransfer.setData('application/json', JSON.stringify({
     type: 'space',
-    spaceId: spaceId
+    notebookId: notebookId
   }));
 
   // Save currently expanded spaces and collapse all
@@ -723,7 +723,7 @@ function handleSpaceDragEnd(event: DragEvent) {
   }
 }
 
-function handleSpaceReorderDragOver(event: DragEvent, spaceId: number) {
+function handleSpaceReorderDragOver(event: DragEvent, notebookId: number) {
   event.preventDefault();
   if (!event.dataTransfer) return;
 
@@ -743,7 +743,7 @@ function handleSpaceReorderDragOver(event: DragEvent, spaceId: number) {
   }
 
   // Don't show indicator if dragging over self
-  if (draggedSpaceId.value === spaceId) {
+  if (draggedSpaceId.value === notebookId) {
     dragOverSpaceReorderId.value = null;
     return;
   }
@@ -752,16 +752,16 @@ function handleSpaceReorderDragOver(event: DragEvent, spaceId: number) {
   // (All spaces are collapsed during drag, so no need to check for expanded state)
   if (isDraggingSpace.value) {
     event.dataTransfer.dropEffect = 'move';
-    dragOverSpaceReorderId.value = spaceId;
+    dragOverSpaceReorderId.value = notebookId;
   } else if (draggedFolderId.value) {
     // Dragging a folder - enable auto-expand for collapsed spaces
     dragOverSpaceReorderId.value = null;
 
     // If space is not expanded, set a timer to auto-expand
-    if (!spacesStore.expandedSpaceIds.has(spaceId)) {
+    if (!spacesStore.expandedSpaceIds.has(notebookId)) {
       if (!expandTimer.value) {
         expandTimer.value = setTimeout(() => {
-          spacesStore.expandSpace(spaceId);
+          spacesStore.expandSpace(notebookId);
           expandTimer.value = null;
         }, 800); // Auto-expand after 800ms
       }
@@ -792,8 +792,8 @@ async function handleSpaceReorderDrop(event: DragEvent, targetSpaceId: number) {
   try {
     const data = JSON.parse(event.dataTransfer.getData('application/json'));
 
-    if (data.type === 'space' && data.spaceId !== targetSpaceId) {
-      const draggedSpaceId = data.spaceId;
+    if (data.type === 'space' && data.notebookId !== targetSpaceId) {
+      const draggedSpaceId = data.notebookId;
       const targetIndex = spacesStore.spaces.findIndex(s => s.id === targetSpaceId);
 
       if (targetIndex >= 0) {
@@ -834,7 +834,7 @@ async function handleDropBottomOfSpacesList(event: DragEvent) {
     const data = JSON.parse(event.dataTransfer.getData('application/json'));
 
     if (data.type === 'space') {
-      const draggedSpaceId = data.spaceId;
+      const draggedSpaceId = data.notebookId;
       const lastIndex = spacesStore.spaces.length - 1;
 
       // Only reorder if not already at the end

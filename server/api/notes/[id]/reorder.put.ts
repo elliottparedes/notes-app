@@ -29,7 +29,7 @@ export default defineEventHandler(async (event) => {
 
     // Verify note exists and belongs to user
     const noteResults = await executeQuery<any[]>(
-      'SELECT id, user_id, folder_id FROM notes WHERE id = ? AND user_id = ?',
+      'SELECT id, user_id, section_id FROM pages WHERE id = ? AND user_id = ?',
       [noteId, userId]
     );
 
@@ -41,25 +41,25 @@ export default defineEventHandler(async (event) => {
     }
 
     const note = noteResults[0];
-    const currentFolderId = note.folder_id;
+    const currentFolderId = note.section_id;
 
-    // Validate folder_id matches (note must be in the folder we're reordering)
+    // Validate section_id matches (note must be in the folder we're reordering)
     if (body.folderId !== currentFolderId) {
       throw createError({
         statusCode: 400,
-        statusMessage: 'Note folder_id does not match provided folderId'
+        statusMessage: 'Note section_id does not match provided folderId'
       });
     }
 
     // Get all notes in this folder (excluding shared notes)
     const folderCondition = body.folderId === null 
-      ? 'folder_id IS NULL' 
-      : 'folder_id = ?';
+      ? 'section_id IS NULL' 
+      : 'section_id = ?';
     
     const folderParams = body.folderId === null ? [userId] : [userId, body.folderId];
     
     const folderNotes = await executeQuery<any[]>(
-      `SELECT id FROM notes WHERE user_id = ? AND ${folderCondition} ORDER BY created_at ASC`,
+      `SELECT id FROM pages WHERE user_id = ? AND ${folderCondition} ORDER BY created_at ASC`,
       folderParams
     );
 

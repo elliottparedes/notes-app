@@ -20,8 +20,8 @@ export default defineEventHandler(async (event) => {
   }
 
   // Verify note ownership
-  const [note] = await executeQuery<Array<{ user_id: number }>>(
-    'SELECT user_id FROM notes WHERE id = ?',
+  const note = await executeQuery<Array<{ user_id: number }>>(
+    'SELECT user_id FROM pages WHERE id = ?',
     [noteId]
   );
 
@@ -33,8 +33,8 @@ export default defineEventHandler(async (event) => {
   }
 
   // Get publish status
-  const [published] = await executeQuery<PublishStatusRow[]>(
-    'SELECT share_id, is_active, created_at FROM published_notes WHERE note_id = ? AND owner_id = ?',
+  const published = await executeQuery<PublishStatusRow[]>(
+    'SELECT share_id, is_active, created_at FROM published_notes WHERE page_id = ? AND owner_id = ?',
     [noteId, userId]
   );
 

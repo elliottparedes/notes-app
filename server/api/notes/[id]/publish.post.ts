@@ -26,8 +26,8 @@ export default defineEventHandler(async (event): Promise<PublishResponse> => {
     }
 
     // Verify note ownership and check parent publish status
-    const noteResults = await executeQuery<Array<{ user_id: number; folder_id: number | null }>>(
-      'SELECT user_id, folder_id FROM notes WHERE id = ?',
+    const noteResults = await executeQuery<Array<{ user_id: number; section_id: number | null }>>(
+      'SELECT user_id, section_id FROM pages WHERE id = ?',
       [noteId]
     );
 
@@ -42,26 +42,26 @@ export default defineEventHandler(async (event): Promise<PublishResponse> => {
 
     // Check if parent folder or space is published (warn user)
     let parentPublished = false;
-    if (note.folder_id) {
+    if (note.section_id) {
       const publishedFolderResults = await executeQuery<Array<{ share_id: string }>>(
-        'SELECT share_id FROM published_folders WHERE folder_id = ? AND owner_id = ? AND is_active = TRUE',
-        [note.folder_id, userId]
+        'SELECT share_id FROM published_folders WHERE section_id = ? AND owner_id = ? AND is_active = TRUE',
+        [note.section_id, userId]
       );
 
       if (publishedFolderResults.length > 0) {
         parentPublished = true;
       } else {
         // Check parent space
-        const folderResults = await executeQuery<Array<{ space_id: number }>>(
-          'SELECT space_id FROM folders WHERE id = ?',
-          [note.folder_id]
+        const folderResults = await executeQuery<Array<{ notebook_id: number }>>(
+          'SELECT notebook_id FROM sections WHERE id = ?',
+          [note.section_id]
         );
 
         const folder = folderResults[0];
-        if (folder && folder.space_id) {
+        if (folder && folder.notebook_id) {
           const publishedSpaceResults = await executeQuery<Array<{ share_id: string }>>(
-            'SELECT share_id FROM published_spaces WHERE space_id = ? AND owner_id = ? AND is_active = TRUE',
-            [folder.space_id, userId]
+            'SELECT share_id FROM published_spaces WHERE notebook_id = ? AND owner_id = ? AND is_active = TRUE',
+            [folder.notebook_id, userId]
           );
 
           if (publishedSpaceResults.length > 0) {
@@ -73,7 +73,7 @@ export default defineEventHandler(async (event): Promise<PublishResponse> => {
 
     // Check if already published
     const existing = await executeQuery<PublishedRow[]>(
-      'SELECT share_id, created_at FROM published_notes WHERE note_id = ? AND owner_id = ?',
+      'SELECT share_id, created_at FROM published_notes WHERE page_id = ? AND owner_id = ?',
       [noteId, userId]
     );
 
@@ -83,7 +83,7 @@ export default defineEventHandler(async (event): Promise<PublishResponse> => {
     if (existing.length > 0) {
       // Reactivate if inactive
       await executeQuery(
-        'UPDATE published_notes SET is_active = TRUE, updated_at = CURRENT_TIMESTAMP WHERE note_id = ? AND owner_id = ?',
+        'UPDATE published_notes SET is_active = TRUE, updated_at = CURRENT_TIMESTAMP WHERE page_id = ? AND owner_id = ?',
         [noteId, userId]
       );
       shareId = existing[0].share_id;
@@ -92,7 +92,7 @@ export default defineEventHandler(async (event): Promise<PublishResponse> => {
       // Create new publish entry
       shareId = randomUUID();
       await executeQuery(
-        'INSERT INTO published_notes (note_id, share_id, owner_id, is_active) VALUES (?, ?, ?, TRUE)',
+        'INSERT INTO published_notes (page_id, share_id, owner_id, is_active) VALUES (?, ?, ?, TRUE)',
         [noteId, shareId, userId]
       );
       const newPublishResults = await executeQuery<PublishedRow[]>(

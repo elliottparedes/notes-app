@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { toRaw } from 'vue';
-import type { Note, CreateNoteDto, UpdateNoteDto, NoteFilters } from '~/models';
+import type { Note, CreatePageDto, UpdatePageDto, PageFilters } from '~/models';
 import { useAuthStore } from './auth';
 import { useSpacesStore } from './spaces';
 import { useFoldersStore } from './folders';
@@ -12,11 +12,11 @@ import {
 } from '~/utils/notesCache';
 
 interface NotesState {
-  notes: Note[];
-  currentNote: Note | null;
+  notes: Page[];
+  currentNote: Page | null;
   loading: boolean;
   error: string | null;
-  filters: NoteFilters;
+  filters: PageFilters;
   folderOrder: string[];
   noteOrder: Record<string, string[]>; // { "folder_5": ["uuid1", "uuid2"], "root": ["uuid3"] }
   // Current active note
@@ -38,7 +38,7 @@ export const useNotesStore = defineStore('notes', {
   }),
 
   getters: {
-    filteredNotes: (state): Note[] => {
+    filteredNotes: (state): Page[] => {
       let filtered = [...state.notes];
 
       if (state.filters.search) {
@@ -51,12 +51,12 @@ export const useNotesStore = defineStore('notes', {
       }
 
       // Support both legacy folder string and new folder_id
-      if (state.filters.folder_id !== undefined) {
-        if (state.filters.folder_id === null) {
+      if (state.filters.section_id !== undefined) {
+        if (state.filters.section_id === null) {
           // Show notes with no folder
-          filtered = filtered.filter(note => note.folder_id === null);
+          filtered = filtered.filter(note => note.section_id === null);
         } else {
-          filtered = filtered.filter(note => note.folder_id === state.filters.folder_id);
+          filtered = filtered.filter(note => note.section_id === state.filters.section_id);
         }
       } else if (state.filters.folder) {
         // Legacy support
@@ -107,7 +107,7 @@ export const useNotesStore = defineStore('notes', {
     },
 
     // Get the active note
-    activeNote: (state): Note | null => {
+    activeNote: (state): Page | null => {
       if (!state.activeTabId) return null;
       return state.notes.find(note => String(note.id) === String(state.activeTabId)) || null;
     }
@@ -150,7 +150,7 @@ export const useNotesStore = defineStore('notes', {
         // Step 3: If no cache, fetch from server
         const serverStartTime = performance.now();
         console.log('[NotesStore] 🌐 Fetching notes from server...');
-        const response = await $fetch<Note[]>('/api/notes', {
+        const response = await $fetch<Page[]>('/api/pages', {
           headers: {
             Authorization: `Bearer ${authStore.token}`
           }
@@ -175,6 +175,8 @@ export const useNotesStore = defineStore('notes', {
     },
 
     async syncNotesInBackground(): Promise<void> {
+      const syncStartTime = performance.now();
+
       try {
         const authStore = useAuthStore();
         if (!authStore.token) {
@@ -182,10 +184,9 @@ export const useNotesStore = defineStore('notes', {
           return;
         }
 
-        const syncStartTime = performance.now();
         console.log('[NotesStore] 🔄 Starting background sync...');
-        
-        const response = await $fetch<Note[]>('/api/notes', {
+
+        const response = await $fetch<Page[]>('/api/pages', {
           headers: {
             Authorization: `Bearer ${authStore.token}`
           }
@@ -197,15 +198,15 @@ export const useNotesStore = defineStore('notes', {
         if (process.client) {
           await saveNotesToCache(response);
         }
-        
+
         // Merge server data with local (server wins on conflicts)
         const serverNotesMap = new Map(response.map(n => [n.id, n]));
         const beforeCount = this.notes.length;
-        
+
         // Merge notes: update existing and add new ones
-        const mergedNotes: Note[] = [];
+        const mergedNotes: Page[] = [];
         const processedIds = new Set<string>();
-        
+
         // First, update existing notes with server data
         this.notes.forEach(localNote => {
           const serverNote = serverNotesMap.get(localNote.id);
@@ -217,16 +218,16 @@ export const useNotesStore = defineStore('notes', {
             processedIds.add(localNote.id);
           }
         });
-        
+
         // Add any new notes from server
         response.forEach(serverNote => {
           if (!processedIds.has(serverNote.id)) {
             mergedNotes.push(serverNote);
           }
         });
-        
+
         this.notes = mergedNotes;
-        
+
         const totalDuration = performance.now() - syncStartTime;
         console.log(`[NotesStore] ✅ Background sync completed: ${beforeCount} → ${this.notes.length} notes (fetch: ${fetchDuration.toFixed(2)}ms, total: ${totalDuration.toFixed(2)}ms)`);
       } catch (err) {
@@ -236,7 +237,7 @@ export const useNotesStore = defineStore('notes', {
       }
     },
 
-    async fetchAllNotesForSearch(): Promise<Note[]> {
+    async fetchAllNotesForSearch(): Promise<Page[]> {
       // Fetch all notes from all spaces for search purposes
       // This doesn't update the store, just returns all notes
       try {
@@ -256,7 +257,7 @@ export const useNotesStore = defineStore('notes', {
         }
 
         // If no cache, fetch from server
-        const response = await $fetch<Note[]>('/api/notes', {
+        const response = await $fetch<Page[]>('/api/pages', {
           headers: {
             Authorization: `Bearer ${authStore.token}`
           }
@@ -285,7 +286,7 @@ export const useNotesStore = defineStore('notes', {
           throw new Error('Not authenticated');
         }
 
-        const response = await $fetch<Note>(`/api/notes/${id}`, {
+        const response = await $fetch<Page>(`/api/pages/${id}`, {
           headers: {
             Authorization: `Bearer ${authStore.token}`
           }
@@ -316,7 +317,7 @@ export const useNotesStore = defineStore('notes', {
       }
     },
 
-    async createNote(data: CreateNoteDto): Promise<Note> {
+    async createNote(data: CreatePageDto): Promise<Page> {
       this.loading = true;
       this.error = null;
 
@@ -327,7 +328,7 @@ export const useNotesStore = defineStore('notes', {
         }
 
         const plainData = toRaw(data);
-        const response = await $fetch<Note>('/api/notes', {
+        const response = await $fetch<Page>('/api/pages', {
           method: 'POST',
           headers: {
             Authorization: `Bearer ${authStore.token}`
@@ -359,7 +360,7 @@ export const useNotesStore = defineStore('notes', {
       }
     },
 
-    async updateNote(id: string, data: UpdateNoteDto): Promise<void> {
+    async updateNote(id: string, data: UpdatePageDto): Promise<void> {
       this.loading = true;
       this.error = null;
 
@@ -370,7 +371,7 @@ export const useNotesStore = defineStore('notes', {
         }
 
         const plainData = toRaw(data);
-        const response = await $fetch<Note>(`/api/notes/${id}`, {
+        const response = await $fetch<Page>(`/api/pages/${id}`, {
           method: 'PUT',
           headers: {
             Authorization: `Bearer ${authStore.token}`
@@ -410,7 +411,7 @@ export const useNotesStore = defineStore('notes', {
           throw new Error('Not authenticated');
         }
 
-        await $fetch(`/api/notes/${id}`, {
+        await $fetch(`/api/pages/${id}`, {
           method: 'DELETE',
           headers: {
             Authorization: `Bearer ${authStore.token}`
@@ -464,7 +465,7 @@ export const useNotesStore = defineStore('notes', {
       // Check each note to see if it exists in the database
       for (const note of this.notes) {
         try {
-          await $fetch(`/api/notes/${note.id}`, {
+          await $fetch(`/api/pages/${note.id}`, {
             method: 'HEAD',
             headers: {
               Authorization: `Bearer ${authStore.token}`
@@ -493,7 +494,7 @@ export const useNotesStore = defineStore('notes', {
     },
 
 
-    setFilters(filters: NoteFilters): void {
+    setFilters(filters: PageFilters): void {
       this.filters = { ...this.filters, ...filters };
     },
 
@@ -501,7 +502,7 @@ export const useNotesStore = defineStore('notes', {
       this.filters = {};
     },
 
-    setCurrentNote(note: Note | null): void {
+    setCurrentNote(note: Page | null): void {
       // Force reactivity by creating new object reference
       this.currentNote = note ? { ...note } : null;
     },
@@ -601,9 +602,13 @@ export const useNotesStore = defineStore('notes', {
             Authorization: `Bearer ${authStore.token}`
           }
         });
-        
+
+        console.log('[NotesStore] loadNoteOrder response:', response);
         if (response.note_order) {
           this.noteOrder = response.note_order;
+          console.log('[NotesStore] noteOrder updated:', Object.keys(this.noteOrder));
+        } else {
+          console.log('[NotesStore] No note_order in response');
         }
       } catch (err) {
         console.error('Failed to load note order:', err);
@@ -632,48 +637,77 @@ export const useNotesStore = defineStore('notes', {
       }
     },
 
-    async reorderNote(noteId: string, folderId: number | null, newIndex: number): Promise<void> {
-      // Optimistically assume success - no loading indicator
+    async reorderNote(pageId: string, sectionId: number | null, newIndex: number): Promise<void> {
+      console.log('[NotesStore] reorderNote called', { pageId, sectionId, newIndex });
+
+      // Optimistically update the UI immediately
       this.error = null;
+      const folderKey = sectionId === null ? 'root' : `folder_${sectionId}`;
+      const currentOrder = this.noteOrder[folderKey] || [];
+      const currentIndex = currentOrder.indexOf(pageId);
+
+      if (currentIndex !== -1) {
+        // Optimistically update local order for instant feedback
+        const newOrder = [...currentOrder];
+        const [movedItem] = newOrder.splice(currentIndex, 1);
+
+        // Adjust index if moving down
+        let finalIndex = newIndex;
+        if (newIndex > currentIndex) {
+          finalIndex = newIndex - 1;
+        }
+        finalIndex = Math.max(0, Math.min(finalIndex, newOrder.length));
+
+        newOrder.splice(finalIndex, 0, movedItem);
+        this.noteOrder = { ...this.noteOrder, [folderKey]: newOrder };
+        console.log('[NotesStore] Optimistically updated noteOrder');
+      }
 
       try {
         const authStore = useAuthStore();
 
         if (!authStore.token) {
+          console.error('[NotesStore] reorderNote: No auth token');
           throw new Error('Not authenticated');
         }
 
-        const response = await $fetch<{ note_order: Record<string, string[]> }>(`/api/notes/${noteId}/reorder`, {
+        // Make API call in background (don't await)
+        console.log('[NotesStore] Making API request to /api/pages/${pageId}/reorder');
+        $fetch(`/api/pages/${pageId}/reorder`, {
           method: 'PUT',
           headers: {
             Authorization: `Bearer ${authStore.token}`
           },
           body: {
-            folderId,
+            section_id: sectionId,
             newIndex
           }
+        }).then(async (response) => {
+          console.log('[NotesStore] API response:', response);
+          // Refresh in background to ensure consistency
+          await this.loadNoteOrder();
+          console.log('[NotesStore] Order refreshed from server');
+        }).catch(err => {
+          console.error('[NotesStore] Background reorder failed:', err);
+          // Reload on error to get correct state
+          this.loadNoteOrder();
         });
-
-        // Update local note order
-        this.noteOrder = response.note_order;
-        await this.saveNoteOrder();
-
-        // Refresh notes to get updated state
-        // We can do this in background without triggering main loading state
-        await this.fetchNotes(false);
       } catch (err: unknown) {
+        console.error('[NotesStore] reorderNote error:', err);
         this.error = err instanceof Error ? err.message : 'Failed to reorder note';
+        // Reload order on error
+        await this.loadNoteOrder();
         throw err;
       }
     },
 
-    async moveNote(noteId: string, newFolderId: number | null, newIndex?: number): Promise<void> {
+    async moveNote(pageId: string, newFolderId: number | null, newIndex?: number): Promise<void> {
       console.log('[NotesStore] moveNote called', {
-        noteId,
+        pageId,
         newFolderId,
         newIndex,
         currentNoteId: this.currentNote?.id,
-        isCurrentNote: this.currentNote?.id === noteId
+        isCurrentNote: this.currentNote?.id === pageId
       });
       
       this.loading = true;
@@ -687,8 +721,8 @@ export const useNotesStore = defineStore('notes', {
         }
 
         // Optimistically update the note in local state first
-        const noteIndex = this.notes.findIndex(n => n.id === noteId);
-        const oldFolderId = noteIndex !== -1 ? this.notes[noteIndex].folder_id : null;
+        const noteIndex = this.notes.findIndex(n => n.id === pageId);
+        const oldFolderId = noteIndex !== -1 ? this.notes[noteIndex].section_id : null;
         
         console.log('[NotesStore] Optimistic update', {
           noteIndex,
@@ -700,11 +734,11 @@ export const useNotesStore = defineStore('notes', {
         // Update note folder_id immediately for instant UI feedback
         if (noteIndex !== -1) {
           // Direct assignment triggers Vue reactivity
-          this.notes[noteIndex].folder_id = newFolderId;
+          this.notes[noteIndex].section_id = newFolderId;
           // Also update updated_at to ensure reactivity
           this.notes[noteIndex].updated_at = new Date().toISOString();
           console.log('[NotesStore] Updated note in array', {
-            folder_id: this.notes[noteIndex].folder_id
+            section_id: this.notes[noteIndex].section_id
           });
         }
 
@@ -718,7 +752,7 @@ export const useNotesStore = defineStore('notes', {
           
           // Remove note from old folder's order (if it's in a different folder)
           if (oldFolderKey !== newFolderKey && optimisticNoteOrder[oldFolderKey]) {
-            optimisticNoteOrder[oldFolderKey] = optimisticNoteOrder[oldFolderKey].filter(id => id !== noteId);
+            optimisticNoteOrder[oldFolderKey] = optimisticNoteOrder[oldFolderKey].filter(id => id !== pageId);
             // Remove key if folder is now empty
             if (optimisticNoteOrder[oldFolderKey].length === 0) {
               delete optimisticNoteOrder[oldFolderKey];
@@ -729,11 +763,11 @@ export const useNotesStore = defineStore('notes', {
           // Filter notes that will be in the new folder after the move
           const notesInNewFolder = this.notes.filter(n => {
             // If this is the note being moved, use the new folder_id
-            if (n.id === noteId) {
+            if (n.id === pageId) {
               return false; // Exclude the note being moved
             }
             // Otherwise check if it's already in the target folder
-            return n.folder_id === newFolderId;
+            return n.section_id === newFolderId;
           });
           
           // Initialize new folder order if it doesn't exist
@@ -745,12 +779,12 @@ export const useNotesStore = defineStore('notes', {
           // Insert note at the correct position
           const newFolderOrder = [...optimisticNoteOrder[newFolderKey]];
           // Remove note if it's already in the array (in case of same-folder reorder)
-          const existingIndex = newFolderOrder.indexOf(noteId);
+          const existingIndex = newFolderOrder.indexOf(pageId);
           if (existingIndex !== -1) {
             newFolderOrder.splice(existingIndex, 1);
           }
           // Insert at the specified index
-          newFolderOrder.splice(newIndex, 0, noteId);
+          newFolderOrder.splice(newIndex, 0, pageId);
           optimisticNoteOrder[newFolderKey] = newFolderOrder;
           
           // Update noteOrder immediately for instant UI feedback
@@ -759,17 +793,17 @@ export const useNotesStore = defineStore('notes', {
             newFolderKey,
             newIndex,
             orderLength: newFolderOrder.length,
-            notePosition: newFolderOrder.indexOf(noteId),
-            noteId
+            notePosition: newFolderOrder.indexOf(pageId),
+            pageId
           });
         }
 
-        console.log('[NotesStore] Calling API /api/notes/' + noteId + '/move', {
+        console.log('[NotesStore] Calling API /api/pages/' + pageId + '/move', {
           newFolderId,
           newIndex
         });
         
-        const response = await $fetch<{ note_order: Record<string, string[]> }>(`/api/notes/${noteId}/move`, {
+        const response = await $fetch<{ note_order: Record<string, string[]> }>(`/api/pages/${pageId}/move`, {
           method: 'PUT',
           headers: {
             Authorization: `Bearer ${authStore.token}`
@@ -782,7 +816,7 @@ export const useNotesStore = defineStore('notes', {
           console.error('[NotesStore] API call failed, reverting optimistic update', err);
           // Revert optimistic update on error
           if (noteIndex !== -1 && oldFolderId !== undefined) {
-            this.notes[noteIndex].folder_id = oldFolderId;
+            this.notes[noteIndex].section_id = oldFolderId;
           }
           throw err;
         });
@@ -803,17 +837,17 @@ export const useNotesStore = defineStore('notes', {
         console.log('[NotesStore] noteOrder saved');
 
         // Also update currentNote if it's the one being moved
-        if (this.currentNote && this.currentNote.id === noteId) {
+        if (this.currentNote && this.currentNote.id === pageId) {
           console.log('[NotesStore] Updating currentNote', {
-            before: this.currentNote.folder_id,
+            before: this.currentNote.section_id,
             after: newFolderId
           });
-          this.currentNote.folder_id = newFolderId;
+          this.currentNote.section_id = newFolderId;
           this.currentNote.updated_at = this.notes[noteIndex].updated_at;
           // Force reactivity by reassigning
           this.currentNote = { ...this.currentNote };
           console.log('[NotesStore] currentNote updated', {
-            folder_id: this.currentNote.folder_id
+            section_id: this.currentNote.section_id
           });
         }
 
@@ -863,8 +897,8 @@ export const useNotesStore = defineStore('notes', {
       }
     },
 
-    async openTab(noteId: string): Promise<void> {
-      const stringId = String(noteId);
+    async openTab(pageId: string): Promise<void> {
+      const stringId = String(pageId);
 
       // Check if note exists in notes array
       let note = this.notes.find(note => String(note.id) === stringId);
@@ -886,8 +920,8 @@ export const useNotesStore = defineStore('notes', {
       this.saveTabsToStorage();
     },
 
-    closeTab(noteId: string): void {
-      const stringId = String(noteId);
+    closeTab(pageId: string): void {
+      const stringId = String(pageId);
       // If closing the active note, clear it
       if (this.activeTabId === stringId) {
         this.activeTabId = null;

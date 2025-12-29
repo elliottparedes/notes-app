@@ -17,7 +17,7 @@ export default defineEventHandler(async (event) => {
   try {
     // Check if space with same name already exists for this user
     const existing = await executeQuery<any[]>(`
-      SELECT id FROM spaces 
+      SELECT id FROM notebooks 
       WHERE user_id = ? AND name = ?
     `, [userId, body.name.trim()]);
 
@@ -30,14 +30,14 @@ export default defineEventHandler(async (event) => {
 
     // Create the space
     const result: any = await executeQuery(`
-      INSERT INTO spaces (user_id, name, color, icon, created_at, updated_at)
+      INSERT INTO notebooks (user_id, name, color, icon, created_at, updated_at)
       VALUES (?, ?, ?, ?, NOW(), NOW())
     `, [userId, body.name.trim(), body.color || null, body.icon || null]);
 
     // Fetch the created space
     const spaces = await executeQuery<Space[]>(`
       SELECT id, user_id, name, color, icon, created_at, updated_at
-      FROM spaces
+      FROM notebooks
       WHERE id = ?
     `, [result.insertId]);
     

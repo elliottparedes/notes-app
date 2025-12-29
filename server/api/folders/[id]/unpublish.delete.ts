@@ -19,7 +19,7 @@ export default defineEventHandler(async (event) => {
   try {
     // Verify folder ownership
     const folderResults = await executeQuery<FolderOwnerRow[]>(
-      'SELECT user_id FROM folders WHERE id = ?',
+      'SELECT user_id FROM sections WHERE id = ?',
       [folderId]
     );
 
@@ -34,20 +34,20 @@ export default defineEventHandler(async (event) => {
 
     // Unpublish all notes in this folder (no subfolders)
     const notesInFolder = await executeQuery<Array<{ id: string }>>(
-      'SELECT id FROM notes WHERE folder_id = ? AND user_id = ?',
+      'SELECT id FROM pages WHERE section_id = ? AND user_id = ?',
       [folderId, userId]
     );
 
     for (const note of notesInFolder) {
       await executeQuery(
-        'UPDATE published_notes SET is_active = FALSE, updated_at = CURRENT_TIMESTAMP WHERE note_id = ? AND owner_id = ?',
+        'UPDATE published_notes SET is_active = FALSE, updated_at = CURRENT_TIMESTAMP WHERE page_id = ? AND owner_id = ?',
         [note.id, userId]
       );
     }
 
     // Unpublish the folder itself
     await executeQuery(
-      'UPDATE published_folders SET is_active = FALSE, updated_at = CURRENT_TIMESTAMP WHERE folder_id = ? AND owner_id = ?',
+      'UPDATE published_folders SET is_active = FALSE, updated_at = CURRENT_TIMESTAMP WHERE section_id = ? AND owner_id = ?',
       [folderId, userId]
     );
 

@@ -115,7 +115,7 @@
 <script setup lang="ts">
 interface Props {
   modelValue: boolean
-  spaceId: number | null
+  notebookId: number | null
   isDeleting?: boolean
 }
 
@@ -134,7 +134,7 @@ const emit = defineEmits<Emits>();
 const spacesStore = useSpacesStore();
 
 const spaceName = computed(() => {
-  if (!props.spaceId) return '';
-  return spacesStore.spaces.find(s => s.id === props.spaceId)?.name || '';
+  if (!props.notebookId) return '';
+  return spacesStore.spaces.find(s => s.id === props.notebookId)?.name || '';
 });
 </script>

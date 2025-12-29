@@ -9,7 +9,7 @@ const router = useRouter();
 const notesStore = useNotesStore();
 const toast = useToast();
 
-const noteId = computed(() => route.params.id as string);
+const pageId = computed(() => route.params.id as string);
 const activeNote = computed(() => notesStore.activeNote);
 const isSaving = ref(false);
 const titleSaveTimeout = ref<NodeJS.Timeout | null>(null);
@@ -77,7 +77,7 @@ async function polishNote() {
     activeNote.value.content = '';
 
     await streamAIResponse(
-      '/api/notes/polish',
+      '/api/pages/polish',
       {
         title: activeNote.value.title || 'Untitled Note',
         content: originalContent || ''
@@ -123,7 +123,7 @@ async function askAINote(prompt: string) {
     activeNote.value.content = '';
 
     await streamAIResponse(
-      '/api/notes/ask-ai',
+      '/api/pages/ask-ai',
       {
         title: activeNote.value.title || 'Untitled Note',
         content: originalContent || '',
@@ -198,7 +198,7 @@ const isMobileView = computed(() => {
 watch(isMobileView, (isMobile) => {
   if (!isMobile && process.client) {
     // Screen became desktop size, redirect to dashboard with note open
-    router.replace(`/notes/${noteId.value}`);
+    router.replace(`/notes/${pageId.value}`);
   }
 }, { immediate: false });
 
@@ -206,12 +206,12 @@ watch(isMobileView, (isMobile) => {
 onMounted(async () => {
   // Redirect if on desktop
   if (!isMobileView.value) {
-    router.replace(`/notes/${noteId.value}`);
+    router.replace(`/notes/${pageId.value}`);
     return;
   }
 
   try {
-    await notesStore.openTab(noteId.value);
+    await notesStore.openTab(pageId.value);
   } catch (error) {
     console.error('Error opening note:', error);
     toast.error('Failed to open note');
@@ -221,7 +221,7 @@ onMounted(async () => {
   // Listen for window resize
   const handleResize = () => {
     if (window.innerWidth >= 1024) {
-      router.replace(`/notes/${noteId.value}`);
+      router.replace(`/notes/${pageId.value}`);
     }
   };
 

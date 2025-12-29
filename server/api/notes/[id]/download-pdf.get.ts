@@ -29,8 +29,8 @@ export default defineEventHandler(async (event) => {
     const rows = await executeQuery<NoteRow[]>(
       `SELECT n.*, 
         sn.permission as share_permission
-       FROM notes n
-       LEFT JOIN shared_notes sn ON n.id = sn.note_id AND sn.shared_with_user_id = ?
+       FROM pages n
+       LEFT JOIN shared_notes sn ON n.id = sn.page_id AND sn.shared_with_user_id = ?
        WHERE n.id = ? AND (n.user_id = ? OR sn.shared_with_user_id IS NOT NULL)
        LIMIT 1`,
       [userId, noteId, userId]

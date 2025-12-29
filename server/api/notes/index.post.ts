@@ -12,7 +12,7 @@ interface NoteRow {
   tags: string | null;
   is_favorite: number;
   folder: string | null;
-  folder_id: number | null;
+  section_id: number | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -39,20 +39,20 @@ export default defineEventHandler(async (event): Promise<Note> => {
 
     // Insert note with UUID
     await executeQuery<ResultSetHeader>(
-      'INSERT INTO notes (id, user_id, title, content, tags, folder_id) VALUES (?, ?, ?, ?, ?, ?)',
+      'INSERT INTO pages (id, user_id, title, content, tags, section_id) VALUES (?, ?, ?, ?, ?, ?)',
       [
         noteId,
         userId,
         title,
         body.content || null,
         tagsJson,
-        body.folder_id || null
+        body.section_id || null
       ]
     );
 
     // Fetch created note
     const rows = await executeQuery<NoteRow[]>(
-      'SELECT * FROM notes WHERE id = ?',
+      'SELECT * FROM pages WHERE id = ?',
       [noteId]
     );
 
@@ -73,7 +73,7 @@ export default defineEventHandler(async (event): Promise<Note> => {
       tags: parseJsonField<string[]>(row.tags),
       is_favorite: Boolean(row.is_favorite),
       folder: row.folder,
-      folder_id: row.folder_id || null,
+      section_id: row.section_id || null,
       created_at: row.created_at,
       updated_at: row.updated_at,
       is_shared: false, // New notes are not shared by default
@@ -83,82 +83,21 @@ export default defineEventHandler(async (event): Promise<Note> => {
     // Track note creation in analytics (fire and forget)
     try {
       await executeQuery(
-        `INSERT INTO analytics_events (user_id, event_type, event_data, note_id, folder_id, created_at) 
-         VALUES (?, ?, ?, ?, ?, NOW())`,
+        `INSERT INTO analytics_events (user_id, event_type, event_data, created_at) 
+         VALUES (?, ?, ?, NOW())`,
         [
           userId,
           'note_created',
-          JSON.stringify({ note_id: note.id, title: note.title }),
-          note.id,
-          note.folder_id || null,
+          JSON.stringify({ 
+            page_id: note.id, 
+            title: note.title,
+            section_id: note.section_id || null
+          })
         ]
       );
     } catch (error) {
       // Ignore analytics errors - don't break note creation
       console.error('Analytics tracking error:', error);
-    }
-
-    // Auto-publish note if parent folder or space is published
-    if (body.folder_id) {
-      // Check if folder is published
-      const publishedFolderResults = await executeQuery<Array<{ share_id: string }>>(
-        'SELECT share_id FROM published_folders WHERE folder_id = ? AND owner_id = ? AND is_active = TRUE',
-        [body.folder_id, userId]
-      );
-
-      if (publishedFolderResults.length > 0) {
-        // Auto-publish the note
-        const noteShareId = randomUUID();
-        await executeQuery(
-          'INSERT INTO published_notes (note_id, share_id, owner_id, is_active) VALUES (?, ?, ?, TRUE)',
-          [noteId, noteShareId, userId]
-        );
-      } else {
-        // Check if parent space is published
-        const folderResults = await executeQuery<Array<{ space_id: number }>>(
-          'SELECT space_id FROM folders WHERE id = ?',
-          [body.folder_id]
-        );
-
-        if (folderResults.length > 0 && folderResults[0].space_id) {
-          const publishedSpaceResults = await executeQuery<Array<{ share_id: string }>>(
-            'SELECT share_id FROM published_spaces WHERE space_id = ? AND owner_id = ? AND is_active = TRUE',
-            [folderResults[0].space_id, userId]
-          );
-
-          if (publishedSpaceResults.length > 0) {
-            // Auto-publish the note
-            const noteShareId = randomUUID();
-            await executeQuery(
-              'INSERT INTO published_notes (note_id, share_id, owner_id, is_active) VALUES (?, ?, ?, TRUE)',
-              [noteId, noteShareId, userId]
-            );
-          }
-        }
-      }
-    } else {
-      // Note without folder - check if current space is published
-      // We need to get the user's current space first
-      const userSpaces = await executeQuery<Array<{ id: number }>>(
-        'SELECT id FROM spaces WHERE user_id = ? ORDER BY created_at ASC LIMIT 1',
-        [userId]
-      );
-      
-      if (userSpaces.length > 0) {
-        const publishedSpaceResults = await executeQuery<Array<{ share_id: string }>>(
-          'SELECT share_id FROM published_spaces WHERE space_id = ? AND owner_id = ? AND is_active = TRUE',
-          [userSpaces[0].id, userId]
-        );
-
-        if (publishedSpaceResults.length > 0) {
-          // Auto-publish the note
-          const noteShareId = randomUUID();
-          await executeQuery(
-            'INSERT INTO published_notes (note_id, share_id, owner_id, is_active) VALUES (?, ?, ?, TRUE)',
-            [noteId, noteShareId, userId]
-          );
-        }
-      }
     }
 
     return note;

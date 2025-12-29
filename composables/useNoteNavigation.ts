@@ -13,13 +13,13 @@ export function useNoteNavigation() {
    * Navigates to a note, expanding the space and selecting the folder if necessary.
    * This logic is based on dashboard.vue's handleSearchNoteSelected.
    */
-  async function navigateToNote(note: Note | string | { id: string }, expandedSpaceIds?: Set<number>, onFolderSelected?: (folderId: number) => void) {
-    let noteObj: Note | undefined;
+  async function navigateToNote(note: Page | string | { id: string }, expandedSpaceIds?: Set<number>, onFolderSelected?: (sectionId: number) => void) {
+    let noteObj: Page | undefined;
     
-    const noteId = typeof note === 'string' ? note : note.id;
+    const pageId = typeof note === 'string' ? note : note.id;
     
     // Always try to find the full note in the store first
-    noteObj = notesStore.notes.find(n => n.id === noteId);
+    noteObj = notesStore.notes.find(n => n.id === pageId);
     
     if (!noteObj && typeof note !== 'string' && 'folder_id' in note) {
       // If not in store but passed object seems complete
@@ -29,45 +29,45 @@ export function useNoteNavigation() {
     if (!noteObj) {
       try {
         // Try to fetch it from the API if not in store
-        const fetchedNote = await notesStore.fetchNote(noteId);
+        const fetchedNote = await notesStore.fetchNote(pageId);
         if (fetchedNote) {
           noteObj = fetchedNote;
         }
       } catch (error) {
-        console.error(`Failed to fetch note with ID ${noteId}:`, error);
+        console.error(`Failed to fetch note with ID ${pageId}:`, error);
       }
     }
 
     if (!noteObj) {
-      console.warn(`Could not find or fetch note:`, noteId);
+      console.warn(`Could not find or fetch note:`, pageId);
       return;
     }
 
     try {
       console.log(`[Navigation] Navigating to note: ${noteObj.title} (${noteObj.id})`);
       
-      if (noteObj.folder_id) {
-        let folder = foldersStore.getFolderById(noteObj.folder_id);
+      if (noteObj.section_id) {
+        let folder = foldersStore.getFolderById(noteObj.section_id);
         
         if (!folder) {
-          console.log(`[Navigation] Folder ${noteObj.folder_id} not found, fetching folders...`);
+          console.log(`[Navigation] Folder ${noteObj.section_id} not found, fetching folders...`);
           // Folder not found, try to fetch all folders
           await foldersStore.fetchFolders(null, true);
-          folder = foldersStore.getFolderById(noteObj.folder_id);
+          folder = foldersStore.getFolderById(noteObj.section_id);
         }
 
         if (folder) {
-          const spaceId = folder.space_id;
-          console.log(`[Navigation] Note is in folder "${folder.name}" in space ${spaceId}`);
+          const notebookId = folder.notebook_id;
+          console.log(`[Navigation] Note is in folder "${folder.name}" in space ${notebookId}`);
           
           // Expand the space (notebook)
-          spacesStore.expandSpace(spaceId);
+          spacesStore.expandSpace(notebookId);
           
           // Set as current space
-          spacesStore.setCurrentSpace(spaceId);
+          spacesStore.setCurrentSpace(notebookId);
           
           // Ensure folders are loaded for this space
-          await foldersStore.fetchFolders(spaceId, true);
+          await foldersStore.fetchFolders(notebookId, true);
           
           // Select the folder (Always call it even if already selected to ensure UI state sync)
           if (onFolderSelected) {

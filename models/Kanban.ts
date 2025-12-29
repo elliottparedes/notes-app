@@ -5,8 +5,8 @@ export interface KanbanCard {
   content: string | null;
   status: string;
   card_order: number;
-  folder_id: number | null;
-  space_id: number | null;
+  section_id: number | null;
+  notebook_id: number | null;
   created_at: string | Date;
   updated_at: string | Date;
 }
@@ -16,8 +16,8 @@ export interface CreateKanbanCardDto {
   content?: string | null;
   status: string;
   card_order?: number;
-  folder_id?: number | null;
-  space_id?: number | null;
+  section_id?: number | null;
+  notebook_id?: number | null;
 }
 
 export interface UpdateKanbanCardDto {

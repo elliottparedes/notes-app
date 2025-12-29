@@ -9,8 +9,8 @@ interface KanbanCardRow {
   content: string | null;
   status: string;
   card_order: number;
-  folder_id: number | null;
-  space_id: number | null;
+  section_id: number | null;
+  notebook_id: number | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -28,7 +28,7 @@ export default defineEventHandler(async (event): Promise<KanbanCard> => {
   }
 
   // Check if card exists and belongs to the user
-  const [existingCard] = await executeQuery<KanbanCardRow[]>(
+  const existingCard = await executeQuery<KanbanCardRow[]>(
     `SELECT id FROM kanban_cards WHERE id = ? AND user_id = ?`,
     [cardId, userId]
   );
@@ -72,7 +72,7 @@ export default defineEventHandler(async (event): Promise<KanbanCard> => {
     [...values, cardId, userId]
   );
 
-  const [updatedRow] = await executeQuery<KanbanCardRow[]>(
+  const updatedRow = await executeQuery<KanbanCardRow[]>(
     `SELECT * FROM kanban_cards WHERE id = ?`,
     [cardId]
   );
@@ -88,8 +88,8 @@ export default defineEventHandler(async (event): Promise<KanbanCard> => {
     content: updatedRow.content,
     status: updatedRow.status,
     card_order: updatedRow.card_order,
-    folder_id: updatedRow.folder_id,
-    space_id: updatedRow.space_id,
+    section_id: updatedRow.section_id,
+    notebook_id: updatedRow.notebook_id,
     created_at: updatedRow.created_at,
     updated_at: updatedRow.updated_at,
   };

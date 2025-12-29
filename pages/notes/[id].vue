@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { UpdateNoteDto, Folder } from '~/models';
+import type { UpdatePageDto, Folder } from '~/models';
 import { useAuthStore } from '~/stores/auth';
 
 const route = useRoute();
@@ -11,7 +11,7 @@ const toast = useToast();
 // Network status
 const { isOnline } = useNetworkStatus();
 
-const noteId = computed(() => route.params.id as string);
+const pageId = computed(() => route.params.id as string);
 const isSaving = ref(false);
 const isLoading = ref(true);
 const autoSaveTimeout = ref<NodeJS.Timeout | null>(null);
@@ -26,21 +26,21 @@ const folderButtonRef = ref<HTMLButtonElement | null>(null);
 const isPolishing = ref(false);
 const isAskingAI = ref(false);
 
-const editForm = reactive<UpdateNoteDto & { content: string }>({
+const editForm = reactive<UpdatePageDto & { content: string }>({
   title: '',
   content: '',
   tags: [],
   folder: '',
-  folder_id: null as number | null
+  section_id: null as number | null
 });
 
 const currentNote = computed(() => notesStore.currentNote);
 
 // Selected folder name for display
 const selectedFolderName = computed(() => {
-  if (!editForm.folder_id) return null;
+  if (!editForm.section_id) return null;
   
-  const folder = foldersStore.getFolderById(editForm.folder_id);
+  const folder = foldersStore.getFolderById(editForm.section_id);
   if (!folder) return null;
   
   // Build full path
@@ -58,9 +58,9 @@ const selectedFolderName = computed(() => {
 });
 
 // Function to select a folder for the note
-function selectFolderForNote(folderId: number | null) {
-  editForm.folder_id = folderId;
-  editForm.folder = folderId ? foldersStore.getFolderById(folderId)?.name || null : null;
+function selectFolderForNote(sectionId: number | null) {
+  editForm.section_id = sectionId;
+  editForm.folder = sectionId ? foldersStore.getFolderById(sectionId)?.name || null : null;
 }
 
 // Close dropdown when clicking outside
@@ -147,7 +147,7 @@ const isMobileView = computed(() => {
 onMounted(async () => {
   // Redirect to dashboard (or mobile home) and open this note in a tab
   try {
-    await notesStore.openTab(noteId.value);
+    await notesStore.openTab(pageId.value);
     // On mobile, redirect to mobile home; on desktop, redirect to dashboard
     if (window.innerWidth < 1024) {
       router.push('/mobile/home');
@@ -174,9 +174,9 @@ async function loadAttachments() {
       return;
     }
     
-    console.log('[loadAttachments] Loading attachments for note:', noteId.value);
+    console.log('[loadAttachments] Loading attachments for note:', pageId.value);
     const atts = await $fetch<Array<import('~/models').Attachment>>(
-      `/api/notes/${noteId.value}/attachments`,
+      `/api/pages/${pageId.value}/attachments`,
       {
         headers: {
           Authorization: `Bearer ${authStore.token}`,
@@ -240,7 +240,7 @@ async function deleteAttachment(attachmentId: number) {
       return;
     }
     
-    await $fetch(`/api/notes/${noteId.value}/attachments/${attachmentId}`, {
+    await $fetch(`/api/pages/${pageId.value}/attachments/${attachmentId}`, {
       method: 'DELETE',
       headers: {
         Authorization: `Bearer ${authStore.token}`,
@@ -293,7 +293,7 @@ async function handleFileUpload(event: Event) {
       formData.append('file', file);
       
       const attachment = await $fetch<import('~/models').Attachment>(
-        `/api/notes/${noteId.value}/attachments`,
+        `/api/pages/${pageId.value}/attachments`,
         {
           method: 'POST',
           headers: {
@@ -325,7 +325,7 @@ async function handleFileUpload(event: Event) {
 
 
 // Auto-save on content change (only when not locked)
-watch([() => editForm.title, () => editForm.content, () => editForm.folder_id], () => {
+watch([() => editForm.title, () => editForm.content, () => editForm.section_id], () => {
   if (isLocked.value) return; // Don't auto-save when locked
   
   if (autoSaveTimeout.value) {
@@ -343,7 +343,7 @@ function toggleLock() {
   
   // Save lock state to localStorage
   if (process.client) {
-    localStorage.setItem(`note-${noteId.value}-locked`, isLocked.value.toString());
+    localStorage.setItem(`note-${pageId.value}-locked`, isLocked.value.toString());
   }
   
   if (isLocked.value) {
@@ -377,17 +377,17 @@ async function saveNote(silent = false) {
 
   try {
     // Prepare the data to send
-    const updateData: UpdateNoteDto = {
+    const updateData: UpdatePageDto = {
       title: editForm.title,
       content: editForm.content,
       tags: editForm.tags || [],
       folder: editForm.folder || null,
-      folder_id: editForm.folder_id || null
+      section_id: editForm.section_id || null
     };
     
     console.log('Saving note with data:', updateData);
     
-    await notesStore.updateNote(noteId.value, updateData);
+    await notesStore.updateNote(pageId.value, updateData);
     if (!silent) {
       toast.add({
         title: 'Success',
@@ -428,7 +428,7 @@ async function downloadPDF() {
     });
 
     // Fetch PDF from server
-    const response = await $fetch(`/api/notes/${noteId.value}/download-pdf`, {
+    const response = await $fetch(`/api/pages/${pageId.value}/download-pdf`, {
       method: 'GET',
       headers: {
         Authorization: `Bearer ${authStore.token}`,
@@ -474,7 +474,7 @@ async function confirmDelete() {
   isDeleting.value = true;
 
   try {
-    await notesStore.deleteNote(noteId.value);
+    await notesStore.deleteNote(pageId.value);
     toast.add({
       title: 'Success',
       description: 'Note deleted',
@@ -588,7 +588,7 @@ async function polishNote() {
     editForm.content = '';
 
     await streamAIResponse(
-      '/api/notes/polish',
+      '/api/pages/polish',
       {
         title: editForm.title || 'Untitled Note',
         content: originalContent || ''
@@ -638,7 +638,7 @@ async function askAINote(prompt: string) {
     editForm.content = '';
 
     await streamAIResponse(
-      '/api/notes/ask-ai',
+      '/api/pages/ask-ai',
       {
         title: editForm.title || 'Untitled Note',
         content: originalContent || '',
@@ -702,7 +702,7 @@ onUnmounted(() => {
           </div>
         </div>
 
-        <!-- Right: Note Actions -->
+        <!-- Right: Page Actions -->
         <div class="flex items-center gap-1">
           <!-- Save Status (Client-only to prevent hydration mismatch) -->
           <ClientOnly>
@@ -867,7 +867,7 @@ onUnmounted(() => {
                     type="button"
                     @click="selectFolderForNote(null); showFolderDropdown = false"
                     class="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                    :class="(editForm.folder_id ?? null) === null ? 'bg-gray-100 dark:bg-gray-700 font-medium' : ''"
+                    :class="(editForm.section_id ?? null) === null ? 'bg-gray-100 dark:bg-gray-700 font-medium' : ''"
                   >
                     <UIcon name="i-heroicons-document-text" class="w-4 h-4 inline mr-2 text-gray-500" />
                     No folder
@@ -877,7 +877,7 @@ onUnmounted(() => {
                     v-for="folder in foldersStore.folderTree"
                     :key="folder.id"
                     :folder="folder"
-                    :selected-id="editForm.folder_id ?? null"
+                    :selected-id="editForm.section_id ?? null"
                     :depth="0"
                     @select="(id) => { selectFolderForNote(id); showFolderDropdown = false; }"
                   />
@@ -919,7 +919,7 @@ onUnmounted(() => {
       <div v-else-if="(selectedFolderName || editForm.tags?.length)" class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 md:px-6 py-3">
         <div class="max-w-5xl mx-auto">
           <div class="flex items-center gap-3 text-sm flex-wrap">
-            <div v-if="selectedFolderName || !editForm.folder_id" class="flex items-center gap-2">
+            <div v-if="selectedFolderName || !editForm.section_id" class="flex items-center gap-2">
               <UIcon name="i-heroicons-folder" class="w-4 h-4 text-gray-400" />
               <span class="text-gray-600 dark:text-gray-400">{{ selectedFolderName || 'No folder' }}</span>
             </div>
@@ -948,7 +948,7 @@ onUnmounted(() => {
             <template #default>
             <UnifiedEditor
               v-model="editForm.content"
-              :note-id="noteId"
+              :note-id="pageId"
               :editable="true"
               :placeholder="'Start writing...'"
               :is-collaborative="false"

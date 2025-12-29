@@ -8,21 +8,21 @@ export function useSpaceActions() {
   const deletingSpaceId = ref<number | null>(null);
   const isDeletingSpace = ref(false);
 
-  async function handleSelectSpace(spaceId: number) {
-    spacesStore.toggleSpace(spaceId);
-    if (spacesStore.expandedSpaceIds.has(spaceId)) {
-      spacesStore.setCurrentSpace(spaceId);
+  async function handleSelectSpace(notebookId: number) {
+    spacesStore.toggleSpace(notebookId);
+    if (spacesStore.expandedSpaceIds.has(notebookId)) {
+      spacesStore.setCurrentSpace(notebookId);
     }
   }
 
-  function handleDeleteSpace(spaceId: number) {
+  function handleDeleteSpace(notebookId: number) {
     // Check if this is the last space
     if (spacesStore.spaces.length <= 1) {
       toast.error('Cannot delete the last remaining space');
       return;
     }
 
-    deletingSpaceId.value = spaceId;
+    deletingSpaceId.value = notebookId;
     showDeleteSpaceModal.value = true;
   }
 
@@ -32,16 +32,16 @@ export function useSpaceActions() {
     isDeletingSpace.value = true;
 
     try {
-      const spaceIdToDelete = deletingSpaceId.value;
+      const notebookIdToDelete = deletingSpaceId.value;
 
       // Get all folders in the space to be deleted
-      const foldersInSpace = foldersStore.folders.filter(f => f.space_id === spaceIdToDelete);
-      const folderIdsInSpace = foldersInSpace.map(f => f.id);
+      const foldersInSpace = foldersStore.folders.filter(f => f.notebook_id === notebookIdToDelete);
+      const sectionIdsInSpace = foldersInSpace.map(f => f.id);
 
       // Get all notes that are in these folders or directly in the space
       const notesInSpace = notesStore.notes.filter(n =>
-        (n.folder_id && folderIdsInSpace.includes(n.folder_id)) ||
-        (n.space_id === spaceIdToDelete && !n.folder_id)
+        (n.section_id && sectionIdsInSpace.includes(n.section_id)) ||
+        (n.notebook_id === notebookIdToDelete && !n.section_id)
       );
 
       // Check if the active note is in this space and clear it
@@ -53,11 +53,11 @@ export function useSpaceActions() {
       }
 
       // If the currently selected folder is in the deleted space, deselect it
-      if (selectedFolderId.value && folderIdsInSpace.includes(selectedFolderId.value)) {
+      if (selectedFolderId.value && sectionIdsInSpace.includes(selectedFolderId.value)) {
         selectedFolderId.value = null;
       }
 
-      await spacesStore.deleteSpace(spaceIdToDelete);
+      await spacesStore.deleteSpace(notebookIdToDelete);
       toast.success('Space deleted successfully');
 
       // After space is deleted, refetch folders and notes to update UI
@@ -81,12 +81,12 @@ export function useSpaceActions() {
     deletingSpaceId.value = null;
   }
 
-  function handleSpaceDragOver(spaceId: number, isDraggingSpace: Ref<boolean>) {
+  function handleSpaceDragOver(notebookId: number, isDraggingSpace: Ref<boolean>) {
     // Don't expand if reordering spaces
     if (isDraggingSpace.value) return;
 
-    if (!spacesStore.expandedSpaceIds.has(spaceId)) {
-      spacesStore.expandSpace(spaceId);
+    if (!spacesStore.expandedSpaceIds.has(notebookId)) {
+      spacesStore.expandSpace(notebookId);
     }
   }
 

@@ -20,8 +20,8 @@ export default defineEventHandler(async (event) => {
   }
 
   // Verify space ownership
-  const [space] = await executeQuery<Array<{ user_id: number }>>(
-    'SELECT user_id FROM spaces WHERE id = ?',
+  const space = await executeQuery<Array<{ user_id: number }>>(
+    'SELECT user_id FROM notebooks WHERE id = ?',
     [spaceId]
   );
 
@@ -33,8 +33,8 @@ export default defineEventHandler(async (event) => {
   }
 
   // Get space publish status
-  const [published] = await executeQuery<PublishStatusRow[]>(
-    'SELECT share_id, is_active, created_at FROM published_spaces WHERE space_id = ? AND owner_id = ?',
+  const published = await executeQuery<PublishStatusRow[]>(
+    'SELECT share_id, is_active, created_at FROM published_spaces WHERE notebook_id = ? AND owner_id = ?',
     [spaceId, userId]
   );
 

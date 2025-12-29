@@ -8,7 +8,7 @@ interface Props {
 }
 
 interface Emits {
-  (e: 'toggle-folder', folderId: number): void;
+  (e: 'toggle-folder', sectionId: number): void;
   (e: 'open-note', shareId: string): void;
 }
 
@@ -18,7 +18,7 @@ const emit = defineEmits<Emits>();
 const expandContentRef = ref<HTMLElement | null>(null);
 const contentHeight = ref<number>(0);
 
-const isExpanded = computed(() => props.expandedFolders.has(props.folder.folder_id));
+const isExpanded = computed(() => props.expandedFolders.has(props.folder.section_id));
 
 watch(isExpanded, (newVal) => {
   if (newVal && expandContentRef.value) {
@@ -32,7 +32,7 @@ watch(isExpanded, (newVal) => {
 });
 
 function toggle() {
-  emit('toggle-folder', props.folder.folder_id);
+  emit('toggle-folder', props.folder.section_id);
 }
 
 function openNote(shareId: string) {
@@ -78,15 +78,15 @@ function openNote(shareId: string) {
         <TransitionGroup name="list" tag="div" class="space-y-1">
           <div
             v-for="note in folder.notes"
-            :key="note.note_id"
+            :key="note.page_id"
             class="flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-all duration-200 group border border-transparent"
-            :class="selectedNoteId === note.note_id 
+            :class="selectedNoteId === note.page_id 
               ? 'bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 shadow-sm border-primary-200 dark:border-primary-800' 
               : 'hover:bg-white dark:hover:bg-gray-800/60 text-gray-700 dark:text-gray-300'"
             @click.stop="openNote(note.share_id)"
           >
             <UIcon name="i-heroicons-document-text" class="w-4 h-4 flex-shrink-0 text-gray-400 dark:text-gray-500 group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors" />
-            <span class="text-sm font-medium truncate flex-1 leading-snug">{{ note.note_title }}</span>
+            <span class="text-sm font-medium truncate flex-1 leading-snug">{{ note.page_title }}</span>
           </div>
         </TransitionGroup>
       </div>

@@ -4,8 +4,8 @@ import { executeQuery } from '~/server/utils/db';
 interface AnalyticsEvent {
   event_type: string;
   event_data?: Record<string, any>;
-  note_id?: string;
-  folder_id?: number | null;
+  page_id?: string;
+  section_id?: number | null;
 }
 
 export default defineEventHandler(async (event) => {
@@ -23,14 +23,14 @@ export default defineEventHandler(async (event) => {
     // Insert analytics event
     await executeQuery(
       `INSERT INTO analytics_events 
-       (user_id, event_type, event_data, note_id, folder_id, created_at) 
+       (user_id, event_type, event_data, page_id, section_id, created_at) 
        VALUES (?, ?, ?, ?, ?, NOW())`,
       [
         userId,
         body.event_type,
         body.event_data ? JSON.stringify(body.event_data) : null,
-        body.note_id || null,
-        body.folder_id || null,
+        body.page_id || null,
+        body.section_id || null,
       ]
     );
 

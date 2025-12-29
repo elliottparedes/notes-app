@@ -19,8 +19,8 @@ class YDocManager {
   /**
    * Get or create a Y.Doc for a specific note
    */
-  getDoc(noteId: string): Y.Doc {
-    const shortId = noteId.substring(0, 20)
+  getDoc(pageId: string): Y.Doc {
+    const shortId = pageId.substring(0, 20)
     console.log(`[YDocManager] 📥 Getting Y.Doc for note: ${shortId}...`)
     
     // Log all existing instances for debugging
@@ -28,8 +28,8 @@ class YDocManager {
       console.log(`[YDocManager] 📊 Existing instances:`, Array.from(this.instances.keys()).map(k => k.substring(0, 20)))
     }
     
-    if (this.instances.has(noteId)) {
-      const instance = this.instances.get(noteId)!
+    if (this.instances.has(pageId)) {
+      const instance = this.instances.get(pageId)!
       const connectedUsers = instance.provider?.awareness?.getStates().size || 0
       
       instance.refCount++
@@ -39,7 +39,7 @@ class YDocManager {
 
     console.log(`[YDocManager] 🆕 CREATING NEW Y.Doc (first time for this note)`)
     const doc = new Y.Doc()
-    this.instances.set(noteId, {
+    this.instances.set(pageId, {
       doc,
       provider: null,
       refCount: 1,
@@ -52,10 +52,10 @@ class YDocManager {
   /**
    * Set the provider for a Y.Doc
    */
-  setProvider(noteId: string, provider: WebsocketProvider) {
-    const instance = this.instances.get(noteId)
+  setProvider(pageId: string, provider: WebsocketProvider) {
+    const instance = this.instances.get(pageId)
     if (instance) {
-      console.log(`[YDocManager] 📡 Setting provider for note: ${noteId}`)
+      console.log(`[YDocManager] 📡 Setting provider for note: ${pageId}`)
       instance.provider = provider
     }
   }
@@ -63,10 +63,10 @@ class YDocManager {
   /**
    * Release a Y.Doc reference (decrement ref count)
    */
-  releaseDoc(noteId: string) {
-    const instance = this.instances.get(noteId)
+  releaseDoc(pageId: string) {
+    const instance = this.instances.get(pageId)
     if (!instance) {
-      console.warn(`[YDocManager] ⚠️ Attempted to release non-existent Y.Doc: ${noteId}`)
+      console.warn(`[YDocManager] ⚠️ Attempted to release non-existent Y.Doc: ${pageId}`)
       return
     }
 
@@ -82,7 +82,7 @@ class YDocManager {
     // 2. No other users connected via WebSocket (or disconnected)
     if (instance.refCount <= 0) {
       if (connectedUsers <= 1) {
-        console.log(`[YDocManager] 🗑️ No more references and no other users, destroying Y.Doc for: ${noteId}`)
+        console.log(`[YDocManager] 🗑️ No more references and no other users, destroying Y.Doc for: ${pageId}`)
         
         try {
           // Destroy provider first
@@ -94,7 +94,7 @@ class YDocManager {
           instance.doc.destroy()
           
           // Remove from registry
-          this.instances.delete(noteId)
+          this.instances.delete(pageId)
           
           console.log(`[YDocManager] ✅ Successfully destroyed Y.Doc`)
         } catch (error) {
@@ -115,10 +115,10 @@ class YDocManager {
     const now = Date.now()
     const STALE_THRESHOLD = 5 * 60 * 1000 // 5 minutes
 
-    for (const [noteId, instance] of this.instances.entries()) {
+    for (const [pageId, instance] of this.instances.entries()) {
       if (instance.refCount <= 0 && now - instance.createdAt > STALE_THRESHOLD) {
-        console.log(`[YDocManager] 🧹 Cleaning up stale Y.Doc: ${noteId}`)
-        this.releaseDoc(noteId)
+        console.log(`[YDocManager] 🧹 Cleaning up stale Y.Doc: ${pageId}`)
+        this.releaseDoc(pageId)
       }
     }
   }
@@ -128,8 +128,8 @@ class YDocManager {
    */
   getDebugInfo() {
     const info: Record<string, any> = {}
-    for (const [noteId, instance] of this.instances.entries()) {
-      info[noteId] = {
+    for (const [pageId, instance] of this.instances.entries()) {
+      info[pageId] = {
         refCount: instance.refCount,
         hasProvider: !!instance.provider,
         age: Math.floor((Date.now() - instance.createdAt) / 1000) + 's'
@@ -142,9 +142,9 @@ class YDocManager {
    * Force destroy a Y.Doc (for schema migration)
    * This will force a fresh Y.Doc on next access
    */
-  forceDestroy(noteId: string) {
-    console.log(`[YDocManager] 🔄 Force destroying Y.Doc for: ${noteId}`)
-    const instance = this.instances.get(noteId)
+  forceDestroy(pageId: string) {
+    console.log(`[YDocManager] 🔄 Force destroying Y.Doc for: ${pageId}`)
+    const instance = this.instances.get(pageId)
     if (instance) {
       try {
         // Disconnect and destroy provider
@@ -155,7 +155,7 @@ class YDocManager {
         // Destroy the doc
         instance.doc.destroy()
         // Remove from registry
-        this.instances.delete(noteId)
+        this.instances.delete(pageId)
         console.log(`[YDocManager] ✅ Y.Doc force destroyed`)
         return true
       } catch (error) {
@@ -163,7 +163,7 @@ class YDocManager {
         return false
       }
     }
-    console.log(`[YDocManager] ⚠️ Y.Doc not found for: ${noteId}`)
+    console.log(`[YDocManager] ⚠️ Y.Doc not found for: ${pageId}`)
     return false
   }
 }

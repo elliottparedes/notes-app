@@ -5,7 +5,7 @@ import { useFoldersStore } from '~/stores/folders';
 import { useAuthStore } from '~/stores/auth';
 
 interface SearchResult {
-  item: Note;
+  item: Page;
   score: number;
   searchQuery?: string;
   match_context?: string;
@@ -17,7 +17,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'update:modelValue', value: boolean): void;
-  (e: 'selected', note: Note, isLoading?: boolean, searchQuery?: string): void;
+  (e: 'selected', note: Page, isLoading?: boolean, searchQuery?: string): void;
   (e: 'loading-start'): void; // Emit before selection to set loading state immediately
 }>();
 
@@ -35,7 +35,7 @@ let searchTimeout: ReturnType<typeof setTimeout> | null = null;
 async function loadFolders() {
   if (authStore.token && process.client) {
     try {
-      const allFolders = await $fetch<Folder[]>('/api/folders', {
+      const allFolders = await $fetch<Section[]>('/api/sections', {
         headers: {
           Authorization: `Bearer ${authStore.token}`
         }
@@ -64,7 +64,7 @@ async function performSearch(query: string) {
   isSearching.value = true;
   
   try {
-    const results = await $fetch<Array<Note & { relevance_score: number; match_context?: string }>>('/api/notes/search', {
+    const results = await $fetch<Array<Note & { relevance_score: number; match_context?: string }>>('/api/pages/search', {
       params: { q: query.trim() },
       headers: {
         Authorization: `Bearer ${authStore.token}`
@@ -81,7 +81,7 @@ async function performSearch(query: string) {
         tags: note.tags,
         is_favorite: note.is_favorite,
         folder: note.folder,
-        folder_id: note.folder_id,
+        section_id: note.section_id,
         created_at: note.created_at,
         updated_at: note.updated_at,
         is_shared: note.is_shared,
@@ -143,27 +143,27 @@ watch(() => props.modelValue, async (isOpen) => {
 });
 
 // Get folder name for a note
-function getFolderName(note: Note): string {
-  if (!note.folder_id) {
+function getFolderName(note: Page): string {
+  if (!note.section_id) {
     return '';
   }
   
-  const folder = foldersStore.getFolderById(note.folder_id);
+  const folder = foldersStore.getFolderById(note.section_id);
   return folder?.name || '';
 }
 
 // Get space name for a note
-function getSpaceName(note: Note): string {
-  if (!note.folder_id) {
+function getSpaceName(note: Page): string {
+  if (!note.section_id) {
     // Note without folder - try to determine space
     // For now, show current space or "Unknown"
     return spacesStore.currentSpace?.name || 'Unknown Space';
   }
   
   // Find folder and get its space
-  const folder = foldersStore.getFolderById(note.folder_id);
+  const folder = foldersStore.getFolderById(note.section_id);
   if (folder) {
-    const space = spacesStore.spaces.find(s => s.id === folder.space_id);
+    const space = spacesStore.spaces.find(s => s.id === folder.notebook_id);
     return space?.name || 'Unknown Space';
   }
   
@@ -171,16 +171,16 @@ function getSpaceName(note: Note): string {
 }
 
 // Get space ID for a note (to switch spaces when selecting)
-function getSpaceId(note: Note): number | null {
-  if (!note.folder_id) {
+function getSpaceId(note: Page): number | null {
+  if (!note.section_id) {
     // Note without folder - return current space
     return spacesStore.currentSpaceId;
   }
   
   // Find folder and get its space
-  const folder = foldersStore.getFolderById(note.folder_id);
+  const folder = foldersStore.getFolderById(note.section_id);
   if (folder) {
-    return folder.space_id;
+    return folder.notebook_id;
   }
   
   return spacesStore.currentSpaceId;
@@ -190,9 +190,9 @@ function closeModal() {
   emit('update:modelValue', false);
 }
 
-function selectNote(note: Note) {
+function selectNote(note: Page) {
   console.log('[SearchModal] selectNote called:', {
-    noteId: note.id,
+    pageId: note.id,
     timestamp: Date.now()
   });
   
@@ -281,7 +281,7 @@ function formatDate(date: Date | string): string {
 
 
 // Get preview text - use match_context from server if available, otherwise show first lines
-function getPreview(note: Note, result: SearchResult): string {
+function getPreview(note: Page, result: SearchResult): string {
   // Use server-provided match context if available
   if (result.match_context) {
     return result.match_context;

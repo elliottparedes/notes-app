@@ -4,7 +4,7 @@ import { getBaseUrl } from '~/server/utils/url';
 
 interface PublishedNoteRow {
   id: number;
-  note_id: string;
+  page_id: string;
   share_id: string;
   owner_id: number;
   is_active: boolean;
@@ -16,7 +16,7 @@ interface PublishedNoteRow {
 
 interface PublishedFolderRow {
   id: number;
-  folder_id: number;
+  section_id: number;
   share_id: string;
   owner_id: number;
   is_active: boolean;
@@ -27,7 +27,7 @@ interface PublishedFolderRow {
 
 interface PublishedSpaceRow {
   id: number;
-  space_id: number;
+  notebook_id: number;
   share_id: string;
   owner_id: number;
   is_active: boolean;
@@ -44,7 +44,7 @@ export default defineEventHandler(async (event) => {
     const publishedNotes = await executeQuery<PublishedNoteRow[]>(`
       SELECT pn.*, n.title as note_title, n.updated_at as note_updated_at
       FROM published_notes pn
-      INNER JOIN notes n ON pn.note_id = n.id
+      INNER JOIN pages n ON pn.page_id = n.id
       WHERE pn.owner_id = ? AND pn.is_active = TRUE
       ORDER BY pn.updated_at DESC
     `, [userId]);
@@ -53,7 +53,7 @@ export default defineEventHandler(async (event) => {
     const publishedFolders = await executeQuery<PublishedFolderRow[]>(`
       SELECT pf.*, f.name as folder_name
       FROM published_folders pf
-      INNER JOIN folders f ON pf.folder_id = f.id
+      INNER JOIN sections f ON pf.section_id = f.id
       WHERE pf.owner_id = ? AND pf.is_active = TRUE
       ORDER BY pf.updated_at DESC
     `, [userId]);
@@ -62,7 +62,7 @@ export default defineEventHandler(async (event) => {
     const publishedSpaces = await executeQuery<PublishedSpaceRow[]>(`
       SELECT ps.*, s.name as space_name
       FROM published_spaces ps
-      INNER JOIN spaces s ON ps.space_id = s.id
+      INNER JOIN notebooks s ON ps.notebook_id = s.id
       WHERE ps.owner_id = ? AND ps.is_active = TRUE
       ORDER BY ps.updated_at DESC
     `, [userId]);
@@ -72,7 +72,7 @@ export default defineEventHandler(async (event) => {
     return {
       notes: publishedNotes.map(pn => ({
         id: pn.id,
-        note_id: pn.note_id,
+        page_id: pn.page_id,
         share_id: pn.share_id,
         title: pn.note_title,
         share_url: `${baseUrl}/p/${pn.share_id}`,
@@ -81,7 +81,7 @@ export default defineEventHandler(async (event) => {
       })),
       folders: publishedFolders.map(pf => ({
         id: pf.id,
-        folder_id: pf.folder_id,
+        section_id: pf.section_id,
         share_id: pf.share_id,
         name: pf.folder_name,
         share_url: `${baseUrl}/p/folder/${pf.share_id}`,
@@ -90,7 +90,7 @@ export default defineEventHandler(async (event) => {
       })),
       spaces: publishedSpaces.map(ps => ({
         id: ps.id,
-        space_id: ps.space_id,
+        notebook_id: ps.notebook_id,
         share_id: ps.share_id,
         name: ps.space_name,
         share_url: `${baseUrl}/p/space/${ps.share_id}`,

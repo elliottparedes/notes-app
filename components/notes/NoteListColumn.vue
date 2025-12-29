@@ -53,6 +53,18 @@
       </div>
       <!-- Note List -->
       <div v-else class="divide-y divide-gray-200 dark:divide-gray-700" ref="noteListRef" :key="selectedFolderId">
+        <!-- Drop Zone at Top - Large hit area, invisible when not hovering -->
+        <div
+          @dragover.prevent="handleDragOverTop"
+          @dragleave="handleDragLeaveTop"
+          @drop="handleDropTop"
+          class="transition-all"
+          :class="{
+            'h-16 bg-blue-50 dark:bg-blue-900/20 border-t-4 border-blue-500 dark:border-blue-400': dragOverTop,
+            'h-0': !dragOverTop
+          }"
+          style="margin-top: -8px; padding-top: 8px;"
+        ></div>
         <TransitionGroup name="note-list">
           <div
             v-for="(note, index) in displayNotes"
@@ -68,13 +80,13 @@
             @dragover="handleDragOver($event, note.id)"
             @dragleave="handleDragLeave"
             @drop="handleDrop($event, note.id, index)"
-            class="note-item group px-3 py-2 cursor-grab active:cursor-grabbing transition-all duration-150 relative border-l-2 border-t-2"
+            class="note-item group px-3 py-2 cursor-grab active:cursor-grabbing transition-all duration-150 relative border-l-2 border-b-2"
             :class="{
               'bg-gray-50 dark:bg-gray-800/50 [border-left-width:3px] border-l-blue-600 dark:border-l-blue-400': activeNote?.id === note.id,
               'border-l-transparent hover:bg-gray-50 dark:hover:bg-gray-800': activeNote?.id !== note.id,
               'opacity-50': draggingNoteId === note.id,
-              'border-t-blue-500 dark:border-t-blue-400 [border-top-width:3px]': dragOverNoteId === note.id,
-              'border-t-transparent': dragOverNoteId !== note.id
+              'border-b-blue-500 dark:border-b-blue-400 [border-bottom-width:3px]': dragOverNoteId === note.id,
+              'border-b-transparent': dragOverNoteId !== note.id
             }"
           >
           <div class="font-normal text-sm truncate select-none pr-8 text-gray-900 dark:text-gray-100">{{ note.title || 'Untitled Page' }}</div>
@@ -116,9 +128,9 @@ interface Props {
 
 interface Emits {
   (e: 'update:noteListWidth', width: number): void
-  (e: 'open-note', noteId: string): void
-  (e: 'create-note-in-folder', folderId: number): void
-  (e: 'delete-note', noteId: string): void
+  (e: 'open-note', pageId: string): void
+  (e: 'create-note-in-folder', sectionId: number): void
+  (e: 'delete-note', pageId: string): void
 }
 
 const props = defineProps<Props>();
@@ -180,22 +192,36 @@ function handleNoteMouseUp() {
   canDragNote.value = false;
 }
 
-function handleDragStart(event: DragEvent, noteId: string) {
+function handleDragStart(event: DragEvent, pageId: string) {
+  console.log('[NoteListColumn] handleDragStart called', {
+    pageId,
+    canDragNote: canDragNote.value,
+    selectedFolderId: props.selectedFolderId
+  });
+
   if (!canDragNote.value) {
+    console.log('[NoteListColumn] handleDragStart prevented - canDragNote is false');
     event.preventDefault();
     return;
   }
 
-  if (!event.dataTransfer) return;
-  draggingNoteId.value = noteId;
+  if (!event.dataTransfer) {
+    console.log('[NoteListColumn] handleDragStart - no dataTransfer');
+    return;
+  }
+
+  draggingNoteId.value = pageId;
 
   // Store note data
-  event.dataTransfer.effectAllowed = 'move';
-  event.dataTransfer.setData('application/json', JSON.stringify({
+  const dragData = {
     type: 'note',
-    noteId: noteId,
-    folderId: props.selectedFolderId
-  }));
+    pageId: pageId,
+    sectionId: props.selectedFolderId
+  };
+  console.log('[NoteListColumn] handleDragStart setting drag data:', dragData);
+
+  event.dataTransfer.effectAllowed = 'move';
+  event.dataTransfer.setData('application/json', JSON.stringify(dragData));
 
   // Add visual feedback
   if (event.target instanceof HTMLElement) {
@@ -227,12 +253,12 @@ onUnmounted(() => {
   }
 });
 
-function handleDragOver(event: DragEvent, noteId: string) {
+function handleDragOver(event: DragEvent, pageId: string) {
   event.preventDefault();
   if (!event.dataTransfer) return;
 
   event.dataTransfer.dropEffect = 'move';
-  dragOverNoteId.value = noteId;
+  dragOverNoteId.value = pageId;
   dragOverTop.value = false;
 }
 
@@ -258,16 +284,36 @@ async function handleDropTop(event: DragEvent) {
   event.stopPropagation();
   dragOverTop.value = false;
 
-  if (!event.dataTransfer || !props.selectedFolderId) return;
+  console.log('[NoteListColumn] handleDropAtTop called', {
+    hasDataTransfer: !!event.dataTransfer,
+    selectedFolderId: props.selectedFolderId
+  });
+
+  if (!event.dataTransfer || !props.selectedFolderId) {
+    console.log('[NoteListColumn] handleDropAtTop early return - missing dataTransfer or selectedFolderId');
+    return;
+  }
 
   try {
-    const data = JSON.parse(event.dataTransfer.getData('application/json'));
+    const dataString = event.dataTransfer.getData('application/json');
+    console.log('[NoteListColumn] handleDropAtTop dataTransfer raw data:', dataString);
+
+    const data = JSON.parse(dataString);
+    console.log('[NoteListColumn] handleDropAtTop parsed drag data:', data);
 
     if (data.type === 'note') {
-      const draggedNoteId = data.noteId;
+      const draggedNoteId = data.pageId;
+      console.log('[NoteListColumn] handleDropAtTop calling reorderNote', {
+        draggedNoteId,
+        sectionId: props.selectedFolderId,
+        newIndex: 0
+      });
 
       // Reorder the note to index 0 (top of list)
       await notesStore.reorderNote(draggedNoteId, props.selectedFolderId, 0);
+      console.log('[NoteListColumn] handleDropAtTop reorderNote completed successfully');
+    } else {
+      console.log('[NoteListColumn] handleDropAtTop skipping - wrong type');
     }
   } catch (error) {
     console.error('Failed to handle note drop at top:', error);
@@ -279,16 +325,53 @@ async function handleDrop(event: DragEvent, targetNoteId: string, targetIndex: n
   event.stopPropagation();
   dragOverNoteId.value = null;
 
-  if (!event.dataTransfer || !props.selectedFolderId) return;
+  console.log('[NoteListColumn] handleDrop called', {
+    hasDataTransfer: !!event.dataTransfer,
+    selectedFolderId: props.selectedFolderId,
+    targetNoteId,
+    targetIndex
+  });
+
+  if (!event.dataTransfer || !props.selectedFolderId) {
+    console.log('[NoteListColumn] handleDrop early return - missing dataTransfer or selectedFolderId');
+    return;
+  }
 
   try {
-    const data = JSON.parse(event.dataTransfer.getData('application/json'));
+    const dataString = event.dataTransfer.getData('application/json');
+    console.log('[NoteListColumn] dataTransfer raw data:', dataString);
 
-    if (data.type === 'note' && data.noteId !== targetNoteId) {
-      const draggedNoteId = data.noteId;
+    const data = JSON.parse(dataString);
+    console.log('[NoteListColumn] parsed drag data:', data);
 
-      // Reorder the note to after the target
+    if (data.type === 'note' && data.pageId !== targetNoteId) {
+      const draggedNoteId = data.pageId;
+
+      console.log('[NoteListColumn] Current displayNotes order:', displayNotes.value.map((n, i) => ({
+        index: i,
+        id: n.id.substring(0, 8),
+        title: n.title.substring(0, 20)
+      })));
+
+      const currentVisualIndex = displayNotes.value.findIndex(n => n.id === draggedNoteId);
+
+      console.log('[NoteListColumn] Calling reorderNote', {
+        draggedNoteId: draggedNoteId.substring(0, 8),
+        draggedNoteTitle: displayNotes.value.find(n => n.id === draggedNoteId)?.title.substring(0, 20),
+        currentVisualIndex: currentVisualIndex,
+        targetNoteId: targetNoteId.substring(0, 8),
+        targetNoteTitle: displayNotes.value.find(n => n.id === targetNoteId)?.title.substring(0, 20),
+        targetVisualIndex: targetIndex,
+        newIndexToSend: targetIndex + 1,
+        note: 'Inserting AFTER target (line shows at bottom)',
+        sectionId: props.selectedFolderId
+      });
+
+      // Reorder the note to after the target position (since line shows at bottom of note)
       await notesStore.reorderNote(draggedNoteId, props.selectedFolderId, targetIndex + 1);
+      console.log('[NoteListColumn] reorderNote completed successfully');
+    } else {
+      console.log('[NoteListColumn] Skipping reorder - same note or wrong type');
     }
   } catch (error) {
     console.error('Failed to handle note drop:', error);

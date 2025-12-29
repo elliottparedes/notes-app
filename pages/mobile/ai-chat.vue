@@ -252,12 +252,12 @@ async function saveAsNote(content: string, messageId: string) {
     }
 
     // Prefer creating in the last used folder or first available folder
-    const folderId = foldersStore.folders[0]?.id;
+    const sectionId = foldersStore.folders[0]?.id;
 
     const newNote = await notesStore.createNote({
       title: title,
       content: markdownToHtml(content),
-      folder_id: folderId
+      section_id: sectionId
     });
 
     toast.success('Note created!');

@@ -1,6 +1,6 @@
 export interface PublishedNote {
   id: number;
-  note_id: string;
+  page_id: string;
   share_id: string;
   owner_id: number;
   is_active: boolean;
@@ -10,7 +10,7 @@ export interface PublishedNote {
 
 export interface PublishedFolder {
   id: number;
-  folder_id: number;
+  section_id: number;
   share_id: string;
   owner_id: number;
   is_active: boolean;
@@ -20,7 +20,7 @@ export interface PublishedFolder {
 
 export interface PublishedSpace {
   id: number;
-  space_id: number;
+  notebook_id: number;
   share_id: string;
   owner_id: number;
   is_active: boolean;

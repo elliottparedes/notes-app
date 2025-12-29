@@ -5,10 +5,10 @@ export function isUrl(value: string | null | undefined): boolean {
   return value.includes('/') || value.startsWith('http');
 }
 
-export function getSpaceFolders(spaceId: number, folders: Folder[]) {
-  return folders.filter(f => f.space_id === spaceId);
+export function getSpaceFolders(notebookId: number, folders: Section[]) {
+  return folders.filter(f => f.notebook_id === notebookId);
 }
 
-export function getFolderNoteCount(folderId: number, notes: Note[]) {
-  return notes.filter(n => n.folder_id === folderId && !n.share_permission).length;
+export function getFolderNoteCount(sectionId: number, notes: Page[]) {
+  return notes.filter(n => n.section_id === sectionId && !n.share_permission).length;
 }

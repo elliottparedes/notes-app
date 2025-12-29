@@ -18,8 +18,8 @@ export default defineEventHandler(async (event) => {
   try {
     // Verify folder exists and belongs to user
     const folders = await executeQuery<Folder[]>(`
-      SELECT id, user_id, space_id, name, icon, parent_id
-      FROM folders
+      SELECT id, user_id, notebook_id, name, icon, parent_id
+      FROM sections
       WHERE id = ? AND user_id = ?
     `, [folderId, userId]);
 
@@ -42,8 +42,8 @@ export default defineEventHandler(async (event) => {
     // Check for duplicate name in same space
     if (body.name && body.name.trim() !== folder.name) {
       const existing = await executeQuery<any[]>(`
-        SELECT id FROM folders WHERE user_id = ? AND name = ? AND space_id = ? AND parent_id IS NULL AND id != ?
-      `, [userId, body.name.trim(), folder.space_id, folderId]);
+        SELECT id FROM sections WHERE user_id = ? AND name = ? AND notebook_id = ? AND parent_id IS NULL AND id != ?
+      `, [userId, body.name.trim(), folder.notebook_id, folderId]);
 
       if (existing.length > 0) {
         throw createError({
@@ -67,11 +67,11 @@ export default defineEventHandler(async (event) => {
       values.push(body.icon);
     }
 
-    if (body.space_id !== undefined) {
+    if (body.notebook_id !== undefined) {
       // Check if space exists and belongs to user
       const spaces = await executeQuery<any[]>(`
-        SELECT id FROM spaces WHERE id = ? AND user_id = ?
-      `, [body.space_id, userId]);
+        SELECT id FROM notebooks WHERE id = ? AND user_id = ?
+      `, [body.notebook_id, userId]);
 
       if (spaces.length === 0) {
         throw createError({
@@ -80,8 +80,8 @@ export default defineEventHandler(async (event) => {
         });
       }
 
-      updates.push('space_id = ?');
-      values.push(body.space_id);
+      updates.push('notebook_id = ?');
+      values.push(body.notebook_id);
     }
 
     if (updates.length === 0) {
@@ -100,8 +100,8 @@ export default defineEventHandler(async (event) => {
 
     // Fetch and return updated folder
     const updatedFolders = await executeQuery<Folder[]>(`
-      SELECT id, user_id, space_id, name, icon, parent_id, created_at, updated_at
-      FROM folders
+      SELECT id, user_id, notebook_id, name, icon, parent_id, created_at, updated_at
+      FROM sections
       WHERE id = ?
     `, [folderId]);
     

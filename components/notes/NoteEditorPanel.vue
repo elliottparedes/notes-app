@@ -129,7 +129,7 @@ import type { Note } from '~/types';
 interface Emits {
   (e: 'close-note'): void
   (e: 'toggle-fullscreen'): void
-  (e: 'note-link-clicked', noteId: string): void
+  (e: 'note-link-clicked', pageId: string): void
 }
 
 interface Props {
@@ -167,15 +167,15 @@ const activeNote = computed(() => notesStore.activeNote);
 
 const notebookName = computed(() => {
   if (!activeNote.value) return '';
-  const folder = foldersStore.getFolderById(activeNote.value.folder_id);
+  const folder = foldersStore.getFolderById(activeNote.value.section_id);
   if (!folder) return 'Unknown';
-  const space = spacesStore.spaces.find(s => s.id === folder.space_id);
+  const space = spacesStore.spaces.find(s => s.id === folder.notebook_id);
   return space?.name || 'Unknown';
 });
 
 const sectionName = computed(() => {
   if (!activeNote.value) return '';
-  const folder = foldersStore.getFolderById(activeNote.value.folder_id);
+  const folder = foldersStore.getFolderById(activeNote.value.section_id);
   return folder?.name || 'Unknown';
 });
 

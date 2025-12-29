@@ -3,7 +3,7 @@ import type { PublishedFolderWithDetails, PublishedNoteWithDetails } from '~/mod
 
 interface PublishedFolderRow {
   id: number;
-  folder_id: number;
+  section_id: number;
   share_id: string;
   owner_id: number;
   is_active: number;
@@ -32,7 +32,7 @@ interface UserDetailsRow {
 
 interface PublishedNoteRow {
   id: number;
-  note_id: string;
+  page_id: string;
   share_id: string;
   owner_id: number;
   is_active: number;
@@ -45,8 +45,8 @@ async function getFolderDetails(
   ownerId: number
 ): Promise<PublishedFolderWithDetails> {
   // Get folder details
-  const [folder] = await executeQuery<FolderDetailsRow[]>(
-    'SELECT name, parent_id FROM folders WHERE id = ? AND user_id = ?',
+  const folder = await executeQuery<FolderDetailsRow[]>(
+    'SELECT name, parent_id FROM sections WHERE id = ? AND user_id = ?',
     [folderId, ownerId]
   );
 
@@ -60,16 +60,16 @@ async function getFolderDetails(
   // Get published notes in this folder (without ORDER BY - we'll sort by custom order)
   const notes = await executeQuery<NoteRow[]>(
     `SELECT n.id, n.title, n.content, n.updated_at, n.tags 
-     FROM notes n
-     INNER JOIN published_notes pn ON n.id = pn.note_id
-     WHERE n.folder_id = ? AND n.user_id = ? AND pn.is_active = TRUE`,
+     FROM pages n
+     INNER JOIN published_notes pn ON n.id = pn.page_id
+     WHERE n.section_id = ? AND n.user_id = ? AND pn.is_active = TRUE`,
     [folderId, ownerId]
   );
 
   // Get user's note order preference
   let noteOrder: Record<string, string[]> = {};
   try {
-    const [user] = await executeQuery<UserDetailsRow[]>(
+    const user = await executeQuery<UserDetailsRow[]>(
       'SELECT note_order FROM users WHERE id = ?',
       [ownerId]
     );
@@ -117,20 +117,20 @@ async function getFolderDetails(
   // Get published notes with details
   const publishedNotes: PublishedNoteWithDetails[] = [];
   for (const note of orderedNotes) {
-    const [publishedNote] = await executeQuery<PublishedNoteRow[]>(
-      'SELECT * FROM published_notes WHERE note_id = ? AND is_active = TRUE',
+    const publishedNote = await executeQuery<PublishedNoteRow[]>(
+      'SELECT * FROM published_notes WHERE page_id = ? AND is_active = TRUE',
       [note.id]
     );
 
     if (publishedNote) {
-      const [owner] = await executeQuery<UserDetailsRow[]>(
+      const owner = await executeQuery<UserDetailsRow[]>(
         'SELECT name, email FROM users WHERE id = ?',
         [ownerId]
       );
 
       publishedNotes.push({
         id: publishedNote.id,
-        note_id: note.id,
+        page_id: note.id,
         share_id: publishedNote.share_id,
         owner_id: ownerId,
         is_active: Boolean(publishedNote.is_active),
@@ -146,8 +146,8 @@ async function getFolderDetails(
   }
 
   // Get the published folder record for share_id
-  const [publishedFolderRecord] = await executeQuery<PublishedFolderRow[]>(
-    'SELECT * FROM published_folders WHERE folder_id = ? AND is_active = TRUE',
+  const publishedFolderRecord = await executeQuery<PublishedFolderRow[]>(
+    'SELECT * FROM published_folders WHERE section_id = ? AND is_active = TRUE',
     [folderId]
   );
 
@@ -160,7 +160,7 @@ async function getFolderDetails(
 
   return {
     id: publishedFolderRecord.id,
-    folder_id: folderId,
+    section_id: folderId,
     share_id: publishedFolderRecord.share_id,
     owner_id: ownerId,
     is_active: Boolean(publishedFolderRecord.is_active),
@@ -183,7 +183,7 @@ export default defineEventHandler(async (event): Promise<PublishedFolderWithDeta
   }
 
   // Get published folder
-  const [published] = await executeQuery<PublishedFolderRow[]>(
+  const published = await executeQuery<PublishedFolderRow[]>(
     'SELECT * FROM published_folders WHERE share_id = ? AND is_active = TRUE',
     [shareId]
   );
@@ -196,7 +196,7 @@ export default defineEventHandler(async (event): Promise<PublishedFolderWithDeta
   }
 
   // Get folder details (no subfolders)
-  const folderDetails = await getFolderDetails(published.folder_id, published.owner_id);
+  const folderDetails = await getFolderDetails(published.section_id, published.owner_id);
 
   return folderDetails;
 });

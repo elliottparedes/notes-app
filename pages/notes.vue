@@ -133,13 +133,13 @@ async function loadData() {
 }
 
 // Search handling
-async function handleSearchNoteSelected(note: Note | { id: string }, searchQuery?: string) {
+async function handleSearchNoteSelected(note: Page | { id: string }, searchQuery?: string) {
   isLoadingNoteFromSearch.value = true;
   searchQueryForHighlight.value = searchQuery || null;
 
   try {
-    await navigateToNote(note, spacesStore.expandedSpaceIds, (folderId) => {
-      selectedFolderId.value = folderId;
+    await navigateToNote(note, spacesStore.expandedSpaceIds, (sectionId) => {
+      selectedFolderId.value = sectionId;
     });
   } catch (error) {
     console.error('Failed to navigate to note from search:', error);
@@ -158,7 +158,7 @@ function toggleFocusMode() {
 }
 
 // Space modal handlers
-function openEditSpaceModal(space: Space) {
+function openEditSpaceModal(space: Notebook) {
   editingSpace.value = space;
   showSpaceModal.value = true;
 }
@@ -174,13 +174,13 @@ function handleBackToHomeFromFolder() {
 }
 
 // Wrapped folder select to handle previousFolderId
-async function handleFolderSelect(folderId: number) {
-  await folderActions.handleSelectFolder(folderId, selectedFolderId, previousFolderId, handleOpenNote);
+async function handleFolderSelect(sectionId: number) {
+  await folderActions.handleSelectFolder(sectionId, selectedFolderId, previousFolderId, handleOpenNote);
 }
 
 // Wrapped folder delete
-async function handleFolderDelete(folderId: number) {
-  await folderActions.handleDeleteFolder(folderId, selectedFolderId);
+async function handleFolderDelete(sectionId: number) {
+  await folderActions.handleDeleteFolder(sectionId, selectedFolderId);
 }
 
 // Wrapped space delete confirm
@@ -217,12 +217,12 @@ onMounted(async () => {
   // If there's an active note but no selected folder, select the note's folder
   if (activeNote.value && !selectedFolderId.value) {
     const note = activeNote.value;
-    if (note.folder_id) {
-      selectedFolderId.value = note.folder_id;
+    if (note.section_id) {
+      selectedFolderId.value = note.section_id;
       // Expand the space that contains this folder
-      const folder = foldersStore.getFolderById(note.folder_id);
+      const folder = foldersStore.getFolderById(note.section_id);
       if (folder) {
-        spacesStore.expandSpace(folder.space_id);
+        spacesStore.expandSpace(folder.notebook_id);
       }
     } else {
       // Note has no folder, clear the active note
@@ -259,7 +259,7 @@ onUnmounted(() => {
       @edit-space="openEditSpaceModal"
     />
 
-    <!-- Desktop: Note List Column -->
+    <!-- Desktop: Page List Column -->
     <NoteListColumn
       v-if="currentView === 'notebooks'"
       :selected-folder-id="selectedFolderId"
@@ -301,7 +301,7 @@ onUnmounted(() => {
         />
       </template>
 
-      <!-- Mobile: Folder Notes List -->
+      <!-- Mobile: Section Notes List -->
       <div
         v-else-if="selectedFolderId"
         class="lg:hidden flex-1 overflow-y-auto pb-28"

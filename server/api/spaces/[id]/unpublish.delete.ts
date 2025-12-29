@@ -19,7 +19,7 @@ export default defineEventHandler(async (event) => {
   try {
     // Verify space ownership
     const spaceResults = await executeQuery<SpaceOwnerRow[]>(
-      'SELECT user_id FROM spaces WHERE id = ?',
+      'SELECT user_id FROM notebooks WHERE id = ?',
       [spaceId]
     );
 
@@ -36,13 +36,13 @@ export default defineEventHandler(async (event) => {
     async function unpublishFolder(folderId: number) {
       // Unpublish all notes in this folder
       const notesInFolder = await executeQuery<Array<{ id: string }>>(
-        'SELECT id FROM notes WHERE folder_id = ? AND user_id = ?',
+        'SELECT id FROM pages WHERE section_id = ? AND user_id = ?',
         [folderId, userId]
       );
 
       for (const note of notesInFolder) {
         await executeQuery(
-          'UPDATE published_notes SET is_active = FALSE, updated_at = CURRENT_TIMESTAMP WHERE note_id = ? AND owner_id = ?',
+          'UPDATE published_notes SET is_active = FALSE, updated_at = CURRENT_TIMESTAMP WHERE page_id = ? AND owner_id = ?',
           [note.id, userId]
         );
       }
@@ -50,7 +50,7 @@ export default defineEventHandler(async (event) => {
 
     // Get all folders in this space
     const foldersInSpace = await executeQuery<Array<{ id: number }>>(
-      'SELECT id FROM folders WHERE space_id = ? AND user_id = ?',
+      'SELECT id FROM sections WHERE notebook_id = ? AND user_id = ?',
       [spaceId, userId]
     );
 
@@ -58,7 +58,7 @@ export default defineEventHandler(async (event) => {
     for (const folder of foldersInSpace) {
       // First unpublish the folder itself
       await executeQuery(
-        'UPDATE published_folders SET is_active = FALSE, updated_at = CURRENT_TIMESTAMP WHERE folder_id = ? AND owner_id = ?',
+        'UPDATE published_folders SET is_active = FALSE, updated_at = CURRENT_TIMESTAMP WHERE section_id = ? AND owner_id = ?',
         [folder.id, userId]
       );
       // Then unpublish its notes
@@ -67,24 +67,24 @@ export default defineEventHandler(async (event) => {
 
     // Unpublish all notes without folders in this space
     const rootNotes = await executeQuery<Array<{ id: string }>>(
-      `SELECT n.id FROM notes n
-       WHERE n.folder_id IS NULL AND n.user_id = ?
+      `SELECT n.id FROM pages n
+       WHERE n.section_id IS NULL AND n.user_id = ?
        AND EXISTS (
-         SELECT 1 FROM folders f WHERE f.space_id = ? AND f.user_id = ?
+         SELECT 1 FROM sections f WHERE f.notebook_id = ? AND f.user_id = ?
        )`,
       [userId, spaceId, userId]
     );
 
     for (const note of rootNotes) {
       await executeQuery(
-        'UPDATE published_notes SET is_active = FALSE, updated_at = CURRENT_TIMESTAMP WHERE note_id = ? AND owner_id = ?',
+        'UPDATE published_notes SET is_active = FALSE, updated_at = CURRENT_TIMESTAMP WHERE page_id = ? AND owner_id = ?',
         [note.id, userId]
       );
     }
 
     // Unpublish the space itself
     await executeQuery(
-      'UPDATE published_spaces SET is_active = FALSE, updated_at = CURRENT_TIMESTAMP WHERE space_id = ? AND owner_id = ?',
+      'UPDATE published_spaces SET is_active = FALSE, updated_at = CURRENT_TIMESTAMP WHERE notebook_id = ? AND owner_id = ?',
       [spaceId, userId]
     );
 

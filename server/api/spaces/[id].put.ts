@@ -32,7 +32,7 @@ export default defineEventHandler(async (event) => {
   try {
     // Verify space exists and belongs to user
     const existing = await executeQuery<Space[]>(`
-      SELECT id FROM spaces 
+      SELECT id FROM notebooks 
       WHERE id = ? AND user_id = ?
     `, [spaceId, userId]);
 
@@ -46,7 +46,7 @@ export default defineEventHandler(async (event) => {
     // Check if name change would conflict with another space
     if (body.name) {
       const nameConflict = await executeQuery<any[]>(`
-        SELECT id FROM spaces 
+        SELECT id FROM notebooks 
         WHERE user_id = ? AND name = ? AND id != ?
       `, [userId, body.name.trim(), spaceId]);
 
@@ -80,7 +80,7 @@ export default defineEventHandler(async (event) => {
 
     // Update the space
     await executeQuery(`
-      UPDATE spaces 
+      UPDATE notebooks 
       SET ${updates.join(', ')}
       WHERE id = ? AND user_id = ?
     `, values);
@@ -88,7 +88,7 @@ export default defineEventHandler(async (event) => {
     // Fetch the updated space
     const spaces = await executeQuery<Space[]>(`
       SELECT id, user_id, name, color, icon, created_at, updated_at
-      FROM spaces
+      FROM notebooks
       WHERE id = ?
     `, [spaceId]);
     

@@ -25,8 +25,8 @@ export default defineEventHandler(async (event) => {
   }
 
   // Verify folder ownership
-  const [folder] = await executeQuery<Array<{ user_id: number; space_id: number }>>(
-    'SELECT user_id, space_id FROM folders WHERE id = ?',
+  const folder = await executeQuery<Array<{ user_id: number; notebook_id: number }>>(
+    'SELECT user_id, notebook_id FROM sections WHERE id = ?',
     [folderId]
   );
 
@@ -38,14 +38,14 @@ export default defineEventHandler(async (event) => {
   }
 
   // Check if parent space is published
-  const [spacePublished] = await executeQuery<SpacePublishStatusRow[]>(
-    'SELECT share_id, is_active FROM published_spaces WHERE space_id = ? AND owner_id = ? AND is_active = TRUE',
-    [folder.space_id, userId]
+  const spacePublished = await executeQuery<SpacePublishStatusRow[]>(
+    'SELECT share_id, is_active FROM published_spaces WHERE notebook_id = ? AND owner_id = ? AND is_active = TRUE',
+    [folder.notebook_id, userId]
   );
 
   // Get folder publish status
-  const [published] = await executeQuery<PublishStatusRow[]>(
-    'SELECT share_id, is_active, created_at FROM published_folders WHERE folder_id = ? AND owner_id = ?',
+  const published = await executeQuery<PublishStatusRow[]>(
+    'SELECT share_id, is_active, created_at FROM published_folders WHERE section_id = ? AND owner_id = ?',
     [folderId, userId]
   );
 

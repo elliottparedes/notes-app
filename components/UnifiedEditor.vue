@@ -788,7 +788,7 @@ const props = defineProps<{
   initialContent?: string;
   editable?: boolean;
   placeholder?: string;
-  noteId?: string;
+  pageId?: string;
   isCollaborative?: boolean;
   isPolishing?: boolean;
   isAskingAI?: boolean;
@@ -805,7 +805,7 @@ const emit = defineEmits<{
   (e: 'attachmentUploaded', attachment: any): void;
   (e: 'request-polish'): void;
   (e: 'request-ask-ai', prompt: string): void;
-  (e: 'note-link-clicked', noteId: string): void;
+  (e: 'note-link-clicked', pageId: string): void;
 }>();
 
 const notesStore = useNotesStore()
@@ -1028,8 +1028,8 @@ const baseExtensions = [
 // (Collaborative editing uses Y.Doc's own history mechanism)
 // Access ydoc from ydocManager
 let ydoc: Y.Doc | null = null
-if (props.isCollaborative && props.noteId) {
-  ydoc = ydocManager.getDoc(props.noteId)
+if (props.isCollaborative && props.pageId) {
+  ydoc = ydocManager.getDoc(props.pageId)
 }
 
 if (!props.isCollaborative || !ydoc) {
@@ -1082,10 +1082,10 @@ const editor = useEditor({
         // Check if the clicked element is a note-link or inside one
         const noteLink = target.closest('.note-link')
         if (noteLink) {
-          const noteId = noteLink.getAttribute('data-id')
-          if (noteId) {
-            console.log('[UnifiedEditor] Note link clicked:', noteId)
-            emit('note-link-clicked', noteId)
+          const pageId = noteLink.getAttribute('data-id')
+          if (pageId) {
+            console.log('[UnifiedEditor] Note link clicked:', pageId)
+            emit('note-link-clicked', pageId)
             return true
           }
         }
@@ -1151,7 +1151,7 @@ if (!props.isCollaborative) {
     const isFocused = editor.value.isFocused;
     
     // Only update if editor is not focused (prevents cursor jumping while typing)
-    // AND if we're not in the middle of a note change (which is handled by noteId watcher)
+    // AND if we're not in the middle of a note change (which is handled by pageId watcher)
     // OR if we are explicitly polishing/asking AI (streaming content)
     if (!isFocused || props.isPolishing || props.isAskingAI) {
       editor.value.chain()
@@ -1170,19 +1170,19 @@ watch(() => props.editable, (newValue) => {
 })
 
 // Track if we've already scrolled for this note + search query combination
-const hasScrolledForSearch = ref<{ noteId: string; query: string } | null>(null)
+const hasScrolledForSearch = ref<{ pageId: string; query: string } | null>(null)
 
 // Function to scroll to first match (no highlighting)
-function scrollToFirstMatch(query: string | null, noteId?: string) {
+function scrollToFirstMatch(query: string | null, pageId?: string) {
   if (!editor.value || !query || !query.trim()) {
     return
   }
   
-  const currentNoteId = noteId || props.noteId || ''
+  const currentNoteId = pageId || props.pageId || ''
   const searchQuery = query.trim()
   
   // Check if we've already scrolled for this note + query combination
-  if (hasScrolledForSearch.value?.noteId === currentNoteId && 
+  if (hasScrolledForSearch.value?.pageId === currentNoteId && 
       hasScrolledForSearch.value?.query === searchQuery) {
     return // Already scrolled for this combination, don't scroll again
   }
@@ -1242,7 +1242,7 @@ function scrollToFirstMatch(query: string | null, noteId?: string) {
           })
           
           // Mark as scrolled
-          hasScrolledForSearch.value = { noteId: currentNoteId, query: searchQuery }
+          hasScrolledForSearch.value = { pageId: currentNoteId, query: searchQuery }
         } else {
           // Fallback to Tiptap native
           editor.value?.commands.scrollIntoView()
@@ -1255,13 +1255,13 @@ function scrollToFirstMatch(query: string | null, noteId?: string) {
 }
 
 // Watch for note ID changes - reset scroll tracking when note changes
-watch(() => props.noteId, (newNoteId) => {
+watch(() => props.pageId, (newNoteId) => {
   // Reset scroll tracking when switching to a different note
-  if (hasScrolledForSearch.value?.noteId !== newNoteId) {
+  if (hasScrolledForSearch.value?.pageId !== newNoteId) {
     hasScrolledForSearch.value = null
   }
 
-  // FORCE reload content if noteId changed and it's not collaborative
+  // FORCE reload content if pageId changed and it's not collaborative
   if (!props.isCollaborative && editor.value) {
     isSuppressingUpdate.value = true;
     editor.value.chain()
@@ -1282,9 +1282,9 @@ watch(() => props.searchQuery, (newQuery) => {
     (editor.value.commands as any).setSearchHighlight(newQuery)
     
     if (newQuery) {
-      const currentNoteId = props.noteId || ''
+      const currentNoteId = props.pageId || ''
       // Only scroll if we haven't scrolled for this note + query yet
-      if (hasScrolledForSearch.value?.noteId !== currentNoteId || 
+      if (hasScrolledForSearch.value?.pageId !== currentNoteId || 
           hasScrolledForSearch.value?.query !== newQuery.trim()) {
         nextTick(() => {
           setTimeout(() => {
@@ -1302,9 +1302,9 @@ watch(editor, (editorInstance) => {
     // Set highlight
     (editorInstance.commands as any).setSearchHighlight(props.searchQuery)
     
-    const currentNoteId = props.noteId || ''
+    const currentNoteId = props.pageId || ''
     // Only scroll if we haven't scrolled for this note + query yet
-    if (hasScrolledForSearch.value?.noteId !== currentNoteId || 
+    if (hasScrolledForSearch.value?.pageId !== currentNoteId || 
         hasScrolledForSearch.value?.query !== props.searchQuery.trim()) {
       nextTick(() => {
         setTimeout(() => {
@@ -1592,7 +1592,7 @@ function cancelYouTube() {
 
 // File upload functions
 function openFileDialog() {
-  if (!props.noteId) {
+  if (!props.pageId) {
     console.warn('[UnifiedEditor] Note ID is required for file uploads')
     return
   }
@@ -1603,7 +1603,7 @@ async function handleFileSelect(event: Event) {
   const target = event.target as HTMLInputElement
   const files = target.files
   
-  if (!files || files.length === 0 || !props.noteId) return
+  if (!files || files.length === 0 || !props.pageId) return
   
   await uploadFiles(Array.from(files))
   
@@ -1614,7 +1614,7 @@ async function handleFileSelect(event: Event) {
 }
 
 async function uploadFiles(files: File[]) {
-  if (isUploadingFile.value || !props.noteId) return
+  if (isUploadingFile.value || !props.pageId) return
   
   const authStore = useAuthStore()
   if (!authStore.token) {
@@ -1636,7 +1636,7 @@ async function uploadFiles(files: File[]) {
         file_path: string;
         mime_type: string | null;
         presigned_url?: string;
-      }>(`/api/notes/${props.noteId}/attachments`, {
+      }>(`/api/pages/${props.pageId}/attachments`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${authStore.token}`,

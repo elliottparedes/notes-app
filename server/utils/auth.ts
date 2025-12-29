@@ -1,8 +1,16 @@
 import bcrypt from 'bcrypt';
 import type { H3Event } from 'h3';
 import { verifyToken, extractTokenFromEvent } from './jwt';
+import { verifyApiKey, validateScope, checkRateLimit, getRateLimitResetTime } from './api-keys';
 
 const SALT_ROUNDS = 10;
+
+export interface AuthContext {
+  userId: number;
+  authType: 'jwt' | 'api_key';
+  scopes?: string[];
+  keyId?: number;
+}
 
 export async function hashPassword(password: string): Promise<string> {
   return await bcrypt.hash(password, SALT_ROUNDS);
@@ -15,15 +23,113 @@ export async function comparePassword(
   return await bcrypt.compare(password, hash);
 }
 
-export async function requireAuth(event: H3Event): Promise<number> {
+/**
+ * Extracts API key from request headers
+ */
+function extractApiKeyFromEvent(event: H3Event): string | null {
+  // Try Authorization header: "Bearer na_xxx"
+  const authHeader = getHeader(event, 'authorization');
+  if (authHeader?.startsWith('Bearer na_')) {
+    return authHeader.substring(7);
+  }
+
+  // Try X-API-Key header
+  const apiKeyHeader = getHeader(event, 'x-api-key');
+  if (apiKeyHeader?.startsWith('na_')) {
+    return apiKeyHeader;
+  }
+
+  return null;
+}
+
+/**
+ * Get full authentication context with type and scopes
+ */
+export async function getAuthContext(event: H3Event): Promise<AuthContext> {
+  // Try JWT first
   const token = extractTokenFromEvent(event);
-  if (!token) {
+  if (token) {
+    try {
+      const payload = verifyToken(token);
+      return {
+        userId: payload.userId,
+        authType: 'jwt',
+        scopes: ['read', 'write'] // JWT has full access
+      };
+    } catch (error) {
+      // JWT verification failed, try API key
+    }
+  }
+
+  // Try API key
+  const apiKey = extractApiKeyFromEvent(event);
+  if (apiKey) {
+    const keyData = await verifyApiKey(apiKey);
+
+    if (!keyData) {
+      throw createError({
+        statusCode: 401,
+        message: 'Invalid API key'
+      });
+    }
+
+    // Check rate limit
+    if (!checkRateLimit(keyData.keyId)) {
+      const resetTime = getRateLimitResetTime(keyData.keyId);
+      const retryAfter = resetTime ? Math.ceil((resetTime - Date.now()) / 1000) : 3600;
+
+      throw createError({
+        statusCode: 429,
+        statusMessage: 'Rate limit exceeded',
+        data: {
+          retryAfter
+        }
+      });
+    }
+
+    return {
+      userId: keyData.userId,
+      authType: 'api_key',
+      scopes: keyData.scopes,
+      keyId: keyData.keyId
+    };
+  }
+
+  throw createError({
+    statusCode: 401,
+    message: 'Authentication required'
+  });
+}
+
+/**
+ * Legacy requireAuth - returns userId only (backward compatible)
+ */
+export async function requireAuth(event: H3Event): Promise<number> {
+  const context = await getAuthContext(event);
+  return context.userId;
+}
+
+/**
+ * Require specific scope for API key requests
+ */
+export async function requireScope(event: H3Event, requiredScope: 'read' | 'write'): Promise<number> {
+  const context = await getAuthContext(event);
+
+  // JWT always has all scopes
+  if (context.authType === 'jwt') {
+    return context.userId;
+  }
+
+  // Check API key scopes
+  const hasScope = context.scopes && validateScope(requiredScope, context.scopes);
+
+  if (!hasScope) {
     throw createError({
-      statusCode: 401,
-      message: 'No token provided'
+      statusCode: 403,
+      message: `Insufficient permissions. Required scope: ${requiredScope}`
     });
   }
-  const payload = verifyToken(token);
-  return payload.userId;
+
+  return context.userId;
 }
 

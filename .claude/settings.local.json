@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find:*)",
+      "Bash({} ;)",
+      "Bash(node migrations/run-migration.js:*)",
+      "Bash(mysql:*)",
+      "Bash(node migrations/check-table.js:*)",
+      "Bash(node migrations/drop-order-tables.js:*)",
+      "Bash(node migrations/021_migrate_order_data.js:*)",
+      "Bash(npm run build)"
+    ]
+  }
+}

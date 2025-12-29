@@ -38,13 +38,13 @@ onMounted(() => {
   });
 });
 
-async function handleSelectSpace(spaceId: number) {
-  if (spacesStore.currentSpaceId === spaceId) {
+async function handleSelectSpace(notebookId: number) {
+  if (spacesStore.currentSpaceId === notebookId) {
     isDropdownOpen.value = false;
     return;
   }
 
-  spacesStore.setCurrentSpace(spaceId);
+  spacesStore.setCurrentSpace(notebookId);
   
   // The dashboard watcher will automatically fetch folders when currentSpaceId changes
   // No need to call fetchFolders() here to avoid duplicate calls
@@ -65,7 +65,7 @@ function handleEditSpace(space: { id: number; name: string }, e: MouseEvent) {
   isDropdownOpen.value = false;
 }
 
-function handleDeleteSpace(spaceId: number, e: MouseEvent) {
+function handleDeleteSpace(notebookId: number, e: MouseEvent) {
   e.stopPropagation();
   
   // Check if this is the last space
@@ -78,7 +78,7 @@ function handleDeleteSpace(spaceId: number, e: MouseEvent) {
     return;
   }
 
-  const space = spacesStore.spaces.find(s => s.id === spaceId);
+  const space = spacesStore.spaces.find(s => s.id === notebookId);
   if (space) {
     deletingSpace.value = { id: space.id, name: space.name };
     showDeleteModal.value = true;
@@ -136,10 +136,10 @@ function handleSpaceUpdated(space: any) {
 
 // Ensure reactivity by watching both currentSpaceId and spaces array
 const currentSpace = computed(() => {
-  const spaceId = spacesStore.currentSpaceId;
+  const notebookId = spacesStore.currentSpaceId;
   const spaces = spacesStore.spaces;
-  if (!spaceId) return null;
-  const space = spaces.find(s => s.id === spaceId);
+  if (!notebookId) return null;
+  const space = spaces.find(s => s.id === notebookId);
   return space || null;
 });
 </script>

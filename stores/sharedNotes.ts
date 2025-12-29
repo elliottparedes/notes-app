@@ -27,13 +27,13 @@ export const useSharedNotesStore = defineStore('sharedNotes', {
     },
 
     // Get shares for a specific note
-    getSharesForNote: (state) => (noteId: string): SharedNoteWithDetails[] => {
-      return state.sharedNotes.filter(share => share.note_id === noteId);
+    getSharesForNote: (state) => (pageId: string): SharedNoteWithDetails[] => {
+      return state.sharedNotes.filter(share => share.page_id === pageId);
     },
 
     // Check if a note is shared
-    isNoteShared: (state) => (noteId: string): boolean => {
-      return state.sharedNotes.some(share => share.note_id === noteId);
+    isNoteShared: (state) => (pageId: string): boolean => {
+      return state.sharedNotes.some(share => share.page_id === pageId);
     },
 
     // Grouped shared notes - one entry per unique note
@@ -41,15 +41,15 @@ export const useSharedNotesStore = defineStore('sharedNotes', {
       const grouped = new Map<string, SharedNoteWithDetails & { shareCount: number }>();
       
       state.sharedNotes.forEach(share => {
-        if (!grouped.has(share.note_id)) {
+        if (!grouped.has(share.page_id)) {
           // First share for this note - add it with count
-          grouped.set(share.note_id, {
+          grouped.set(share.page_id, {
             ...share,
             shareCount: 1
           });
         } else {
           // Note already exists - increment count
-          const existing = grouped.get(share.note_id)!;
+          const existing = grouped.get(share.page_id)!;
           existing.shareCount++;
         }
       });
@@ -73,7 +73,7 @@ export const useSharedNotesStore = defineStore('sharedNotes', {
           throw new Error('Not authenticated');
         }
 
-        this.sharedNotes = await $fetch<SharedNoteWithDetails[]>('/api/notes/shared', {
+        this.sharedNotes = await $fetch<SharedNoteWithDetails[]>('/api/pages/shared', {
           headers: {
             Authorization: `Bearer ${authStore.token}`
           }
@@ -87,7 +87,7 @@ export const useSharedNotesStore = defineStore('sharedNotes', {
       }
     },
 
-    async shareNote(noteId: string, userEmail: string, permission: 'viewer' | 'editor' = 'editor'): Promise<void> {
+    async shareNote(pageId: string, userEmail: string, permission: 'viewer' | 'editor' = 'editor'): Promise<void> {
       const authStore = useAuthStore();
       
       if (!authStore.token) {
@@ -95,7 +95,7 @@ export const useSharedNotesStore = defineStore('sharedNotes', {
       }
 
       try {
-        await $fetch(`/api/notes/${noteId}/share`, {
+        await $fetch(`/api/pages/${pageId}/share`, {
           method: 'POST',
           headers: {
             Authorization: `Bearer ${authStore.token}`
@@ -122,7 +122,7 @@ export const useSharedNotesStore = defineStore('sharedNotes', {
       }
 
       try {
-        await $fetch(`/api/notes/share/${shareId}`, {
+        await $fetch(`/api/pages/share/${shareId}`, {
           method: 'DELETE',
           headers: {
             Authorization: `Bearer ${authStore.token}`

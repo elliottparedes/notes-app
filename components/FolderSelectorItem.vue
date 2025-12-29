@@ -2,12 +2,12 @@
 import type { Folder } from '~/models';
 
 interface Props {
-  folder: Folder;
+  folder: Section;
   selectedId: number | null;
 }
 
 interface Emits {
-  (e: 'select', folderId: number): void;
+  (e: 'select', sectionId: number): void;
 }
 
 const props = defineProps<Props>();

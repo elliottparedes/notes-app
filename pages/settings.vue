@@ -1,6 +1,5 @@
 <script setup lang="ts">
-import AnalyticsDashboard from '~/components/AnalyticsDashboard.vue';
-import { invalidateProfilePictureCache } from '~/utils/profilePictureCache';
+import ApiKeysSettings from '~/components/settings/ApiKeysSettings.vue';
 
 const authStore = useAuthStore();
 const toast = useToast();
@@ -486,6 +485,9 @@ function goBack() {
           </button>
         </div>
       </div>
+
+      <!-- API Keys Settings -->
+      <ApiKeysSettings />
 
       <!-- Support Unfold Notes -->
       <div class="mb-6 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800">

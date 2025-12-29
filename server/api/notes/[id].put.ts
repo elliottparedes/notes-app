@@ -10,7 +10,7 @@ interface NoteRow {
   tags: string | null;
   is_favorite: number;
   folder: string | null;
-  folder_id: number | null;
+  section_id: number | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -32,8 +32,8 @@ export default defineEventHandler(async (event): Promise<Note> => {
     // Check if note exists and user has permission (owner or shared with editor permission)
     const existingRows = await executeQuery<any[]>(
       `SELECT n.id, n.user_id, sn.permission 
-       FROM notes n
-       LEFT JOIN shared_notes sn ON n.id = sn.note_id AND sn.shared_with_user_id = ?
+       FROM pages n
+       LEFT JOIN shared_notes sn ON n.id = sn.page_id AND sn.shared_with_user_id = ?
        WHERE n.id = ? AND (n.user_id = ? OR sn.permission = 'editor')`,
       [userId, noteId, userId]
     );
@@ -82,9 +82,9 @@ export default defineEventHandler(async (event): Promise<Note> => {
       values.push(body.folder);
     }
 
-    if (body.folder_id !== undefined) {
-      updates.push('folder_id = ?');
-      values.push(body.folder_id);
+    if (body.section_id !== undefined) {
+      updates.push('section_id = ?');
+      values.push(body.section_id);
     }
 
     if (updates.length === 0) {
@@ -99,7 +99,7 @@ export default defineEventHandler(async (event): Promise<Note> => {
 
     // Execute update
     await executeQuery(
-      `UPDATE notes SET ${updates.join(', ')} WHERE id = ?`,
+      `UPDATE pages SET ${updates.join(', ')} WHERE id = ?`,
       values
     );
 
@@ -107,9 +107,9 @@ export default defineEventHandler(async (event): Promise<Note> => {
     const rows = await executeQuery<any[]>(
       `SELECT n.*, 
         sn.permission as share_permission,
-        (SELECT COUNT(*) FROM shared_notes WHERE note_id = n.id) > 0 as is_shared
-       FROM notes n
-       LEFT JOIN shared_notes sn ON n.id = sn.note_id AND sn.shared_with_user_id = ?
+        (SELECT COUNT(*) FROM shared_notes WHERE page_id = n.id) > 0 as is_shared
+       FROM pages n
+       LEFT JOIN shared_notes sn ON n.id = sn.page_id AND sn.shared_with_user_id = ?
        WHERE n.id = ?
        LIMIT 1`,
       [userId, noteId]
@@ -132,7 +132,7 @@ export default defineEventHandler(async (event): Promise<Note> => {
       tags: parseJsonField<string[]>(row.tags),
       is_favorite: Boolean(row.is_favorite),
       folder: row.folder,
-      folder_id: row.folder_id || null,
+      section_id: row.section_id || null,
       created_at: row.created_at,
       updated_at: row.updated_at,
       is_shared: Boolean(row.is_shared),

@@ -2,7 +2,7 @@
 import type { Folder } from '~/models';
 
 interface Props {
-  folder: Folder;
+  folder: Section;
   selectedId: number | null;
   isExpanded?: boolean;
   openMenuId?: number | null;
@@ -11,26 +11,26 @@ interface Props {
 }
 
 interface Emits {
-  (e: 'select', folderId: number): void;
-  (e: 'toggle', folderId: number): void;
-  (e: 'create-note', folderId: number): void;
-  (e: 'create-quick-note', folderId: number): void;
-  (e: 'create-list-note', folderId: number): void;
-  (e: 'create-template-note', folderId: number): void;
-  (e: 'create-ai-note', folderId: number): void;
-  (e: 'import-recipe', folderId: number): void;
-  (e: 'rename', folderId: number): void;
-  (e: 'edit', folder: Folder): void;
-  (e: 'delete', folderId: number): void;
-  (e: 'move-up', folderId: number): void;
-  (e: 'move-down', folderId: number): void;
-  (e: 'reorder-folder', folderId: number, newIndex: number): void;
+  (e: 'select', sectionId: number): void;
+  (e: 'toggle', sectionId: number): void;
+  (e: 'create-note', sectionId: number): void;
+  (e: 'create-quick-note', sectionId: number): void;
+  (e: 'create-list-note', sectionId: number): void;
+  (e: 'create-template-note', sectionId: number): void;
+  (e: 'create-ai-note', sectionId: number): void;
+  (e: 'import-recipe', sectionId: number): void;
+  (e: 'rename', sectionId: number): void;
+  (e: 'edit', folder: Section): void;
+  (e: 'delete', sectionId: number): void;
+  (e: 'move-up', sectionId: number): void;
+  (e: 'move-down', sectionId: number): void;
+  (e: 'reorder-folder', sectionId: number, newIndex: number): void;
   (e: 'update:openMenuId', value: number | null): void;
-  (e: 'drag-start', folderId: number): void;
+  (e: 'drag-start', sectionId: number): void;
   (e: 'drag-end'): void;
-  (e: 'drag-over', event: DragEvent, folderId: number): void;
+  (e: 'drag-over', event: DragEvent, sectionId: number): void;
   (e: 'drag-leave'): void;
-  (e: 'drop', event: DragEvent, folderId: number): void;
+  (e: 'drop', event: DragEvent, sectionId: number): void;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -47,7 +47,7 @@ const notesStore = useNotesStore();
 // Get note count for this folder
 const noteCount = computed(() => {
   return notesStore.notes.filter(note => 
-    note.folder_id === props.folder.id && !note.share_permission
+    note.section_id === props.folder.id && !note.share_permission
   ).length;
 });
 
@@ -191,8 +191,8 @@ function handleDragStart(event: DragEvent) {
   event.dataTransfer.effectAllowed = 'move';
   event.dataTransfer.setData('application/json', JSON.stringify({
     type: 'folder',
-    folderId: props.folder.id,
-    spaceId: props.folder.space_id
+    sectionId: props.folder.id,
+    notebookId: props.folder.notebook_id
   }));
 
   // Add visual feedback
@@ -271,11 +271,11 @@ async function handleDrop(event: DragEvent) {
       emit('drop', event, props.folder.id);
     } else if (data.type === 'note') {
       // Handle note drops
-      const draggedNoteId = data.noteId;
+      const draggedNoteId = data.pageId;
       const targetFolderId = props.folder.id;
 
       const note = notesStore.notes.find(n => n.id === draggedNoteId);
-      if (note && note.folder_id !== targetFolderId) {
+      if (note && note.section_id !== targetFolderId) {
         await notesStore.moveNote(draggedNoteId, targetFolderId);
       }
     }

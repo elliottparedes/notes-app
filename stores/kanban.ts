@@ -25,7 +25,7 @@ export const useKanbanStore = defineStore('kanban', {
   },
 
   actions: {
-    async fetchKanbanCards(folderId: number | null = null, spaceId: number | null = null) {
+    async fetchKanbanCards(sectionId: number | null = null, notebookId: number | null = null) {
       this.loading = true;
       this.error = null;
       const authStore = useAuthStore();
@@ -33,10 +33,10 @@ export const useKanbanStore = defineStore('kanban', {
       try {
         let url = '/api/kanban/cards';
         const params: Record<string, string | number> = {};
-        if (folderId !== null) {
-          params.folder_id = folderId;
-        } else if (spaceId !== null) {
-          params.space_id = spaceId;
+        if (sectionId !== null) {
+          params.section_id = sectionId;
+        } else if (notebookId !== null) {
+          params.notebook_id = notebookId;
         }
         
         const response = await $fetch<KanbanCard[]>(url, {

@@ -9,14 +9,14 @@ export interface Folder {
   updated_at: Date;
 }
 
-export interface CreateFolderDto {
+export interface CreateSectionDto {
   name: string;
   icon?: string | null;
   parent_id?: number | null;
   space_id?: number;
 }
 
-export interface UpdateFolderDto {
+export interface UpdateSectionDto {
   name?: string;
   icon?: string | null;
   parent_id?: number | null;

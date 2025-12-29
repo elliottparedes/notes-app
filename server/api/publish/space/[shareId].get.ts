@@ -3,7 +3,7 @@ import type { PublishedSpaceWithDetails, PublishedFolderWithDetails, PublishedNo
 
 interface PublishedSpaceRow {
   id: number;
-  space_id: number;
+  notebook_id: number;
   share_id: string;
   owner_id: number;
   is_active: number;
@@ -26,7 +26,7 @@ interface NoteRow {
   title: string;
   content: string | null;
   updated_at: Date;
-  folder_id: number | null;
+  section_id: number | null;
 }
 
 interface UserDetailsRow {
@@ -37,7 +37,7 @@ interface UserDetailsRow {
 
 interface PublishedNoteRow {
   id: number;
-  note_id: string;
+  page_id: string;
   share_id: string;
   owner_id: number;
   is_active: number;
@@ -46,7 +46,7 @@ interface PublishedNoteRow {
 
 interface PublishedFolderRow {
   id: number;
-  folder_id: number;
+  section_id: number;
   share_id: string;
   owner_id: number;
   is_active: number;
@@ -61,11 +61,11 @@ async function buildFolderList(
   ownerId: number
 ): Promise<PublishedFolderWithDetails[]> {
   const publishedFolderMap = new Map<number, PublishedFolderRow>();
-  publishedFolders.forEach(pf => publishedFolderMap.set(pf.folder_id, pf));
+  publishedFolders.forEach(pf => publishedFolderMap.set(pf.section_id, pf));
 
   async function getFolderNotes(folderId: number, noteOrder: Record<string, string[]>): Promise<PublishedNoteWithDetails[]> {
     const notes = await executeQuery<NoteRow[]>(
-      'SELECT id, title, content, updated_at, folder_id FROM notes WHERE folder_id = ? AND user_id = ?',
+      'SELECT id, title, content, updated_at, section_id FROM pages WHERE section_id = ? AND user_id = ?',
       [folderId, ownerId]
     );
 
@@ -104,14 +104,14 @@ async function buildFolderList(
     for (const note of orderedNotes) {
       const publishedNote = publishedNotes.get(note.id);
       if (publishedNote) {
-        const [owner] = await executeQuery<UserDetailsRow[]>(
+        const owner = await executeQuery<UserDetailsRow[]>(
           'SELECT name, email FROM users WHERE id = ?',
           [ownerId]
         );
 
         publishedFolderNotes.push({
           id: publishedNote.id,
-          note_id: note.id,
+          page_id: note.id,
           share_id: publishedNote.share_id,
           owner_id: ownerId,
           is_active: Boolean(publishedNote.is_active),
@@ -132,7 +132,7 @@ async function buildFolderList(
   // Get user's note order preference
   let noteOrder: Record<string, string[]> = {};
   try {
-    const [user] = await executeQuery<UserDetailsRow[]>(
+    const user = await executeQuery<UserDetailsRow[]>(
       'SELECT note_order FROM users WHERE id = ?',
       [ownerId]
     );
@@ -155,7 +155,7 @@ async function buildFolderList(
       
       folderList.push({
         id: publishedFolder.id,
-        folder_id: folder.id,
+        section_id: folder.id,
         share_id: publishedFolder.share_id,
         owner_id: ownerId,
         is_active: Boolean(publishedFolder.is_active),
@@ -182,7 +182,7 @@ export default defineEventHandler(async (event): Promise<PublishedSpaceWithDetai
   }
 
   // Get published space
-  const [published] = await executeQuery<PublishedSpaceRow[]>(
+  const published = await executeQuery<PublishedSpaceRow[]>(
     'SELECT * FROM published_spaces WHERE share_id = ? AND is_active = TRUE',
     [shareId]
   );
@@ -195,9 +195,9 @@ export default defineEventHandler(async (event): Promise<PublishedSpaceWithDetai
   }
 
   // Get space details
-  const [space] = await executeQuery<SpaceDetailsRow[]>(
-    'SELECT name FROM spaces WHERE id = ?',
-    [published.space_id]
+  const space = await executeQuery<SpaceDetailsRow[]>(
+    'SELECT name FROM notebooks WHERE id = ?',
+    [published.notebook_id]
   );
 
   if (!space) {
@@ -210,39 +210,39 @@ export default defineEventHandler(async (event): Promise<PublishedSpaceWithDetai
   // Get all published notes in this space
   const allPublishedNotes = await executeQuery<PublishedNoteRow[]>(
     `SELECT pn.* FROM published_notes pn
-     INNER JOIN notes n ON pn.note_id = n.id
-     LEFT JOIN folders f ON n.folder_id = f.id
+     INNER JOIN pages n ON pn.page_id = n.id
+     LEFT JOIN sections f ON n.section_id = f.id
      WHERE pn.owner_id = ? AND pn.is_active = TRUE
-     AND (f.space_id = ? OR (n.folder_id IS NULL AND EXISTS (
-       SELECT 1 FROM folders WHERE space_id = ? AND user_id = ?
+     AND (f.notebook_id = ? OR (n.section_id IS NULL AND EXISTS (
+       SELECT 1 FROM sections WHERE notebook_id = ? AND user_id = ?
      )))
-     OR (n.folder_id IS NULL AND NOT EXISTS (
-       SELECT 1 FROM folders WHERE user_id = ? AND space_id = ?
+     OR (n.section_id IS NULL AND NOT EXISTS (
+       SELECT 1 FROM sections WHERE user_id = ? AND notebook_id = ?
      ))`,
-    [published.owner_id, published.space_id, published.space_id, published.owner_id, published.owner_id, published.space_id]
+    [published.owner_id, published.notebook_id, published.notebook_id, published.owner_id, published.owner_id, published.notebook_id]
   );
 
   // Actually, let's simplify - get all notes for this user and filter by space via folder
   const publishedNotesMap = new Map<string, PublishedNoteRow>();
   for (const pn of allPublishedNotes) {
     // Verify note belongs to this space
-    const [note] = await executeQuery<Array<{ folder_id: number | null }>>(
-      'SELECT folder_id FROM notes WHERE id = ?',
-      [pn.note_id]
+    const note = await executeQuery<Array<{ section_id: number | null }>>(
+      'SELECT section_id FROM pages WHERE id = ?',
+      [pn.page_id]
     );
 
     if (note) {
-      if (note.folder_id === null) {
+      if (note.section_id === null) {
         // Note without folder - include it
-        publishedNotesMap.set(pn.note_id, pn);
+        publishedNotesMap.set(pn.page_id, pn);
       } else {
         // Check if folder belongs to this space
-        const [folder] = await executeQuery<Array<{ space_id: number }>>(
-          'SELECT space_id FROM folders WHERE id = ?',
-          [note.folder_id]
+        const folder = await executeQuery<Array<{ notebook_id: number }>>(
+          'SELECT notebook_id FROM sections WHERE id = ?',
+          [note.section_id]
         );
-        if (folder && folder.space_id === published.space_id) {
-          publishedNotesMap.set(pn.note_id, pn);
+        if (folder && folder.notebook_id === published.notebook_id) {
+          publishedNotesMap.set(pn.page_id, pn);
         }
       }
     }
@@ -251,20 +251,20 @@ export default defineEventHandler(async (event): Promise<PublishedSpaceWithDetai
   // Get all published folders in this space
   const publishedFoldersData = await executeQuery<PublishedFolderRow[]>(
     `SELECT pf.* FROM published_folders pf
-     INNER JOIN folders f ON pf.folder_id = f.id
-     WHERE pf.owner_id = ? AND pf.is_active = TRUE AND f.space_id = ?`,
-    [published.owner_id, published.space_id]
+     INNER JOIN sections f ON pf.section_id = f.id
+     WHERE pf.owner_id = ? AND pf.is_active = TRUE AND f.notebook_id = ?`,
+    [published.owner_id, published.notebook_id]
   );
 
   // Get all folders in this space
   const allFolders = await executeQuery<FolderRow[]>(
-    'SELECT id, name, parent_id FROM folders WHERE space_id = ? AND user_id = ?',
-    [published.space_id, published.owner_id]
+    'SELECT id, name, parent_id FROM sections WHERE notebook_id = ? AND user_id = ?',
+    [published.notebook_id, published.owner_id]
   );
 
   // Build folder tree
   const folders = await buildFolderList(
-    allFolders.filter(f => publishedFoldersData.some(pf => pf.folder_id === f.id)),
+    allFolders.filter(f => publishedFoldersData.some(pf => pf.section_id === f.id)),
     publishedFoldersData,
     publishedNotesMap,
     published.owner_id
@@ -273,7 +273,7 @@ export default defineEventHandler(async (event): Promise<PublishedSpaceWithDetai
   // Get user's note order preference
   let noteOrder: Record<string, string[]> = {};
   try {
-    const [user] = await executeQuery<UserDetailsRow[]>(
+    const user = await executeQuery<UserDetailsRow[]>(
       'SELECT note_order FROM users WHERE id = ?',
       [published.owner_id]
     );
@@ -289,7 +289,7 @@ export default defineEventHandler(async (event): Promise<PublishedSpaceWithDetai
 
   // Get notes without folders (root level notes) - without ORDER BY, we'll sort by custom order
   const rootNotes = await executeQuery<NoteRow[]>(
-    'SELECT id, title, content, updated_at, folder_id FROM notes WHERE folder_id IS NULL AND user_id = ?',
+    'SELECT id, title, content, updated_at, section_id FROM pages WHERE section_id IS NULL AND user_id = ?',
     [published.owner_id]
   );
 
@@ -328,14 +328,14 @@ export default defineEventHandler(async (event): Promise<PublishedSpaceWithDetai
   for (const note of orderedRootNotes) {
     const publishedNote = publishedNotesMap.get(note.id);
     if (publishedNote) {
-      const [owner] = await executeQuery<UserDetailsRow[]>(
+      const owner = await executeQuery<UserDetailsRow[]>(
         'SELECT name, email FROM users WHERE id = ?',
         [published.owner_id]
       );
 
       publishedRootNotes.push({
         id: publishedNote.id,
-        note_id: note.id,
+        page_id: note.id,
         share_id: publishedNote.share_id,
         owner_id: published.owner_id,
         is_active: Boolean(publishedNote.is_active),
@@ -352,7 +352,7 @@ export default defineEventHandler(async (event): Promise<PublishedSpaceWithDetai
 
   return {
     id: published.id,
-    space_id: published.space_id,
+    notebook_id: published.notebook_id,
     share_id: published.share_id,
     owner_id: published.owner_id,
     is_active: Boolean(published.is_active),

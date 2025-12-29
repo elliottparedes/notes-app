@@ -64,7 +64,7 @@ async function polishNote() {
 
   isPolishing.value = true;
   try {
-    const response = await $fetch<{ title: string; content: string }>('/api/notes/polish', {
+    const response = await $fetch<{ title: string; content: string }>('/api/pages/polish', {
       method: 'POST',
       body: {
         title: title.value,
@@ -87,7 +87,7 @@ async function askAINote(prompt: string) {
 
   isAskingAI.value = true;
   try {
-    const response = await $fetch<{ content: string }>('/api/notes/ask-ai', {
+    const response = await $fetch<{ content: string }>('/api/pages/ask-ai', {
       method: 'POST',
       body: {
         title: title.value,

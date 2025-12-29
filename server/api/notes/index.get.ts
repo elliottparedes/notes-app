@@ -10,7 +10,7 @@ interface NoteRow {
   tags: string | null;
   is_favorite: number;
   folder: string | null;
-  folder_id: number | null;
+  section_id: number | null;
   created_at: Date;
   updated_at: Date;
   share_permission: 'viewer' | 'editor' | null;
@@ -26,13 +26,18 @@ export default defineEventHandler(async (event): Promise<Note[]> => {
     const rows = await executeQuery<NoteRow[]>(
       `SELECT DISTINCT n.*, 
         sn.permission as share_permission,
-        (SELECT COUNT(*) FROM shared_notes WHERE note_id = n.id) > 0 as is_shared
-       FROM notes n
-       LEFT JOIN shared_notes sn ON n.id = sn.note_id AND sn.shared_with_user_id = ?
+        (SELECT COUNT(*) FROM shared_pages WHERE page_id = n.id) > 0 as is_shared
+       FROM pages n
+       LEFT JOIN shared_pages sn ON n.id = sn.page_id AND sn.shared_with_user_id = ?
        WHERE n.user_id = ? OR sn.shared_with_user_id IS NOT NULL
        ORDER BY n.updated_at DESC`,
       [userId, userId]
     );
+
+    if (!Array.isArray(rows)) {
+      console.error('Fetch notes error: Expected array, got:', typeof rows);
+      throw new Error('Database returned unexpected format');
+    }
 
     // Transform database rows to Note objects
     const notes: Note[] = rows.map((row: NoteRow) => ({
@@ -43,7 +48,7 @@ export default defineEventHandler(async (event): Promise<Note[]> => {
       tags: parseJsonField<string[]>(row.tags),
       is_favorite: Boolean(row.is_favorite),
       folder: row.folder,
-      folder_id: row.folder_id || null,
+      section_id: row.section_id || null,
       created_at: row.created_at,
       updated_at: row.updated_at,
       is_shared: Boolean(row.is_shared),
@@ -51,11 +56,11 @@ export default defineEventHandler(async (event): Promise<Note[]> => {
     }));
 
     return notes;
-  } catch (error: unknown) {
+  } catch (error: any) {
     console.error('Fetch notes error:', error);
     throw createError({
       statusCode: 500,
-      message: 'Failed to fetch notes'
+      message: `Failed to fetch notes: ${error.message}`
     });
   }
 });

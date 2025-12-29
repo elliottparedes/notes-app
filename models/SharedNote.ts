@@ -1,6 +1,6 @@
 export interface SharedNote {
   id: number;
-  note_id: string;
+  page_id: string;
   owner_id: number;
   shared_with_user_id: number;
   permission: 'viewer' | 'editor';
@@ -19,7 +19,7 @@ export interface SharedNoteWithDetails extends SharedNote {
 }
 
 export interface ShareNoteDto {
-  note_id: string;
+  page_id: string;
   user_email: string;
   permission: 'viewer' | 'editor';
 }

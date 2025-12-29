@@ -1,10 +1,10 @@
 import { defineStore } from 'pinia';
-import type { Folder, CreateFolderDto, UpdateFolderDto } from '~/models';
+import type { Folder, CreateSectionDto, UpdateSectionDto } from '~/models';
 import { useAuthStore } from './auth';
 import { useSpacesStore } from './spaces';
 
 interface FoldersState {
-  folders: Folder[]; // Flat array of all folders
+  folders: Section[]; // Flat array of all folders
   loading: boolean;
   isReordering: boolean; // Track if we're reordering (shouldn't show loading screen)
   error: string | null;
@@ -12,7 +12,7 @@ interface FoldersState {
 }
 
 export const useFoldersStore = defineStore('folders', {
-  state: (): FoldersState => ({
+  state: (): SectionsState => ({
     folders: [], // Flat array
     loading: false,
     isReordering: false, // Track if we're reordering (prevents loading screen)
@@ -27,43 +27,43 @@ export const useFoldersStore = defineStore('folders', {
     },
 
     // Get folder by ID (searches flat array for O(n) lookup)
-    getFolderById: (state) => (id: number): Folder | undefined => {
+    getFolderById: (state) => (id: number): Section | undefined => {
       return state.folders.find(f => f.id === id);
     },
 
     // Helper to get siblings of a folder (all folders in the same space are siblings now)
     getSiblings() {
-      return (folderId: number): Folder[] => {
-        const folder = this.getFolderById(folderId);
+      return (sectionId: number): Section[] => {
+        const folder = this.getFolderById(sectionId);
         if (!folder) return [];
 
         // All folders are root-level, so get all folders in the same space
         const spacesStore = useSpacesStore();
-        return this.folders.filter(f => f.space_id === folder.space_id);
+        return this.folders.filter(f => f.notebook_id === folder.notebook_id);
       };
     },
 
     // Check if folder can move up
     canMoveUp() {
-      return (folderId: number): boolean => {
-        const siblings = this.getSiblings(folderId);
-        const index = siblings.findIndex(f => f.id === folderId);
+      return (sectionId: number): boolean => {
+        const siblings = this.getSiblings(sectionId);
+        const index = siblings.findIndex(f => f.id === sectionId);
         return index > 0;
       };
     },
 
     // Check if folder can move down
     canMoveDown() {
-      return (folderId: number): boolean => {
-        const siblings = this.getSiblings(folderId);
-        const index = siblings.findIndex(f => f.id === folderId);
+      return (sectionId: number): boolean => {
+        const siblings = this.getSiblings(sectionId);
+        const index = siblings.findIndex(f => f.id === sectionId);
         return index !== -1 && index < siblings.length - 1;
       };
     }
   },
 
   actions: {
-    async fetchFolders(spaceId?: number | null, silent: boolean = false): Promise<void> {
+    async fetchFolders(notebookId?: number | null, silent: boolean = false): Promise<void> {
       if (!silent) {
         this.loading = true;
       }
@@ -77,14 +77,14 @@ export const useFoldersStore = defineStore('folders', {
           throw new Error('Not authenticated');
         }
 
-        // Use provided spaceId or current space from spaces store
-        // If spaceId is null, it means fetch ALL folders (ignore current space)
+        // Use provided notebookId or current space from spaces store
+        // If notebookId is null, it means fetch ALL folders (ignore current space)
         let targetSpaceId: number | null = null;
         
-        if (spaceId === null) {
+        if (notebookId === null) {
           targetSpaceId = null;
-        } else if (spaceId !== undefined) {
-          targetSpaceId = spaceId;
+        } else if (notebookId !== undefined) {
+          targetSpaceId = notebookId;
         } else {
           targetSpaceId = spacesStore.currentSpaceId;
         }
@@ -101,9 +101,9 @@ export const useFoldersStore = defineStore('folders', {
               // Check if cache is less than 5 minutes old
               if (cachedData.timestamp && Date.now() - cachedData.timestamp < 5 * 60 * 1000) {
                 // Merge cached folders: remove old folders for this space, then add cached ones
-                const cachedFolders = cachedData.folders as Folder[];
+                const cachedFolders = cachedData.folders as Section[];
                 this.folders = [
-                  ...this.folders.filter(f => f.space_id !== targetSpaceId),
+                  ...this.folders.filter(f => f.notebook_id !== targetSpaceId),
                   ...cachedFolders
                 ];
                 const cacheDuration = performance.now() - cacheStartTime;
@@ -148,12 +148,12 @@ export const useFoldersStore = defineStore('folders', {
         // Build query params
         const queryParams: Record<string, string> = {};
         if (targetSpaceId) {
-          queryParams.space_id = targetSpaceId.toString();
+          queryParams.notebook_id = targetSpaceId.toString();
         }
 
         const serverStartTime = performance.now();
         console.log(`[FoldersStore] 🌐 Fetching folders from server for space ${targetSpaceId || 'all'}...`);
-        const folders = await $fetch<Folder[]>('/api/folders', {
+        const folders = await $fetch<Section[]>('/api/sections', {
           headers: {
             Authorization: `Bearer ${authStore.token}`
           },
@@ -166,7 +166,7 @@ export const useFoldersStore = defineStore('folders', {
         if (targetSpaceId) {
           // If fetching for specific space: remove old folders for this space, then add new ones
           this.folders = [
-            ...this.folders.filter(f => f.space_id !== targetSpaceId),
+            ...this.folders.filter(f => f.notebook_id !== targetSpaceId),
             ...folders
           ];
         } else {
@@ -175,8 +175,8 @@ export const useFoldersStore = defineStore('folders', {
         }
         
         console.log(`[FoldersStore] 📝 Merged folders in store: ${folders.length} folders for space ${targetSpaceId || 'all'} (total: ${this.folders.length} folders)`, {
-          folderIds: folders.map(f => f.id),
-          spaceIds: [...new Set(this.folders.map(f => f.space_id))]
+          sectionIds: folders.map(f => f.id),
+          notebookIds: [...new Set(this.folders.map(f => f.notebook_id))]
         });
 
         // Cache folders (only if specific space)
@@ -211,25 +211,25 @@ export const useFoldersStore = defineStore('folders', {
       }
     },
 
-    async syncFoldersInBackground(spaceId: number): Promise<void> {
+    async syncFoldersInBackground(notebookId: number): Promise<void> {
       try {
         const authStore = useAuthStore();
         if (!authStore.token) {
           return;
         }
 
-        const folders = await $fetch<Folder[]>('/api/folders', {
+        const folders = await $fetch<Section[]>('/api/sections', {
           headers: {
             Authorization: `Bearer ${authStore.token}`
           },
           query: {
-            space_id: spaceId.toString()
+            notebook_id: notebookId.toString()
           }
         });
 
         // Update cache
         if (process.client) {
-          const cacheKey = `folders_cache_${spaceId}`;
+          const cacheKey = `folders_cache_${notebookId}`;
           localStorage.setItem(cacheKey, JSON.stringify({
             folders,
             timestamp: Date.now()
@@ -239,17 +239,17 @@ export const useFoldersStore = defineStore('folders', {
         // Merge folders: remove old folders for this space, then add new ones
         // This preserves folders from other spaces
         this.folders = [
-          ...this.folders.filter(f => f.space_id !== spaceId),
+          ...this.folders.filter(f => f.notebook_id !== notebookId),
           ...folders
         ];
         
-        console.log(`[FoldersStore] Background sync completed for space ${spaceId}: ${folders.length} folders (total: ${this.folders.length} folders)`);
+        console.log(`[FoldersStore] Background sync completed for space ${notebookId}: ${folders.length} folders (total: ${this.folders.length} folders)`);
       } catch (err) {
         console.error('[FoldersStore] Background sync error:', err);
       }
     },
 
-    async createFolder(data: CreateFolderDto): Promise<Folder> {
+    async createFolder(data: CreateSectionDto): Promise<Section> {
       this.loading = true;
       this.error = null;
 
@@ -262,11 +262,11 @@ export const useFoldersStore = defineStore('folders', {
         }
 
         // Automatically assign to current space if not provided
-        if (!data.space_id && spacesStore.currentSpaceId) {
-          data.space_id = spacesStore.currentSpaceId;
+        if (!data.notebook_id && spacesStore.currentSpaceId) {
+          data.notebook_id = spacesStore.currentSpaceId;
         }
 
-        const folder = await $fetch<Folder>('/api/folders', {
+        const folder = await $fetch<Section>('/api/sections', {
           method: 'POST',
           headers: {
             Authorization: `Bearer ${authStore.token}`
@@ -278,13 +278,13 @@ export const useFoldersStore = defineStore('folders', {
         this.folders.push(folder);
 
         // Invalidate cache for this space so the subsequent fetch gets fresh data
-        if (process.client && folder.space_id) {
-          const cacheKey = `folders_cache_${folder.space_id}`;
+        if (process.client && folder.notebook_id) {
+          const cacheKey = `folders_cache_${folder.notebook_id}`;
           localStorage.removeItem(cacheKey);
         }
 
         // Refresh folders to get updated structure (pass space_id to ensure we refresh the right space)
-        await this.fetchFolders(folder.space_id);
+        await this.fetchFolders(folder.notebook_id);
 
         return folder;
       } catch (err: unknown) {
@@ -295,7 +295,7 @@ export const useFoldersStore = defineStore('folders', {
       }
     },
 
-    async updateFolder(id: number, data: UpdateFolderDto): Promise<Folder> {
+    async updateFolder(id: number, data: UpdateSectionDto): Promise<Section> {
       this.loading = true;
       this.error = null;
 
@@ -306,7 +306,7 @@ export const useFoldersStore = defineStore('folders', {
           throw new Error('Not authenticated');
         }
 
-        const folder = await $fetch<Folder>(`/api/folders/${id}`, {
+        const folder = await $fetch<Section>(`/api/sections/${id}`, {
           method: 'PUT',
           headers: {
             Authorization: `Bearer ${authStore.token}`
@@ -321,7 +321,7 @@ export const useFoldersStore = defineStore('folders', {
         }
 
         // Refresh folders for the specific space to ensure consistency
-        await this.fetchFolders(folder.space_id, true);
+        await this.fetchFolders(folder.notebook_id, true);
 
         return folder;
       } catch (err: unknown) {
@@ -345,9 +345,9 @@ export const useFoldersStore = defineStore('folders', {
 
         // Get folder to find its space before deleting
         const folder = this.getFolderById(id);
-        const spaceId = folder?.space_id;
+        const notebookId = folder?.notebook_id;
 
-        await $fetch(`/api/folders/${id}`, {
+        await $fetch(`/api/sections/${id}`, {
           method: 'DELETE',
           headers: {
             Authorization: `Bearer ${authStore.token}`
@@ -355,8 +355,8 @@ export const useFoldersStore = defineStore('folders', {
         });
 
         // Invalidate cache for the space
-        if (process.client && spaceId) {
-          const cacheKey = `folders_cache_${spaceId}`;
+        if (process.client && notebookId) {
+          const cacheKey = `folders_cache_${notebookId}`;
           localStorage.removeItem(cacheKey);
         }
 
@@ -370,7 +370,7 @@ export const useFoldersStore = defineStore('folders', {
       }
     },
 
-    async moveFolder(folderId: number, targetSpaceId: number): Promise<void> {
+    async moveFolder(sectionId: number, targetSpaceId: number): Promise<void> {
       this.isReordering = true;
       this.loading = false;
       this.error = null;
@@ -381,26 +381,26 @@ export const useFoldersStore = defineStore('folders', {
           throw new Error('Not authenticated');
         }
 
-        const folder = this.getFolderById(folderId);
+        const folder = this.getFolderById(sectionId);
         if (!folder) throw new Error('Folder not found');
         
-        const oldSpaceId = folder.space_id;
+        const oldSpaceId = folder.notebook_id;
         
         // Optimistic update
-        folder.space_id = targetSpaceId;
+        folder.notebook_id = targetSpaceId;
         
         // Move in local array: Ensure it moves to the end of the new space's list initially
         // This prevents "jumpiness" before reorder is called
         // However, reorder will fix it shortly.
         
         // Make the API call
-        await $fetch<Folder>(`/api/folders/${folderId}`, {
+        await $fetch<Section>(`/api/sections/${sectionId}`, {
           method: 'PUT',
           headers: {
             Authorization: `Bearer ${authStore.token}`
           },
           body: {
-            space_id: targetSpaceId
+            notebook_id: targetSpaceId
           }
         });
 
@@ -420,7 +420,7 @@ export const useFoldersStore = defineStore('folders', {
       }
     },
 
-    async reorderFolder(folderId: number, newIndex: number): Promise<void> {
+    async reorderFolder(sectionId: number, newIndex: number): Promise<void> {
       // Mark that we're reordering - this prevents the loading screen from showing
       // We'll update locally for instant UI feedback
       this.isReordering = true;
@@ -435,27 +435,27 @@ export const useFoldersStore = defineStore('folders', {
         }
 
         // Get the folder to find its siblings
-        const folder = this.getFolderById(folderId);
+        const folder = this.getFolderById(sectionId);
         if (!folder) {
           throw new Error('Folder not found');
         }
 
         // Get all folders in the same space (siblings)
-        const siblings = this.folders.filter(f => f.space_id === folder.space_id);
+        const siblings = this.folders.filter(f => f.notebook_id === folder.notebook_id);
         
         // Update locally first for instant feedback
-        const currentIndex = siblings.findIndex(f => f.id === folderId);
+        const currentIndex = siblings.findIndex(f => f.id === sectionId);
         if (currentIndex !== -1 && currentIndex !== newIndex) {
           const [moved] = siblings.splice(currentIndex, 1);
           siblings.splice(newIndex, 0, moved);
           
           // Update folders array with new order (maintain other folders)
-          const otherFolders = this.folders.filter(f => f.space_id !== folder.space_id);
+          const otherFolders = this.folders.filter(f => f.notebook_id !== folder.notebook_id);
           this.folders = [...otherFolders, ...siblings];
         }
 
         // Make the API call
-        await $fetch(`/api/folders/${folderId}/reorder`, {
+        await $fetch(`/api/sections/${sectionId}/reorder`, {
           method: 'PUT',
           headers: {
             Authorization: `Bearer ${authStore.token}`
@@ -478,24 +478,24 @@ export const useFoldersStore = defineStore('folders', {
       }
     },
 
-    toggleFolder(folderId: number): void {
-      if (this.expandedFolderIds.has(folderId)) {
-        this.expandedFolderIds.delete(folderId);
+    toggleFolder(sectionId: number): void {
+      if (this.expandedFolderIds.has(sectionId)) {
+        this.expandedFolderIds.delete(sectionId);
       } else {
-        this.expandedFolderIds.add(folderId);
+        this.expandedFolderIds.add(sectionId);
       }
       this.expandedFolderIds = new Set(this.expandedFolderIds);
       this.saveExpandedState();
     },
 
-    expandFolder(folderId: number): void {
-      this.expandedFolderIds.add(folderId);
+    expandFolder(sectionId: number): void {
+      this.expandedFolderIds.add(sectionId);
       this.expandedFolderIds = new Set(this.expandedFolderIds);
       this.saveExpandedState();
     },
 
-    collapseFolder(folderId: number): void {
-      this.expandedFolderIds.delete(folderId);
+    collapseFolder(sectionId: number): void {
+      this.expandedFolderIds.delete(sectionId);
       this.expandedFolderIds = new Set(this.expandedFolderIds);
       this.saveExpandedState();
     },

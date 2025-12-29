@@ -15,14 +15,14 @@ export default defineEventHandler(async (event) => {
   }
   
   try {
-    // Determine space_id: from body or from user's first space
+    // Determine notebook_id: from body or from user's first space
     let spaceId: number;
     
-    if (body.space_id) {
+    if (body.notebook_id) {
       // Verify space belongs to user
       const space = await executeQuery<any[]>(`
-        SELECT id FROM spaces WHERE id = ? AND user_id = ?
-      `, [body.space_id, userId]);
+        SELECT id FROM notebooks WHERE id = ? AND user_id = ?
+      `, [body.notebook_id, userId]);
       
       if (space.length === 0) {
         throw createError({
@@ -30,11 +30,11 @@ export default defineEventHandler(async (event) => {
           statusMessage: 'Space not found or does not belong to user'
         });
       }
-      spaceId = body.space_id;
+      spaceId = body.notebook_id;
     } else {
       // Get user's first space as default
       const spaces = await executeQuery<any[]>(`
-        SELECT id FROM spaces WHERE user_id = ? ORDER BY created_at ASC LIMIT 1
+        SELECT id FROM notebooks WHERE user_id = ? ORDER BY created_at ASC LIMIT 1
       `, [userId]);
       
       if (spaces.length === 0) {
@@ -48,7 +48,7 @@ export default defineEventHandler(async (event) => {
 
     // Check if folder with same name already exists for this user in the same space
     const existing = await executeQuery<any[]>(`
-      SELECT id FROM folders WHERE user_id = ? AND name = ? AND space_id = ? AND parent_id IS NULL
+      SELECT id FROM sections WHERE user_id = ? AND name = ? AND notebook_id = ? AND parent_id IS NULL
     `, [userId, body.name.trim(), spaceId]);
 
     if (existing.length > 0) {
@@ -60,14 +60,14 @@ export default defineEventHandler(async (event) => {
 
     // Create the folder (always root-level, parent_id is NULL)
     const result: any = await executeQuery(`
-      INSERT INTO folders (user_id, space_id, name, icon, parent_id, created_at, updated_at)
+      INSERT INTO sections (user_id, notebook_id, name, icon, parent_id, created_at, updated_at)
       VALUES (?, ?, ?, ?, NULL, NOW(), NOW())
     `, [userId, spaceId, body.name.trim(), body.icon || null]);
 
     // Fetch the created folder
     const folders = await executeQuery<Folder[]>(`
-      SELECT id, user_id, space_id, name, icon, parent_id, created_at, updated_at
-      FROM folders
+      SELECT id, user_id, notebook_id, name, icon, parent_id, created_at, updated_at
+      FROM sections
       WHERE id = ?
     `, [result.insertId]);
     
@@ -75,7 +75,7 @@ export default defineEventHandler(async (event) => {
 
     // Auto-publish folder if parent space is published
     const publishedSpaceResults = await executeQuery<Array<{ share_id: string }>>(
-      'SELECT share_id FROM published_spaces WHERE space_id = ? AND owner_id = ? AND is_active = TRUE',
+      'SELECT share_id FROM published_spaces WHERE notebook_id = ? AND owner_id = ? AND is_active = TRUE',
       [spaceId, userId]
     );
 
@@ -84,7 +84,7 @@ export default defineEventHandler(async (event) => {
       const { randomUUID } = await import('crypto');
       const folderShareId = randomUUID();
       await executeQuery(
-        'INSERT INTO published_folders (folder_id, share_id, owner_id, is_active) VALUES (?, ?, ?, TRUE)',
+        'INSERT INTO published_folders (section_id, share_id, owner_id, is_active) VALUES (?, ?, ?, TRUE)',
         [folder.id, folderShareId, userId]
       );
     }

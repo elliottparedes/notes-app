@@ -19,7 +19,7 @@ export default defineEventHandler(async (event): Promise<AnalyticsStats> => {
   try {
     // Total notes
     const totalNotesResult = await executeQuery<Array<{ count: number }>>(
-      'SELECT COUNT(*) as count FROM notes WHERE user_id = ?',
+      'SELECT COUNT(*) as count FROM pages WHERE user_id = ?',
       [userId]
     );
     const totalNotes = totalNotesResult[0]?.count || 0;
@@ -27,14 +27,14 @@ export default defineEventHandler(async (event): Promise<AnalyticsStats> => {
     // Total words (approximate)
     const totalWordsResult = await executeQuery<Array<{ total_length: number }>>(
       `SELECT COALESCE(SUM(CHAR_LENGTH(COALESCE(content, ''))), 0) as total_length 
-       FROM notes WHERE user_id = ?`,
+       FROM pages WHERE user_id = ?`,
       [userId]
     );
     const totalWords = totalWordsResult[0]?.total_length || 0;
 
     // Notes this week
     const notesThisWeekResult = await executeQuery<Array<{ count: number }>>(
-      `SELECT COUNT(*) as count FROM notes 
+      `SELECT COUNT(*) as count FROM pages 
        WHERE user_id = ? AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)`,
       [userId]
     );
@@ -42,7 +42,7 @@ export default defineEventHandler(async (event): Promise<AnalyticsStats> => {
 
     // Notes this month
     const notesThisMonthResult = await executeQuery<Array<{ count: number }>>(
-      `SELECT COUNT(*) as count FROM notes 
+      `SELECT COUNT(*) as count FROM pages 
        WHERE user_id = ? AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)`,
       [userId]
     );
@@ -53,7 +53,7 @@ export default defineEventHandler(async (event): Promise<AnalyticsStats> => {
     try {
       // First, get all notes with tags and parse them in Node.js to avoid MySQL JSON parsing issues
       const notesWithTags = await executeQuery<Array<{ tags: string | null }>>(
-        'SELECT tags FROM notes WHERE user_id = ? AND tags IS NOT NULL',
+        'SELECT tags FROM pages WHERE user_id = ? AND tags IS NOT NULL',
         [userId]
       );
       
@@ -113,7 +113,7 @@ export default defineEventHandler(async (event): Promise<AnalyticsStats> => {
       `SELECT 
         DATE(created_at) as date,
         COUNT(*) as count
-       FROM notes
+       FROM pages
        WHERE user_id = ? 
          AND created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)
        GROUP BY DATE(created_at)

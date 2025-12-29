@@ -75,7 +75,7 @@ export default defineEventHandler(async (event): Promise<AuthResponse> => {
     // Create a default "Personal" space for the new user
     try {
       await executeQuery(
-        'INSERT INTO spaces (user_id, name, color, icon, created_at, updated_at) VALUES (?, ?, ?, ?, NOW(), NOW())',
+        'INSERT INTO notebooks (user_id, name, color, icon, created_at, updated_at) VALUES (?, ?, ?, ?, NOW(), NOW())',
         [user.id, 'Personal', null, 'user']
       );
     } catch (spaceError) {

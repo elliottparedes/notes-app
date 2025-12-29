@@ -1,9 +1,9 @@
 import { defineStore } from 'pinia';
-import type { Space, CreateSpaceDto, UpdateSpaceDto } from '~/models';
+import type { Space, CreateNotebookDto, UpdateNotebookDto } from '~/models';
 import { useAuthStore } from './auth';
 
 interface SpacesState {
-  spaces: Space[];
+  spaces: Notebook[];
   currentSpaceId: number | null;
   expandedSpaceIds: Set<number>;
   loading: boolean;
@@ -11,7 +11,7 @@ interface SpacesState {
 }
 
 export const useSpacesStore = defineStore('spaces', {
-  state: (): SpacesState => ({
+  state: (): NotebooksState => ({
     spaces: [],
     currentSpaceId: null,
     expandedSpaceIds: new Set(),
@@ -20,7 +20,7 @@ export const useSpacesStore = defineStore('spaces', {
   }),
 
   getters: {
-    currentSpace: (state): Space | null => {
+    currentSpace: (state): Notebook | null => {
       if (!state.currentSpaceId) return null;
       return state.spaces.find(s => s.id === state.currentSpaceId) || null;
     },
@@ -42,7 +42,7 @@ export const useSpacesStore = defineStore('spaces', {
           throw new Error('Not authenticated');
         }
 
-        const spaces = await $fetch<Space[]>('/api/spaces', {
+        const spaces = await $fetch<Notebook[]>('/api/notebooks', {
           headers: {
             Authorization: `Bearer ${authStore.token}`
           }
@@ -74,10 +74,10 @@ export const useSpacesStore = defineStore('spaces', {
         if (process.client) {
           const savedSpaceId = localStorage.getItem('current_space_id');
           if (savedSpaceId) {
-            const spaceId = parseInt(savedSpaceId);
+            const notebookId = parseInt(savedSpaceId);
             // Verify the saved space still exists
-            if (this.spaces.find(s => s.id === spaceId)) {
-              this.currentSpaceId = spaceId;
+            if (this.spaces.find(s => s.id === notebookId)) {
+              this.currentSpaceId = notebookId;
             } else {
               // Saved space no longer exists, use first space
               this.currentSpaceId = spaces.length > 0 ? spaces[0].id : null;
@@ -115,7 +115,7 @@ export const useSpacesStore = defineStore('spaces', {
       }
     },
 
-    async createSpace(data: CreateSpaceDto): Promise<Space> {
+    async createSpace(data: CreateNotebookDto): Promise<Notebook> {
       this.loading = true;
       this.error = null;
 
@@ -126,7 +126,7 @@ export const useSpacesStore = defineStore('spaces', {
           throw new Error('Not authenticated');
         }
 
-        const space = await $fetch<Space>('/api/spaces', {
+        const space = await $fetch<Notebook>('/api/notebooks', {
           method: 'POST',
           headers: {
             Authorization: `Bearer ${authStore.token}`,
@@ -151,7 +151,7 @@ export const useSpacesStore = defineStore('spaces', {
       }
     },
 
-    async updateSpace(id: number, data: UpdateSpaceDto): Promise<Space> {
+    async updateSpace(id: number, data: UpdateNotebookDto): Promise<Notebook> {
       this.loading = true;
       this.error = null;
 
@@ -162,7 +162,7 @@ export const useSpacesStore = defineStore('spaces', {
           throw new Error('Not authenticated');
         }
 
-        const space = await $fetch<Space>(`/api/spaces/${id}`, {
+        const space = await $fetch<Notebook>(`/api/notebooks/${id}`, {
           method: 'PUT',
           headers: {
             Authorization: `Bearer ${authStore.token}`,
@@ -198,7 +198,7 @@ export const useSpacesStore = defineStore('spaces', {
           throw new Error('Not authenticated');
         }
 
-        await $fetch(`/api/spaces/${id}`, {
+        await $fetch(`/api/notebooks/${id}`, {
           method: 'DELETE',
           headers: {
             Authorization: `Bearer ${authStore.token}`
@@ -227,7 +227,7 @@ export const useSpacesStore = defineStore('spaces', {
       }
     },
 
-    async reorderSpace(spaceId: number, newIndex: number): Promise<void> {
+    async reorderSpace(notebookId: number, newIndex: number): Promise<void> {
       this.loading = false; // Optimistic update
       this.error = null;
 
@@ -238,14 +238,14 @@ export const useSpacesStore = defineStore('spaces', {
         }
 
         // Optimistic update locally
-        const currentIndex = this.spaces.findIndex(s => s.id === spaceId);
+        const currentIndex = this.spaces.findIndex(s => s.id === notebookId);
         if (currentIndex !== -1 && currentIndex !== newIndex) {
           const [movedSpace] = this.spaces.splice(currentIndex, 1);
           this.spaces.splice(newIndex, 0, movedSpace);
         }
 
         // API call
-        await $fetch(`/api/spaces/${spaceId}/reorder`, {
+        await $fetch(`/api/notebooks/${notebookId}/reorder`, {
           method: 'PUT',
           headers: {
             Authorization: `Bearer ${authStore.token}`
@@ -262,8 +262,8 @@ export const useSpacesStore = defineStore('spaces', {
       }
     },
 
-    setCurrentSpace(spaceId: number | null): void {
-      if (spaceId === null) {
+    setCurrentSpace(notebookId: number | null): void {
+      if (notebookId === null) {
         this.currentSpaceId = null;
         if (process.client) {
           localStorage.removeItem('current_space_id');
@@ -272,36 +272,36 @@ export const useSpacesStore = defineStore('spaces', {
       }
 
       // Verify space exists
-      if (!this.spaces.find(s => s.id === spaceId)) {
+      if (!this.spaces.find(s => s.id === notebookId)) {
         throw new Error('Space not found');
       }
 
-      this.currentSpaceId = spaceId;
+      this.currentSpaceId = notebookId;
 
       // Persist to localStorage
       if (process.client) {
-        localStorage.setItem('current_space_id', spaceId.toString());
+        localStorage.setItem('current_space_id', notebookId.toString());
       }
     },
 
-    toggleSpace(spaceId: number): void {
-      if (this.expandedSpaceIds.has(spaceId)) {
-        this.expandedSpaceIds.delete(spaceId);
+    toggleSpace(notebookId: number): void {
+      if (this.expandedSpaceIds.has(notebookId)) {
+        this.expandedSpaceIds.delete(notebookId);
       } else {
-        this.expandedSpaceIds.add(spaceId);
+        this.expandedSpaceIds.add(notebookId);
       }
       this.expandedSpaceIds = new Set(this.expandedSpaceIds);
       this.saveExpandedState();
     },
 
-    expandSpace(spaceId: number): void {
-      this.expandedSpaceIds.add(spaceId);
+    expandSpace(notebookId: number): void {
+      this.expandedSpaceIds.add(notebookId);
       this.expandedSpaceIds = new Set(this.expandedSpaceIds);
       this.saveExpandedState();
     },
 
-    collapseSpace(spaceId: number): void {
-      this.expandedSpaceIds.delete(spaceId);
+    collapseSpace(notebookId: number): void {
+      this.expandedSpaceIds.delete(notebookId);
       this.expandedSpaceIds = new Set(this.expandedSpaceIds);
       this.saveExpandedState();
     },

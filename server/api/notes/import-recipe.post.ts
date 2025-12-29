@@ -4,7 +4,7 @@ import type { Note } from '~/models';
 
 interface ImportRecipeRequest {
   url: string;
-  folder_id?: number | null;
+  section_id?: number | null;
 }
 
 interface RecipeData {
@@ -319,14 +319,14 @@ export default defineEventHandler(async (event): Promise<Note> => {
     const now = new Date();
 
     await executeQuery(
-      `INSERT INTO notes (id, user_id, title, content, folder_id, is_favorite, created_at, updated_at)
+      `INSERT INTO pages (id, user_id, title, content, section_id, is_favorite, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [noteId, userId, recipeData.name, content, body.folder_id || null, false, now, now]
+      [noteId, userId, recipeData.name, content, body.section_id || null, false, now, now]
     );
 
     // Fetch and return the created note
     const notes = await executeQuery<Note[]>(
-      'SELECT * FROM notes WHERE id = ?',
+      'SELECT * FROM pages WHERE id = ?',
       [noteId]
     );
 

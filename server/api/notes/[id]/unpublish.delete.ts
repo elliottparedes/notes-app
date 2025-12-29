@@ -17,8 +17,8 @@ export default defineEventHandler(async (event) => {
   }
 
   // Verify note ownership
-  const [note] = await executeQuery<NoteOwnerRow[]>(
-    'SELECT user_id FROM notes WHERE id = ?',
+  const note = await executeQuery<NoteOwnerRow[]>(
+    'SELECT user_id FROM pages WHERE id = ?',
     [noteId]
   );
 
@@ -31,7 +31,7 @@ export default defineEventHandler(async (event) => {
 
   // Deactivate publishing (soft delete)
   await executeQuery(
-    'UPDATE published_notes SET is_active = FALSE, updated_at = CURRENT_TIMESTAMP WHERE note_id = ? AND owner_id = ?',
+    'UPDATE published_notes SET is_active = FALSE, updated_at = CURRENT_TIMESTAMP WHERE page_id = ? AND owner_id = ?',
     [noteId, userId]
   );
 

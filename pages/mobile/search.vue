@@ -14,7 +14,7 @@ const spacesStore = useSpacesStore();
 const authStore = useAuthStore();
 
 const searchQuery = ref('');
-const searchResults = ref<Note[]>([]);
+const searchResults = ref<Page[]>([]);
 const isSearching = ref(false);
 const searchInputRef = ref<HTMLInputElement | null>(null);
 
@@ -38,7 +38,7 @@ async function performSearch(query: string) {
   isSearching.value = true;
   
   try {
-    const results = await $fetch<Array<Note & { relevance_score: number; match_context?: string }>>('/api/notes/search', {
+    const results = await $fetch<Array<Note & { relevance_score: number; match_context?: string }>>('/api/pages/search', {
       params: { q: query.trim() },
       headers: {
         Authorization: `Bearer ${authStore.token}`
@@ -53,7 +53,7 @@ async function performSearch(query: string) {
       tags: note.tags,
       is_favorite: note.is_favorite,
       folder: note.folder,
-      folder_id: note.folder_id,
+      section_id: note.section_id,
       created_at: note.created_at,
       updated_at: note.updated_at,
       is_shared: note.is_shared,
@@ -86,18 +86,18 @@ watch(searchQuery, (newQuery) => {
 });
 
 // Get folder name for a note
-function getFolderName(note: Note): string {
-  if (!note.folder_id) return '';
-  const folder = foldersStore.getFolderById(note.folder_id);
+function getFolderName(note: Page): string {
+  if (!note.section_id) return '';
+  const folder = foldersStore.getFolderById(note.section_id);
   return folder?.name || '';
 }
 
 // Get space name for a note
-function getSpaceName(note: Note): string {
-  if (!note.folder_id) return spacesStore.currentSpace?.name || 'Unknown';
-  const folder = foldersStore.getFolderById(note.folder_id);
+function getSpaceName(note: Page): string {
+  if (!note.section_id) return spacesStore.currentSpace?.name || 'Unknown';
+  const folder = foldersStore.getFolderById(note.section_id);
   if (folder) {
-    const space = spacesStore.spaces.find(s => s.id === folder.space_id);
+    const space = spacesStore.spaces.find(s => s.id === folder.notebook_id);
     return space?.name || 'Unknown';
   }
   return 'Unknown';
@@ -119,7 +119,7 @@ function formatDate(date: Date | string): string {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: d.getFullYear() !== now.getFullYear() ? 'numeric' : undefined });
 }
 
-async function handleSelectNote(note: Note) {
+async function handleSelectNote(note: Page) {
   await notesStore.openTab(note.id);
   router.push(`/mobile/notes/${note.id}`);
 }

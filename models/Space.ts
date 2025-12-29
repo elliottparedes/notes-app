@@ -8,13 +8,13 @@ export interface Space {
   updated_at: Date;
 }
 
-export interface CreateSpaceDto {
+export interface CreateNotebookDto {
   name: string;
   color?: string | null;
   icon?: string | null;
 }
 
-export interface UpdateSpaceDto {
+export interface UpdateNotebookDto {
   name?: string;
   color?: string | null;
   icon?: string | null;

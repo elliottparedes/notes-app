@@ -3,7 +3,7 @@ import type { Folder } from '~/models';
 
 const props = defineProps<{
   modelValue: boolean;
-  folder: Folder;
+  folder: Section;
 }>();
 
 const emit = defineEmits<{

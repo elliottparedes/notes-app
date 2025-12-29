@@ -4,7 +4,7 @@ import type { SharedNoteWithDetails } from '~/models';
 
 interface SharedNoteRow {
   id: number;
-  note_id: string;
+  page_id: string;
   owner_id: number;
   shared_with_user_id: number;
   permission: 'viewer' | 'editor';
@@ -33,7 +33,7 @@ export default defineEventHandler(async (event): Promise<SharedNoteWithDetails[]
         shared.name as shared_with_name,
         shared.email as shared_with_email
       FROM shared_notes sn
-      JOIN notes n ON sn.note_id = n.id
+      JOIN pages n ON sn.page_id = n.id
       JOIN users owner ON sn.owner_id = owner.id
       JOIN users shared ON sn.shared_with_user_id = shared.id
       WHERE sn.owner_id = ? OR sn.shared_with_user_id = ?

@@ -3,20 +3,20 @@ export function useNoteActions() {
   const toast = useToast();
   const noteToDelete = ref<string | null>(null);
 
-  async function handleOpenNote(noteId: string) {
+  async function handleOpenNote(pageId: string) {
     // Reset delete confirmation when opening a note
     if (noteToDelete.value !== null) {
       noteToDelete.value = null;
     }
-    await notesStore.openTab(noteId);
+    await notesStore.openTab(pageId);
   }
 
-  async function handleCreateNoteInFolder(folderId: number) {
+  async function handleCreateNoteInFolder(sectionId: number) {
     try {
       const newNote = await notesStore.createNote({
         title: '',
         content: '',
-        folder_id: folderId
+        section_id: sectionId
       });
       handleOpenNote(newNote.id);
     } catch (error) {
@@ -24,24 +24,24 @@ export function useNoteActions() {
     }
   }
 
-  function handleDeleteClick(noteId: string, event: MouseEvent) {
+  function handleDeleteClick(pageId: string, event: MouseEvent) {
     event.stopPropagation();
-    if (noteToDelete.value === noteId) {
-      handleConfirmDelete(noteId);
+    if (noteToDelete.value === pageId) {
+      handleConfirmDelete(pageId);
     } else {
-      noteToDelete.value = noteId;
+      noteToDelete.value = pageId;
     }
   }
 
-  async function handleConfirmDelete(noteId: string) {
+  async function handleConfirmDelete(pageId: string) {
     try {
-      await notesStore.deleteNote(noteId);
+      await notesStore.deleteNote(pageId);
       toast.success('Note deleted');
       noteToDelete.value = null;
 
       const activeNote = notesStore.activeNote;
-      if (activeNote?.id === noteId) {
-        notesStore.closeTab(noteId);
+      if (activeNote?.id === pageId) {
+        notesStore.closeTab(pageId);
       }
     } catch (error) {
       console.error('Failed to delete note:', error);

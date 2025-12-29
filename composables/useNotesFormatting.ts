@@ -55,35 +55,45 @@ export function useNotesFormatting() {
     });
   }
 
-  function getNoteLocation(note: Note): NoteLocation {
-    if (!note.folder_id) {
+  function getNoteLocation(note: Page): NoteLocation {
+    if (!note.section_id) {
       return {};
     }
 
-    const folder = foldersStore.getFolderById(note.folder_id);
+    const folder = foldersStore.getFolderById(note.section_id);
     if (!folder) {
       return {};
     }
 
-    const space = spacesStore.spaces.find((s) => s.id === folder.space_id) || null;
+    const space = spacesStore.spaces.find((s) => s.id === folder.notebook_id) || null;
     return {
       spaceName: space?.name,
       folderName: folder.name
     };
   }
 
-  function getOrderedNotesForFolder(folderId: number | null) {
-    if (!folderId) return [];
+  function getOrderedNotesForFolder(sectionId: number | null) {
+    if (!sectionId) return [];
 
     const notesInFolder = notesStore.notes.filter(note =>
-      note.folder_id === folderId && !note.share_permission
+      note.section_id === sectionId && !note.share_permission
     );
 
-    const folderKey = `folder_${folderId}`;
-    const order = notesStore.noteOrder[folderKey];
+    const folderKey = `folder_${sectionId}`;
+    const order = notesStore.noteOrder?.[folderKey];
+
+    console.log('[useNotesFormatting] getOrderedNotesForFolder', {
+      sectionId,
+      folderKey,
+      hasOrder: !!order,
+      orderLength: order?.length,
+      notesInFolderCount: notesInFolder.length,
+      order: order
+    });
 
     if (order && order.length > 0) {
-      return notesInFolder.sort((a, b) => {
+      // Create a new array to ensure Vue detects the change
+      const sorted = [...notesInFolder].sort((a, b) => {
         const indexA = order.indexOf(a.id);
         const indexB = order.indexOf(b.id);
 
@@ -96,9 +106,19 @@ export function useNotesFormatting() {
 
         return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
       });
+
+      console.log('[useNotesFormatting] Sorted notes:', sorted.map(n => ({
+        id: n.id.substring(0, 8),
+        title: n.title.substring(0, 20),
+        orderIndex: order.indexOf(n.id)
+      })));
+
+      return sorted;
     }
 
-    return notesInFolder.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+    console.log('[useNotesFormatting] No order, sorting by date');
+    // Create a new array here too
+    return [...notesInFolder].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
   }
 
   return {

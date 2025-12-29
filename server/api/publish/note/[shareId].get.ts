@@ -3,7 +3,7 @@ import type { PublishedNoteWithDetails } from '~/models';
 
 interface PublishedNoteRow {
   id: number;
-  note_id: string;
+  page_id: string;
   share_id: string;
   owner_id: number;
   is_active: number;
@@ -34,7 +34,7 @@ export default defineEventHandler(async (event): Promise<PublishedNoteWithDetail
   }
 
   // Get published note
-  const [published] = await executeQuery<PublishedNoteRow[]>(
+  const published = await executeQuery<PublishedNoteRow[]>(
     'SELECT * FROM published_notes WHERE share_id = ? AND is_active = TRUE',
     [shareId]
   );
@@ -47,9 +47,9 @@ export default defineEventHandler(async (event): Promise<PublishedNoteWithDetail
   }
 
   // Get note details
-  const [note] = await executeQuery<NoteDetailsRow[]>(
-    'SELECT title, content, updated_at, tags FROM notes WHERE id = ?',
-    [published.note_id]
+  const note = await executeQuery<NoteDetailsRow[]>(
+    'SELECT title, content, updated_at, tags FROM pages WHERE id = ?',
+    [published.page_id]
   );
 
   if (!note) {
@@ -60,7 +60,7 @@ export default defineEventHandler(async (event): Promise<PublishedNoteWithDetail
   }
 
   // Get owner details
-  const [owner] = await executeQuery<UserDetailsRow[]>(
+  const owner = await executeQuery<UserDetailsRow[]>(
     'SELECT name, email FROM users WHERE id = ?',
     [published.owner_id]
   );
@@ -74,7 +74,7 @@ export default defineEventHandler(async (event): Promise<PublishedNoteWithDetail
 
   return {
     id: published.id,
-    note_id: published.note_id,
+    page_id: published.page_id,
     share_id: published.share_id,
     owner_id: published.owner_id,
     is_active: Boolean(published.is_active),

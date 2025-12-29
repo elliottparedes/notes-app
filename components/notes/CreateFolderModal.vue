@@ -99,7 +99,7 @@ async function handleCreate() {
   try {
     await foldersStore.createFolder({
       name: folderName.value.trim(),
-      space_id: props.targetSpaceId || spacesStore.currentSpaceId || undefined
+      notebook_id: props.targetSpaceId || spacesStore.currentSpaceId || undefined
     });
     toast.success('Folder created');
     emit('created');

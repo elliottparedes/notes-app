@@ -126,7 +126,7 @@ export function useNoteEditor() {
       let isFirstChunk = true;
       
       await streamAIResponse(
-        '/api/notes/polish',
+        '/api/pages/polish',
         {
           title: originalNoteTitle || 'Untitled Note',
           content: originalNoteContent || ''
@@ -200,7 +200,7 @@ export function useNoteEditor() {
       let isFirstChunk = true;
 
       await streamAIResponse(
-        '/api/notes/ask-ai',
+        '/api/pages/ask-ai',
         {
           title: originalNoteTitle || 'Untitled Note',
           content: originalNoteContent || '',
@@ -260,7 +260,7 @@ export function useNoteEditor() {
 
       toast.info('Generating PDF...');
 
-      const response = await $fetch(`/api/notes/${activeNote.id}/download-pdf`, {
+      const response = await $fetch(`/api/pages/${activeNote.id}/download-pdf`, {
         method: 'GET',
         headers: {
           Authorization: `Bearer ${authStore.token}`,

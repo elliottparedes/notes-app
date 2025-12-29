@@ -9,8 +9,8 @@ interface KanbanCardRow {
   content: string | null;
   status: string;
   card_order: number;
-  folder_id: number | null;
-  space_id: number | null;
+  section_id: number | null;
+  notebook_id: number | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -22,18 +22,18 @@ export default defineEventHandler(async (event): Promise<KanbanCard[]> => {
   let sql = `SELECT * FROM kanban_cards WHERE user_id = ?`;
   const params: (string | number)[] = [userId];
 
-  if (query.folder_id) {
-    sql += ` AND folder_id = ?`;
-    params.push(parseInt(query.folder_id as string));
-  } else if (query.space_id) {
+  if (query.section_id) {
+    sql += ` AND section_id = ?`;
+    params.push(parseInt(query.section_id as string));
+  } else if (query.notebook_id) {
     // If filtering by space, get all folders in that space
     const folderRows = await executeQuery<{ id: number }[]>(
-      `SELECT id FROM folders WHERE user_id = ? AND space_id = ?`,
-      [userId, parseInt(query.space_id as string)]
+      `SELECT id FROM sections WHERE user_id = ? AND notebook_id = ?`,
+      [userId, parseInt(query.notebook_id as string)]
     );
     const folderIds = folderRows.map(row => row.id);
     if (folderIds.length > 0) {
-      sql += ` AND folder_id IN (${folderIds.map(() => '?').join(',')})`;
+      sql += ` AND section_id IN (${folderIds.map(() => '?').join(',')})`;
       params.push(...folderIds);
     } else {
       // No folders in space, no cards to show for this space
@@ -53,8 +53,8 @@ export default defineEventHandler(async (event): Promise<KanbanCard[]> => {
       content: row.content,
       status: row.status,
       card_order: row.card_order,
-      folder_id: row.folder_id,
-      space_id: row.space_id,
+      section_id: row.section_id,
+      notebook_id: row.notebook_id,
       created_at: row.created_at,
       updated_at: row.updated_at,
     }));

@@ -1,5 +1,6 @@
-import { executeQuery } from '../../utils/db';
 import { requireAuth } from '../../utils/auth';
+import { updateSectionOrder, getSectionOrder } from '../../utils/order-persistence';
+import { executeQuery } from '../../utils/db';
 
 interface UpdateFolderOrderDto {
   folder_order: string[];
@@ -10,11 +11,9 @@ interface FolderOrderResponse {
 }
 
 export default defineEventHandler(async (event): Promise<FolderOrderResponse> => {
-  // Authenticate user
   const userId = await requireAuth(event);
 
   try {
-    // Parse request body
     const body = await readBody<UpdateFolderOrderDto>(event);
 
     if (!body || !Array.isArray(body.folder_order)) {
@@ -24,7 +23,7 @@ export default defineEventHandler(async (event): Promise<FolderOrderResponse> =>
       });
     }
 
-    // Validate that all items are strings
+    // Validate that all items are strings (for backward compatibility with old format)
     if (!body.folder_order.every(item => typeof item === 'string')) {
       throw createError({
         statusCode: 400,
@@ -32,20 +31,40 @@ export default defineEventHandler(async (event): Promise<FolderOrderResponse> =>
       });
     }
 
-    // Convert array to JSON string for MySQL
-    const folderOrderJson = JSON.stringify(body.folder_order);
+    // Convert string IDs to numbers (old format used string IDs like "folder_5")
+    // Actually the old format just had folder IDs as numbers in an array
+    // Parse them if they're numeric strings
+    const sectionIds = body.folder_order.map(id => {
+      const parsed = parseInt(id);
+      return isNaN(parsed) ? id : parsed;
+    }).filter(id => typeof id === 'number') as number[];
 
-    // Update folder order
-    await executeQuery(
-      'UPDATE users SET folder_order = ? WHERE id = ?',
-      [folderOrderJson, userId]
+    // Get all sections to determine their notebook_ids
+    const sections = await executeQuery<Array<{ id: number; notebook_id: number }>>(
+      'SELECT id, notebook_id FROM sections WHERE user_id = ? AND id IN (?)',
+      [userId, sectionIds.length > 0 ? sectionIds : [0]]
     );
+
+    // Group sections by notebook
+    const sectionsByNotebook = new Map<number, number[]>();
+    sections.forEach(section => {
+      if (!sectionsByNotebook.has(section.notebook_id)) {
+        sectionsByNotebook.set(section.notebook_id, []);
+      }
+      sectionsByNotebook.get(section.notebook_id)!.push(section.id);
+    });
+
+    // Update order for each notebook
+    for (const [notebookId, notebookSectionIds] of sectionsByNotebook) {
+      // Preserve the order from the original array
+      const orderedSections = sectionIds.filter(id => notebookSectionIds.includes(id));
+      await updateSectionOrder(userId, notebookId, orderedSections);
+    }
 
     return {
       folder_order: body.folder_order
     };
   } catch (error: unknown) {
-    // If it's already a createError, rethrow it
     if (error && typeof error === 'object' && 'statusCode' in error) {
       throw error;
     }
@@ -57,4 +76,3 @@ export default defineEventHandler(async (event): Promise<FolderOrderResponse> =>
     });
   }
 });
-

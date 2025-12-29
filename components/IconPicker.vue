@@ -242,7 +242,7 @@ async function handleFileUpload(event: Event) {
     const formData = new FormData();
     formData.append('file', file);
 
-    const { url } = await $fetch<{ url: string }>('/api/folders/upload-icon', {
+    const { url } = await $fetch<{ url: string }>('/api/sections/upload-icon', {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${authStore.token}`

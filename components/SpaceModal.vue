@@ -1,16 +1,16 @@
 <script setup lang="ts">
-import type { Space, CreateSpaceDto, UpdateSpaceDto } from '~/models';
+import type { Space, CreateNotebookDto, UpdateNotebookDto } from '~/models';
 import { useSpacesStore } from '~/stores/spaces';
 
 const props = defineProps<{
   isOpen: boolean;
-  space?: Space | null;
+  space?: Notebook | null;
 }>();
 
 const emit = defineEmits<{
   (e: 'update:isOpen', value: boolean): void;
-  (e: 'created', space: Space): void;
-  (e: 'updated', space: Space): void;
+  (e: 'created', space: Notebook): void;
+  (e: 'updated', space: Notebook): void;
 }>();
 
 const spacesStore = useSpacesStore();
@@ -22,13 +22,13 @@ const spaceIcon = ref<string | null>(null);
 const loading = ref(false);
 
 // Reset form when modal opens/closes or space changes
-watch([() => props.isOpen, () => props.space?.id], async ([isOpen, spaceId], [oldIsOpen, oldSpaceId]) => {
+watch([() => props.isOpen, () => props.space?.id], async ([isOpen, notebookId], [oldIsOpen, oldSpaceId]) => {
   // Only reset when modal opens or space actually changes (by ID)
-  if (isOpen && (isOpen !== oldIsOpen || spaceId !== oldSpaceId)) {
+  if (isOpen && (isOpen !== oldIsOpen || notebookId !== oldSpaceId)) {
     if (props.space) {
       spaceName.value = props.space.name;
       // Only update icon if space changed or we're opening the modal
-      if (spaceId !== oldSpaceId || !oldIsOpen) {
+      if (notebookId !== oldSpaceId || !oldIsOpen) {
         spaceIcon.value = props.space.icon;
       }
     } else {
@@ -65,7 +65,7 @@ async function handleSubmit() {
   try {
     if (props.space) {
       // Update existing space - always include icon to prevent it from being reset
-      const updateData: UpdateSpaceDto = {
+      const updateData: UpdateNotebookDto = {
         name: spaceName.value.trim()
       };
       

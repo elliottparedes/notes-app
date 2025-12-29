@@ -13,14 +13,14 @@ export interface Note {
   share_permission?: 'viewer' | 'editor';
 }
 
-export interface CreateNoteDto {
+export interface CreatePageDto {
   title: string;
   content: string;
   tags?: string[];
   folder_id?: number | null;
 }
 
-export interface UpdateNoteDto {
+export interface UpdatePageDto {
   title?: string;
   content?: string;
   tags?: string[];
@@ -29,7 +29,7 @@ export interface UpdateNoteDto {
   folder_id?: number | null;
 }
 
-export interface NoteFilters {
+export interface PageFilters {
   search?: string;
   folder?: string; // Legacy
   folder_id?: number | null; // New
