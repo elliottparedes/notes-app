@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import ApiKeysSettings from '~/components/settings/ApiKeysSettings.vue';
+import type { UserInvitationWithUser } from '~/models/UserInvitation';
 
 const authStore = useAuthStore();
 const toast = useToast();
@@ -9,6 +10,13 @@ const router = useRouter();
 const profileName = ref(authStore.user?.name || '');
 const profilePictureInput = ref<HTMLInputElement | null>(null);
 const uploadingProfilePicture = ref(false);
+
+// Sharing state
+const inviteEmail = ref('');
+const inviting = ref(false);
+const pendingInvitations = ref<Array<{ id: number; invited_email: string; created_at: Date }>>([]);
+const sharedWithUsers = ref<UserInvitationWithUser[]>([]);
+const loadingSharing = ref(false);
 
 // Cached profile picture
 const { cachedImageUrl: cachedProfilePicture, reload: reloadProfilePicture } = useCachedProfilePicture(
@@ -202,6 +210,100 @@ async function handleChangePassword() {
 function goBack() {
   router.back();
 }
+
+// Sharing functions
+async function loadSharingData() {
+  loadingSharing.value = true;
+  try {
+    const [invitations, shared] = await Promise.all([
+      $fetch<Array<{ id: number; invited_email: string; created_at: Date }>>('/api/sharing/invitations', {
+        headers: { Authorization: `Bearer ${authStore.token}` }
+      }),
+      $fetch<UserInvitationWithUser[]>('/api/sharing/shared-with', {
+        headers: { Authorization: `Bearer ${authStore.token}` }
+      })
+    ]);
+    pendingInvitations.value = invitations;
+    sharedWithUsers.value = shared;
+  } catch (error: any) {
+    toast.add({
+      title: 'Error',
+      description: 'Failed to load sharing data',
+      color: 'error'
+    });
+  } finally {
+    loadingSharing.value = false;
+  }
+}
+
+async function handleInviteUser() {
+  if (!inviteEmail.value.trim() || !inviteEmail.value.includes('@')) {
+    toast.add({
+      title: 'Error',
+      description: 'Please enter a valid email address',
+      color: 'error'
+    });
+    return;
+  }
+
+  inviting.value = true;
+  try {
+    await $fetch('/api/sharing/invite', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${authStore.token}` },
+      body: { email: inviteEmail.value.trim() }
+    });
+
+    toast.add({
+      title: 'Success',
+      description: 'Invitation sent successfully!',
+      color: 'success'
+    });
+
+    inviteEmail.value = '';
+    await loadSharingData();
+  } catch (error: any) {
+    toast.add({
+      title: 'Error',
+      description: error.data?.message || 'Failed to send invitation',
+      color: 'error'
+    });
+  } finally {
+    inviting.value = false;
+  }
+}
+
+async function handleRevokeAccess(userId: number, userName: string) {
+  if (!confirm(`Are you sure you want to revoke access for ${userName}? They will no longer be able to see your notes.`)) {
+    return;
+  }
+
+  try {
+    await $fetch(`/api/sharing/revoke/${userId}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${authStore.token}` }
+    });
+
+    toast.add({
+      title: 'Success',
+      description: 'Access revoked successfully',
+      color: 'success'
+    });
+
+    await loadSharingData();
+  } catch (error: any) {
+    toast.add({
+      title: 'Error',
+      description: error.data?.message || 'Failed to revoke access',
+      color: 'error'
+    });
+  }
+}
+
+// Load sharing data on mount
+onMounted(() => {
+  loadSharingData();
+});
 </script>
 
 <template>
@@ -512,18 +614,129 @@ function goBack() {
             :disabled="isLoggingOut"
             class="w-full px-4 py-2 bg-white dark:bg-gray-800 text-red-600 dark:text-red-400 text-sm font-normal border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 active:bg-gray-100 dark:active:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
           >
-            <UIcon 
-              v-if="isLoggingOut" 
-              name="i-heroicons-arrow-path" 
-              class="w-4 h-4 animate-spin" 
+            <UIcon
+              v-if="isLoggingOut"
+              name="i-heroicons-arrow-path"
+              class="w-4 h-4 animate-spin"
             />
-            <UIcon 
+            <UIcon
               v-else
-              name="i-heroicons-arrow-right-on-rectangle" 
-              class="w-4 h-4" 
+              name="i-heroicons-arrow-right-on-rectangle"
+              class="w-4 h-4"
             />
             <span>{{ isLoggingOut ? 'Signing Out...' : 'Sign Out' }}</span>
           </button>
+        </div>
+      </div>
+
+      <!-- Sharing Settings -->
+      <div class="mb-6 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800">
+        <div class="px-4 py-3 border-b border-gray-300 dark:border-gray-700">
+          <h2 class="text-base font-semibold text-gray-900 dark:text-white">Sharing</h2>
+          <p class="text-xs text-gray-600 dark:text-gray-400 mt-0.5">
+            Invite others to view and edit all your notes
+          </p>
+        </div>
+        <div class="p-4 space-y-6">
+          <!-- Invite Form -->
+          <div>
+            <label class="block text-sm font-normal text-gray-700 dark:text-gray-300 mb-2">
+              Invite by Email
+            </label>
+            <div class="flex gap-2">
+              <UInput
+                v-model="inviteEmail"
+                type="email"
+                placeholder="Enter email address"
+                size="md"
+                :disabled="inviting"
+                class="flex-1"
+                :ui="{ rounded: 'rounded-none' }"
+                @keyup.enter="handleInviteUser"
+              />
+              <button
+                @click="handleInviteUser"
+                :disabled="inviting || !inviteEmail.trim()"
+                class="px-4 py-2 bg-blue-600 dark:bg-blue-500 text-white text-sm font-normal border border-blue-700 dark:border-blue-600 hover:bg-blue-700 dark:hover:bg-blue-600 active:bg-blue-800 dark:active:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2 whitespace-nowrap"
+              >
+                <UIcon
+                  v-if="inviting"
+                  name="i-heroicons-arrow-path"
+                  class="w-4 h-4 animate-spin"
+                />
+                <span>{{ inviting ? 'Sending...' : 'Send Invite' }}</span>
+              </button>
+            </div>
+            <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+              When they sign up or log in with this email, they'll automatically get access to all your content (and you'll get access to theirs).
+            </p>
+          </div>
+
+          <!-- Pending Invitations -->
+          <div v-if="pendingInvitations.length > 0" class="pt-4 border-t border-gray-300 dark:border-gray-700">
+            <h3 class="text-sm font-normal text-gray-700 dark:text-gray-300 mb-2">
+              Pending Invitations ({{ pendingInvitations.length }})
+            </h3>
+            <div class="space-y-2">
+              <div
+                v-for="invitation in pendingInvitations"
+                :key="invitation.id"
+                class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600"
+              >
+                <div class="flex items-center gap-3">
+                  <UIcon name="i-heroicons-envelope" class="w-4 h-4 text-gray-400" />
+                  <div>
+                    <div class="text-sm text-gray-900 dark:text-white">{{ invitation.invited_email }}</div>
+                    <div class="text-xs text-gray-500 dark:text-gray-400">
+                      Invited {{ new Date(invitation.created_at).toLocaleDateString() }}
+                    </div>
+                  </div>
+                </div>
+                <span class="text-xs text-yellow-600 dark:text-yellow-400 font-normal">Pending</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Shared With Users -->
+          <div v-if="sharedWithUsers.length > 0" class="pt-4 border-t border-gray-300 dark:border-gray-700">
+            <h3 class="text-sm font-normal text-gray-700 dark:text-gray-300 mb-2">
+              Sharing With ({{ sharedWithUsers.length }})
+            </h3>
+            <div class="space-y-2">
+              <div
+                v-for="user in sharedWithUsers"
+                :key="user.id"
+                class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600"
+              >
+                <div class="flex items-center gap-3">
+                  <UIcon name="i-heroicons-user" class="w-4 h-4 text-green-500" />
+                  <div>
+                    <div class="text-sm text-gray-900 dark:text-white">{{ user.name }}</div>
+                    <div class="text-xs text-gray-500 dark:text-gray-400">{{ user.email }}</div>
+                  </div>
+                </div>
+                <button
+                  @click="handleRevokeAccess(user.invited_user_id!, user.name || 'this user')"
+                  class="text-xs text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 font-normal"
+                >
+                  Revoke
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Empty State -->
+          <div v-if="!loadingSharing && pendingInvitations.length === 0 && sharedWithUsers.length === 0" class="text-center py-8">
+            <UIcon name="i-heroicons-user-group" class="w-12 h-12 text-gray-300 dark:text-gray-600 mx-auto mb-3" />
+            <p class="text-sm text-gray-500 dark:text-gray-400">
+              No users shared with yet. Invite someone to get started!
+            </p>
+          </div>
+
+          <!-- Loading State -->
+          <div v-if="loadingSharing" class="text-center py-8">
+            <UIcon name="i-heroicons-arrow-path" class="w-8 h-8 text-gray-400 animate-spin mx-auto" />
+          </div>
         </div>
       </div>
 

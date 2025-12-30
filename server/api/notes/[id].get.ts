@@ -1,6 +1,7 @@
 import type { Note } from '../../../models';
 import { executeQuery, parseJsonField } from '../../utils/db';
 import { requireAuth } from '../../utils/auth';
+import { canAccessContent } from '../../utils/sharing';
 
 interface NoteRow {
   id: string;
@@ -13,8 +14,8 @@ interface NoteRow {
   section_id: number | null;
   created_at: Date;
   updated_at: Date;
-  share_permission: 'viewer' | 'editor' | null;
-  is_shared: number;
+  modified_by_id: number | null;
+  modified_by_name: string | null;
 }
 
 export default defineEventHandler(async (event): Promise<Note> => {
@@ -30,24 +31,31 @@ export default defineEventHandler(async (event): Promise<Note> => {
   }
 
   try {
-    // Fetch note - include shared notes the user has access to
+    // Fetch note
     const rows = await executeQuery<NoteRow[]>(
-      `SELECT n.*, 
-        sn.permission as share_permission,
-        (SELECT COUNT(*) FROM shared_pages WHERE page_id = n.id) > 0 as is_shared
-       FROM pages n
-       LEFT JOIN shared_pages sn ON n.id = sn.page_id AND sn.shared_with_user_id = ?
-       WHERE n.id = ? AND (n.user_id = ? OR sn.shared_with_user_id IS NOT NULL)
+      `SELECT id, user_id, title, content, tags, is_favorite, folder, section_id,
+              created_at, updated_at, modified_by_id, modified_by_name
+       FROM pages
+       WHERE id = ?
        LIMIT 1`,
-      [userId, noteId, userId]
+      [noteId]
     );
 
     const row = rows[0];
-    
+
     if (!row) {
       throw createError({
         statusCode: 404,
-        message: 'Note not found or access denied'
+        message: 'Note not found'
+      });
+    }
+
+    // Check if user has access to this note
+    const hasAccess = await canAccessContent(row.user_id, userId);
+    if (!hasAccess) {
+      throw createError({
+        statusCode: 403,
+        message: 'Access denied'
       });
     }
 
@@ -63,8 +71,8 @@ export default defineEventHandler(async (event): Promise<Note> => {
       section_id: row.section_id || null,
       created_at: row.created_at,
       updated_at: row.updated_at,
-      is_shared: Boolean(row.is_shared),
-      share_permission: row.share_permission || undefined
+      modified_by_id: row.modified_by_id || undefined,
+      modified_by_name: row.modified_by_name || undefined
     };
 
     return note;

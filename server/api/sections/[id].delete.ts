@@ -1,24 +1,25 @@
 import { requireAuth } from '~/server/utils/auth';
 import { executeQuery } from '~/server/utils/db';
+import { canAccessContent } from '~/server/utils/sharing';
 import type { Folder } from '~/models';
 
 export default defineEventHandler(async (event) => {
   const userId = await requireAuth(event);
   const folderId = parseInt(event.context.params?.id as string);
-  
+
   if (isNaN(folderId)) {
     throw createError({
       statusCode: 400,
       statusMessage: 'Invalid folder ID'
     });
   }
-  
+
   try {
-    // Verify folder exists and belongs to user
+    // Verify folder exists
     const folders = await executeQuery<Folder[]>(`
-      SELECT id FROM sections
-      WHERE id = ? AND user_id = ?
-    `, [folderId, userId]);
+      SELECT id, user_id FROM sections
+      WHERE id = ?
+    `, [folderId]);
 
     if (folders.length === 0) {
       throw createError({
@@ -27,30 +28,26 @@ export default defineEventHandler(async (event) => {
       });
     }
 
-    // Get note IDs that will be deleted (for cleaning up shared_notes)
-    const notesInFolder = await executeQuery<{ id: string }[]>(`
-      SELECT id FROM pages 
-      WHERE section_id = ? AND user_id = ?
-    `, [folderId, userId]);
+    const folderOwnerId = folders[0].user_id;
+
+    // Check if user has access to this folder
+    const hasAccess = await canAccessContent(folderOwnerId, userId);
+    if (!hasAccess) {
+      throw createError({
+        statusCode: 403,
+        statusMessage: 'Access denied'
+      });
+    }
 
     // Delete notes in this folder
     await executeQuery(`
-      DELETE FROM pages 
-      WHERE section_id = ? AND user_id = ?
-    `, [folderId, userId]);
-
-    // Delete shared note entries for these notes (if any)
-    if (notesInFolder.length > 0) {
-      const noteIds = notesInFolder.map(n => n.id);
-      await executeQuery(`
-        DELETE FROM shared_notes 
-        WHERE page_id IN (${noteIds.map(() => '?').join(',')})
-      `, noteIds);
-    }
+      DELETE FROM pages
+      WHERE section_id = ?
+    `, [folderId]);
 
     // Delete the folder
     await executeQuery(`
-      DELETE FROM sections 
+      DELETE FROM sections
       WHERE id = ?
     `, [folderId]);
 

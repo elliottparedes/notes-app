@@ -83,6 +83,32 @@ export default defineEventHandler(async (event): Promise<AuthResponse> => {
       console.error('Failed to create default space for user:', spaceError);
     }
 
+    // Check for pending user invitations and auto-accept with bidirectional sharing
+    const pendingInvites = await executeQuery<Array<{
+      id: number;
+      owner_id: number;
+    }>>(
+      'SELECT id, owner_id FROM user_invitations WHERE invited_email = ? AND status = "pending"',
+      [user.email]
+    );
+
+    for (const invite of pendingInvites) {
+      // Accept the invitation
+      await executeQuery(
+        'UPDATE user_invitations SET status = "accepted", invited_user_id = ? WHERE id = ?',
+        [user.id, invite.id]
+      );
+
+      // Create reverse invitation for bidirectional sharing
+      await executeQuery(
+        `INSERT INTO user_invitations (owner_id, invited_email, invited_user_id, status)
+         SELECT ?, email, ?, 'accepted'
+         FROM users WHERE id = ?
+         ON DUPLICATE KEY UPDATE status = 'accepted', invited_user_id = ?`,
+        [user.id, invite.owner_id, invite.owner_id, invite.owner_id]
+      );
+    }
+
     // Generate JWT token
     const token = generateToken(user);
 

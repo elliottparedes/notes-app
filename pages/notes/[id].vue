@@ -814,6 +814,10 @@ onUnmounted(() => {
                 <UIcon name="i-heroicons-clock" class="w-3.5 h-3.5" />
                 {{ formatDate(currentNote.updated_at) }}
               </span>
+              <span v-if="currentNote?.modified_by_name" class="flex items-center gap-1">
+                <UIcon name="i-heroicons-user" class="w-3.5 h-3.5" />
+                Last modified by {{ currentNote.modified_by_name }}
+              </span>
             </ClientOnly>
             <span class="flex items-center gap-1">
               <UIcon name="i-heroicons-document-text" class="w-3.5 h-3.5" />

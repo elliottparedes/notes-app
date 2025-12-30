@@ -9,8 +9,8 @@ export interface Note {
   folder_id: number | null;
   created_at: string | Date;
   updated_at: string | Date;
-  is_shared: boolean;
-  share_permission?: 'viewer' | 'editor';
+  modified_by_id?: number;
+  modified_by_name?: string;
 }
 
 export interface CreatePageDto {

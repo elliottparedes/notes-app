@@ -1,6 +1,7 @@
-import type { Note } from '../../../models';
+import type { Page } from '../../../models';
 import { executeQuery, parseJsonField } from '../../utils/db';
 import { requireAuth } from '../../utils/auth';
+import { getAllAccessibleUserIds } from '../../utils/sharing';
 
 interface NoteRow {
   id: string;
@@ -13,8 +14,8 @@ interface NoteRow {
   section_id: number | null;
   created_at: Date;
   updated_at: Date;
-  share_permission: 'viewer' | 'editor' | null;
-  is_shared: number;
+  modified_by_id: number | null;
+  modified_by_name: string | null;
 }
 
 export default defineEventHandler(async (event): Promise<Page[]> => {
@@ -22,19 +23,21 @@ export default defineEventHandler(async (event): Promise<Page[]> => {
   const userId = await requireAuth(event);
 
   try {
-    // Fetch all notes for the user (owned + shared with them)
+    // Get all user IDs that this user can access (self + shared users)
+    const accessibleUserIds = await getAllAccessibleUserIds(userId);
+
+    // Fetch all notes from accessible users
+    const placeholders = accessibleUserIds.map(() => '?').join(',');
     const rows = await executeQuery<NoteRow[]>(
-      `SELECT DISTINCT n.*, 
-        sn.permission as share_permission,
-        (SELECT COUNT(*) FROM shared_pages WHERE page_id = n.id) > 0 as is_shared
-       FROM pages n
-       LEFT JOIN shared_pages sn ON n.id = sn.page_id AND sn.shared_with_user_id = ?
-       WHERE n.user_id = ? OR sn.shared_with_user_id IS NOT NULL
-       ORDER BY n.updated_at DESC`,
-      [userId, userId]
+      `SELECT id, user_id, title, content, tags, is_favorite, folder, section_id,
+              created_at, updated_at, modified_by_id, modified_by_name
+       FROM pages
+       WHERE user_id IN (${placeholders})
+       ORDER BY updated_at DESC`,
+      accessibleUserIds
     );
 
-    // Transform database rows to Note objects
+    // Transform database rows to Page objects
     const notes: Page[] = rows.map((row: NoteRow) => ({
       id: row.id,
       user_id: row.user_id,
@@ -46,8 +49,8 @@ export default defineEventHandler(async (event): Promise<Page[]> => {
       section_id: row.section_id || null,
       created_at: row.created_at,
       updated_at: row.updated_at,
-      is_shared: Boolean(row.is_shared),
-      share_permission: row.share_permission || undefined
+      modified_by_id: row.modified_by_id || undefined,
+      modified_by_name: row.modified_by_name || undefined
     }));
 
     return notes;

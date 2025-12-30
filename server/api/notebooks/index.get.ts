@@ -1,17 +1,22 @@
 import { requireAuth } from '~/server/utils/auth';
 import { executeQuery, parseJsonField } from '~/server/utils/db';
+import { getAllAccessibleUserIds } from '~/server/utils/sharing';
 import type { Space } from '~/models';
 
 export default defineEventHandler(async (event) => {
   const userId = await requireAuth(event);
-  
+
   try {
-    // Fetch spaces
+    // Get all user IDs that this user can access (self + shared users)
+    const accessibleUserIds = await getAllAccessibleUserIds(userId);
+
+    // Fetch spaces from all accessible users
+    const placeholders = accessibleUserIds.map(() => '?').join(',');
     const spaces = await executeQuery<Space[]>(`
       SELECT id, user_id, name, color, icon, created_at, updated_at
       FROM notebooks
-      WHERE user_id = ?
-    `, [userId]);
+      WHERE user_id IN (${placeholders})
+    `, accessibleUserIds);
 
     // Get order
     const userResults = await executeQuery<Array<{ space_order: string | null }>>(

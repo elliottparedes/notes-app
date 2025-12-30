@@ -1,4 +1,4 @@
-import type { CreatePageDto, Note } from '../../../models';
+import type { CreatePageDto, Page } from '../../../models';
 import type { ResultSetHeader } from 'mysql2';
 import { executeQuery, parseJsonField } from '../../utils/db';
 import { requireAuth } from '../../utils/auth';
@@ -15,6 +15,8 @@ interface NoteRow {
   section_id: number | null;
   created_at: Date;
   updated_at: Date;
+  modified_by_id: number | null;
+  modified_by_name: string | null;
 }
 
 export default defineEventHandler(async (event): Promise<Page> => {
@@ -29,24 +31,33 @@ export default defineEventHandler(async (event): Promise<Page> => {
   }
 
   try {
+    // Get user's name for modification tracking
+    const userRows = await executeQuery<Array<{ name: string }>>(
+      'SELECT name FROM users WHERE id = ?',
+      [userId]
+    );
+    const userName = userRows[0]?.name || 'Unknown User';
+
     // Generate UUID for the new note
     const noteId = randomUUID();
 
     // Prepare tags as JSON
-    const tagsJson = body.tags && body.tags.length > 0 
-      ? JSON.stringify(body.tags) 
+    const tagsJson = body.tags && body.tags.length > 0
+      ? JSON.stringify(body.tags)
       : null;
 
-    // Insert note with UUID
+    // Insert note with UUID and modification tracking
     await executeQuery<ResultSetHeader>(
-      'INSERT INTO pages (id, user_id, title, content, tags, section_id) VALUES (?, ?, ?, ?, ?, ?)',
+      'INSERT INTO pages (id, user_id, title, content, tags, section_id, modified_by_id, modified_by_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
       [
         noteId,
         userId,
         title,
         body.content || null,
         tagsJson,
-        body.section_id || null
+        body.section_id || null,
+        userId,
+        userName
       ]
     );
 
@@ -64,7 +75,7 @@ export default defineEventHandler(async (event): Promise<Page> => {
       });
     }
 
-    // Transform to Note object
+    // Transform to Page object
     const note: Page = {
       id: row.id,
       user_id: row.user_id,
@@ -76,8 +87,8 @@ export default defineEventHandler(async (event): Promise<Page> => {
       section_id: row.section_id || null,
       created_at: row.created_at,
       updated_at: row.updated_at,
-      is_shared: false, // New notes are not shared by default
-      share_permission: undefined // Creator has full ownership, not a shared permission
+      modified_by_id: row.modified_by_id || undefined,
+      modified_by_name: row.modified_by_name || undefined
     };
 
     // Track note creation in analytics (fire and forget)

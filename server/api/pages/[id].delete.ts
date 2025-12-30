@@ -1,9 +1,6 @@
 import { executeQuery } from '../../utils/db';
 import { requireAuth } from '../../utils/auth';
-
-interface NoteRow {
-  id: string;
-}
+import { canAccessContent } from '../../utils/sharing';
 
 export default defineEventHandler(async (event): Promise<{ success: boolean }> => {
   // Authenticate user
@@ -18,10 +15,10 @@ export default defineEventHandler(async (event): Promise<{ success: boolean }> =
   }
 
   try {
-    // Check if note exists and belongs to user
-    const existingRows = await executeQuery<NoteRow[]>(
-      'SELECT id FROM pages WHERE id = ? AND user_id = ?',
-      [noteId, userId]
+    // Check if note exists
+    const existingRows = await executeQuery<Array<{ id: string; user_id: number }>>(
+      'SELECT id, user_id FROM pages WHERE id = ?',
+      [noteId]
     );
 
     if (existingRows.length === 0) {
@@ -31,10 +28,21 @@ export default defineEventHandler(async (event): Promise<{ success: boolean }> =
       });
     }
 
+    const noteOwnerId = existingRows[0].user_id;
+
+    // Check if user has access to this note
+    const hasAccess = await canAccessContent(noteOwnerId, userId);
+    if (!hasAccess) {
+      throw createError({
+        statusCode: 403,
+        message: 'Access denied'
+      });
+    }
+
     // Delete note (attachments will be cascade deleted)
     await executeQuery(
-      'DELETE FROM pages WHERE id = ? AND user_id = ?',
-      [noteId, userId]
+      'DELETE FROM pages WHERE id = ?',
+      [noteId]
     );
 
     return { success: true };

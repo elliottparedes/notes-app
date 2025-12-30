@@ -1,20 +1,26 @@
 import { requireAuth } from '~/server/utils/auth';
 import { executeQuery, parseJsonField } from '~/server/utils/db';
+import { getAllAccessibleUserIds } from '~/server/utils/sharing';
 import type { Folder } from '~/models';
 
 export default defineEventHandler(async (event) => {
   const userId = await requireAuth(event);
   const query = getQuery(event);
   const spaceId = query.notebook_id ? parseInt(query.notebook_id as string) : null;
-  
+
   try {
-    // Get all folders for the user, optionally filtered by notebook_id
+    // Get all user IDs that this user can access (self + shared users)
+    const accessibleUserIds = await getAllAccessibleUserIds(userId);
+
+    // Get all folders from accessible users, optionally filtered by notebook_id
+    const placeholders = accessibleUserIds.map(() => '?').join(',');
+    const params = spaceId ? [...accessibleUserIds, spaceId] : accessibleUserIds;
     const folders = await executeQuery<Folder[]>(`
       SELECT id, user_id, name, icon, parent_id, notebook_id, created_at, updated_at
       FROM sections
-      WHERE user_id = ?${spaceId ? ' AND notebook_id = ?' : ''}
+      WHERE user_id IN (${placeholders})${spaceId ? ' AND notebook_id = ?' : ''}
       ORDER BY created_at ASC
-    `, spaceId ? [userId, spaceId] : [userId]);
+    `, params);
 
     // Get user's folder order preference
     const userResults = await executeQuery<Array<{ folder_order: string | null }>>(

@@ -1,6 +1,7 @@
 import type { UpdateNoteDto, Note } from '../../../models';
 import { executeQuery, parseJsonField } from '../../utils/db';
 import { requireAuth } from '../../utils/auth';
+import { canAccessContent } from '../../utils/sharing';
 
 interface NoteRow {
   id: string;
@@ -13,6 +14,8 @@ interface NoteRow {
   section_id: number | null;
   created_at: Date;
   updated_at: Date;
+  modified_by_id: number | null;
+  modified_by_name: string | null;
 }
 
 export default defineEventHandler(async (event): Promise<Note> => {
@@ -29,23 +32,36 @@ export default defineEventHandler(async (event): Promise<Note> => {
   }
 
   try {
-    // Check if note exists and user has permission (owner or shared with editor permission)
-    const existingRows = await executeQuery<any[]>(
-      `SELECT n.id, n.user_id, sn.permission 
-       FROM pages n
-       LEFT JOIN shared_notes sn ON n.id = sn.page_id AND sn.shared_with_user_id = ?
-       WHERE n.id = ? AND (n.user_id = ? OR sn.permission = 'editor')`,
-      [userId, noteId, userId]
+    // Check if note exists
+    const existingRows = await executeQuery<Array<{ id: string; user_id: number }>>(
+      'SELECT id, user_id FROM pages WHERE id = ?',
+      [noteId]
     );
 
     if (existingRows.length === 0) {
       throw createError({
         statusCode: 404,
-        message: 'Note not found or you do not have permission to edit'
+        message: 'Note not found'
       });
     }
 
     const noteOwnerId = existingRows[0].user_id;
+
+    // Check if user has access to this note
+    const hasAccess = await canAccessContent(noteOwnerId, userId);
+    if (!hasAccess) {
+      throw createError({
+        statusCode: 403,
+        message: 'Access denied'
+      });
+    }
+
+    // Get user's name for modification tracking
+    const userRows = await executeQuery<Array<{ name: string }>>(
+      'SELECT name FROM users WHERE id = ?',
+      [userId]
+    );
+    const userName = userRows[0]?.name || 'Unknown User';
 
     // Build update query dynamically
     const updates: string[] = [];
@@ -94,7 +110,13 @@ export default defineEventHandler(async (event): Promise<Note> => {
       });
     }
 
-    // Add WHERE clause parameters - use noteId only (allow shared editors to update)
+    // Add modification tracking
+    updates.push('modified_by_id = ?');
+    values.push(userId);
+    updates.push('modified_by_name = ?');
+    values.push(userName);
+
+    // Add WHERE clause parameters
     values.push(noteId);
 
     // Execute update
@@ -103,16 +125,14 @@ export default defineEventHandler(async (event): Promise<Note> => {
       values
     );
 
-    // Fetch updated note WITH sharing information
-    const rows = await executeQuery<any[]>(
-      `SELECT n.*, 
-        sn.permission as share_permission,
-        (SELECT COUNT(*) FROM shared_notes WHERE page_id = n.id) > 0 as is_shared
-       FROM pages n
-       LEFT JOIN shared_notes sn ON n.id = sn.page_id AND sn.shared_with_user_id = ?
-       WHERE n.id = ?
+    // Fetch updated note
+    const rows = await executeQuery<NoteRow[]>(
+      `SELECT id, user_id, title, content, tags, is_favorite, folder, section_id,
+              created_at, updated_at, modified_by_id, modified_by_name
+       FROM pages
+       WHERE id = ?
        LIMIT 1`,
-      [userId, noteId]
+      [noteId]
     );
 
     const row = rows[0];
@@ -135,8 +155,8 @@ export default defineEventHandler(async (event): Promise<Note> => {
       section_id: row.section_id || null,
       created_at: row.created_at,
       updated_at: row.updated_at,
-      is_shared: Boolean(row.is_shared),
-      share_permission: row.share_permission || undefined
+      modified_by_id: row.modified_by_id || undefined,
+      modified_by_name: row.modified_by_name || undefined
     };
 
     return note;
