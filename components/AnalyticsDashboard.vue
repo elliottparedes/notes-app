@@ -16,15 +16,73 @@ interface AnalyticsStats {
   copilot_usage: number;
 }
 
+interface CachedAnalytics {
+  data: AnalyticsStats;
+  timestamp: number;
+}
+
+const CACHE_KEY = 'analytics_cache';
+const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
+
+function getCachedStats(): AnalyticsStats | null {
+  if (!process.client) return null;
+
+  try {
+    const cached = localStorage.getItem(CACHE_KEY);
+    if (!cached) return null;
+
+    const cachedData: CachedAnalytics = JSON.parse(cached);
+    const now = Date.now();
+
+    // Check if cache is still valid (less than 24 hours old)
+    if (now - cachedData.timestamp < CACHE_DURATION) {
+      return cachedData.data;
+    }
+
+    // Cache expired, remove it
+    localStorage.removeItem(CACHE_KEY);
+    return null;
+  } catch (error) {
+    console.error('Error reading analytics cache:', error);
+    return null;
+  }
+}
+
+function setCachedStats(data: AnalyticsStats) {
+  if (!process.client) return;
+
+  try {
+    const cacheData: CachedAnalytics = {
+      data,
+      timestamp: Date.now()
+    };
+    localStorage.setItem(CACHE_KEY, JSON.stringify(cacheData));
+  } catch (error) {
+    console.error('Error caching analytics:', error);
+  }
+}
+
 async function loadStats() {
   try {
     isLoading.value = true;
+
+    // Try to load from cache first
+    const cachedStats = getCachedStats();
+    if (cachedStats) {
+      stats.value = cachedStats;
+      isLoading.value = false;
+      return;
+    }
+
+    // No valid cache, fetch fresh data
     const data = await $fetch<AnalyticsStats>(`/api/analytics/stats?period=30`, {
       headers: {
         Authorization: `Bearer ${authStore.token}`
       }
     });
+
     stats.value = data;
+    setCachedStats(data);
   } catch (error) {
     console.error('Failed to load analytics:', error);
   } finally {
