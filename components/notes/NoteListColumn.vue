@@ -37,7 +37,7 @@
     </div>
 
     <!-- Note List -->
-    <div class="notes-scroll flex-1 overflow-y-auto">
+    <div class="notes-scroll flex-1 overflow-y-auto note-list-scrollbar">
       <!-- Loading State -->
       <div v-if="notesStore.loading && displayNotes.length === 0" class="p-8 text-center text-gray-500">
         <UIcon name="i-heroicons-arrow-path" class="w-8 h-8 mx-auto animate-spin mb-2" />

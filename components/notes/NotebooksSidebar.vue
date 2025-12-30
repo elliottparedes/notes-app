@@ -29,17 +29,26 @@
           <UIcon name="i-heroicons-magnifying-glass" class="w-4 h-4" />
         </button>
       </div>
-      <button
-        @click="$emit('open-create-space')"
-        class="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400 transition-colors"
-        title="New Notebook"
-      >
-        <UIcon name="i-heroicons-plus" class="w-4 h-4" />
-      </button>
+      <div class="flex items-center gap-0.5">
+        <button
+          @click="toggleExpandAll"
+          class="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400 transition-colors"
+          :title="areAllExpanded ? 'Collapse All Notebooks' : 'Expand All Notebooks'"
+        >
+          <UIcon :name="areAllExpanded ? 'i-heroicons-arrows-pointing-in' : 'i-heroicons-arrows-pointing-out'" class="w-4 h-4" />
+        </button>
+        <button
+          @click="$emit('open-create-space')"
+          class="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400 transition-colors"
+          title="New Notebook"
+        >
+          <UIcon name="i-heroicons-plus" class="w-4 h-4" />
+        </button>
+      </div>
     </div>
 
     <!-- Notebooks List -->
-    <div class="flex-1 overflow-y-auto overflow-x-hidden p-1">
+    <div class="flex-1 overflow-y-auto overflow-x-hidden p-1 notebook-scrollbar">
       <TransitionGroup name="space-list">
         <div
           v-for="space in spacesStore.spaces"
@@ -298,6 +307,24 @@ function copyId(id: number) {
   if (process.client) {
     navigator.clipboard.writeText(String(id));
     toast.success('Notebook ID copied to clipboard');
+  }
+}
+
+// Expand/Collapse all functionality
+const areAllExpanded = computed(() => {
+  return spacesStore.spaces.length > 0 &&
+         spacesStore.spaces.every(space => spacesStore.expandedSpaceIds.has(space.id));
+});
+
+function toggleExpandAll() {
+  if (areAllExpanded.value) {
+    // Collapse all
+    spacesStore.expandedSpaceIds.clear();
+    spacesStore.expandedSpaceIds = new Set(); // Trigger reactivity
+  } else {
+    // Expand all
+    const allSpaceIds = spacesStore.spaces.map(space => space.id);
+    spacesStore.expandedSpaceIds = new Set(allSpaceIds);
   }
 }
 
@@ -896,5 +923,52 @@ onMounted(() => {
 /* Folder list transition animations */
 .folder-list-move {
   transition: transform 0.3s ease;
+}
+
+/* Ultra-thin sexy scrollbar for notebook list */
+.notebook-scrollbar::-webkit-scrollbar {
+  width: 2px;
+}
+
+.notebook-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.notebook-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 10px;
+  transition: all 0.3s ease;
+}
+
+.notebook-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.3);
+  width: 3px;
+}
+
+.notebook-scrollbar::-webkit-scrollbar-thumb:active {
+  background: rgba(0, 0, 0, 0.4);
+}
+
+/* Dark mode */
+.dark .notebook-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.dark .notebook-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.dark .notebook-scrollbar::-webkit-scrollbar-thumb:active {
+  background: rgba(255, 255, 255, 0.4);
+}
+
+/* Firefox */
+.notebook-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 0, 0, 0.15) transparent;
+}
+
+.dark .notebook-scrollbar {
+  scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
 }
 </style>
