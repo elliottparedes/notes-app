@@ -2,6 +2,7 @@ import type { CreatePageDto, Page } from '../../../models';
 import type { ResultSetHeader } from 'mysql2';
 import { executeQuery, parseJsonField } from '../../utils/db';
 import { requireAuth } from '../../utils/auth';
+import { canAccessContent } from '../../utils/sharing';
 import { randomUUID } from 'crypto';
 
 interface NoteRow {
@@ -31,6 +32,36 @@ export default defineEventHandler(async (event): Promise<Page> => {
   }
 
   try {
+    // If section_id is provided, validate access and get section owner
+    let noteOwnerId = userId;
+    if (body.section_id) {
+      const sections = await executeQuery<Array<{ user_id: number }>>(
+        'SELECT user_id FROM sections WHERE id = ?',
+        [body.section_id]
+      );
+
+      if (sections.length === 0) {
+        throw createError({
+          statusCode: 400,
+          statusMessage: 'Section not found'
+        });
+      }
+
+      const sectionOwnerId = sections[0].user_id;
+
+      // Check if user has access to this section
+      const hasAccess = await canAccessContent(sectionOwnerId, userId);
+      if (!hasAccess) {
+        throw createError({
+          statusCode: 403,
+          statusMessage: 'Access denied to this section'
+        });
+      }
+
+      // Use section owner's ID for the note to maintain consistency
+      noteOwnerId = sectionOwnerId;
+    }
+
     // Get user's name for modification tracking
     const userRows = await executeQuery<Array<{ name: string }>>(
       'SELECT name FROM users WHERE id = ?',
@@ -51,7 +82,7 @@ export default defineEventHandler(async (event): Promise<Page> => {
       'INSERT INTO pages (id, user_id, title, content, tags, section_id, modified_by_id, modified_by_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
       [
         noteId,
-        userId,
+        noteOwnerId,
         title,
         body.content || null,
         tagsJson,

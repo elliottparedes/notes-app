@@ -1,5 +1,6 @@
 import { requireAuth } from '~/server/utils/auth';
 import { executeQuery } from '~/server/utils/db';
+import { canAccessContent } from '~/server/utils/sharing';
 import type { UpdateSectionDto, Folder } from '~/models';
 
 export default defineEventHandler(async (event) => {
@@ -16,12 +17,12 @@ export default defineEventHandler(async (event) => {
   const body = await readBody<UpdateSectionDto>(event);
   
   try {
-    // Verify folder exists and belongs to user
+    // Verify folder exists
     const folders = await executeQuery<Folder[]>(`
       SELECT id, user_id, notebook_id, name, icon, parent_id
       FROM sections
-      WHERE id = ? AND user_id = ?
-    `, [folderId, userId]);
+      WHERE id = ?
+    `, [folderId]);
 
     if (folders.length === 0) {
       throw createError({
@@ -29,13 +30,15 @@ export default defineEventHandler(async (event) => {
         statusMessage: 'Folder not found'
       });
     }
-    
+
     const folder = folders[0];
-    
-    if (!folder) {
+
+    // Check if user has access to this folder
+    const hasAccess = await canAccessContent(folder.user_id, userId);
+    if (!hasAccess) {
       throw createError({
-        statusCode: 404,
-        statusMessage: 'Folder not found'
+        statusCode: 403,
+        statusMessage: 'Access denied'
       });
     }
 
@@ -43,7 +46,7 @@ export default defineEventHandler(async (event) => {
     if (body.name && body.name.trim() !== folder.name) {
       const existing = await executeQuery<any[]>(`
         SELECT id FROM sections WHERE user_id = ? AND name = ? AND notebook_id = ? AND parent_id IS NULL AND id != ?
-      `, [userId, body.name.trim(), folder.notebook_id, folderId]);
+      `, [folder.user_id, body.name.trim(), folder.notebook_id, folderId]);
 
       if (existing.length > 0) {
         throw createError({
@@ -68,15 +71,24 @@ export default defineEventHandler(async (event) => {
     }
 
     if (body.notebook_id !== undefined) {
-      // Check if space exists and belongs to user
+      // Check if space exists and user has access
       const spaces = await executeQuery<any[]>(`
-        SELECT id FROM notebooks WHERE id = ? AND user_id = ?
-      `, [body.notebook_id, userId]);
+        SELECT id, user_id FROM notebooks WHERE id = ?
+      `, [body.notebook_id]);
 
       if (spaces.length === 0) {
         throw createError({
           statusCode: 400,
           statusMessage: 'Space not found'
+        });
+      }
+
+      // Check if user has access to target space
+      const hasAccessToTarget = await canAccessContent(spaces[0].user_id, userId);
+      if (!hasAccessToTarget) {
+        throw createError({
+          statusCode: 403,
+          statusMessage: 'Access denied to target space'
         });
       }
 

@@ -360,9 +360,26 @@ export const useFoldersStore = defineStore('folders', {
           localStorage.removeItem(cacheKey);
         }
 
-        // Refresh folders
-        await this.fetchFolders();
-      } catch (err: unknown) {
+        // Refresh folders - pass null to fetch ALL folders and bypass cache
+        await this.fetchFolders(null, false);
+      } catch (err: any) {
+        // If 404, the folder is already deleted - refresh the list to remove it from UI
+        if (err?.statusCode === 404 || err?.response?.status === 404) {
+          // Get folder info before it's gone from local state
+          const folder = this.getFolderById(id);
+          const folderNotebookId = folder?.notebook_id;
+
+          // Invalidate cache
+          if (process.client && folderNotebookId) {
+            const cacheKey = `folders_cache_${folderNotebookId}`;
+            localStorage.removeItem(cacheKey);
+          }
+          // Refresh to remove stale folder from UI - fetch ALL folders to bypass cache
+          await this.fetchFolders(null, false);
+          // Don't throw error since the desired state (folder gone) is achieved
+          return;
+        }
+
         this.error = err instanceof Error ? err.message : 'Failed to delete folder';
         throw err;
       } finally {

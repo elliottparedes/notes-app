@@ -1,5 +1,6 @@
 import { requireAuth } from '~/server/utils/auth';
 import { executeQuery } from '~/server/utils/db';
+import { canAccessContent } from '~/server/utils/sharing';
 import type { UpdateNotebookDto, Space } from '~/models';
 
 export default defineEventHandler(async (event) => {
@@ -30,11 +31,11 @@ export default defineEventHandler(async (event) => {
   }
   
   try {
-    // Verify space exists and belongs to user
-    const existing = await executeQuery<Space[]>(`
-      SELECT id FROM notebooks 
-      WHERE id = ? AND user_id = ?
-    `, [spaceId, userId]);
+    // Verify space exists
+    const existing = await executeQuery<Array<{ id: number; user_id: number }>>(`
+      SELECT id, user_id FROM notebooks
+      WHERE id = ?
+    `, [spaceId]);
 
     if (existing.length === 0) {
       throw createError({
@@ -43,12 +44,23 @@ export default defineEventHandler(async (event) => {
       });
     }
 
+    const spaceOwnerId = existing[0].user_id;
+
+    // Check if user has access to this space
+    const hasAccess = await canAccessContent(spaceOwnerId, userId);
+    if (!hasAccess) {
+      throw createError({
+        statusCode: 403,
+        statusMessage: 'Access denied'
+      });
+    }
+
     // Check if name change would conflict with another space
     if (body.name) {
       const nameConflict = await executeQuery<any[]>(`
-        SELECT id FROM notebooks 
+        SELECT id FROM notebooks
         WHERE user_id = ? AND name = ? AND id != ?
-      `, [userId, body.name.trim(), spaceId]);
+      `, [spaceOwnerId, body.name.trim(), spaceId]);
 
       if (nameConflict.length > 0) {
         throw createError({
@@ -76,13 +88,13 @@ export default defineEventHandler(async (event) => {
     }
 
     updates.push('updated_at = NOW()');
-    values.push(spaceId, userId);
+    values.push(spaceId);
 
     // Update the space
     await executeQuery(`
-      UPDATE notebooks 
+      UPDATE notebooks
       SET ${updates.join(', ')}
-      WHERE id = ? AND user_id = ?
+      WHERE id = ?
     `, values);
 
     // Fetch the updated space

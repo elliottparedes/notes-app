@@ -1,5 +1,6 @@
 import { requireAuth } from '~/server/utils/auth';
 import { executeQuery } from '~/server/utils/db';
+import { canAccessContent } from '~/server/utils/sharing';
 import type { CreateSectionDto, Folder } from '~/models';
 
 export default defineEventHandler(async (event) => {
@@ -17,26 +18,38 @@ export default defineEventHandler(async (event) => {
   try {
     // Determine notebook_id: from body or from user's first space
     let spaceId: number;
-    
+    let spaceOwnerId: number;
+
     if (body.notebook_id) {
-      // Verify space belongs to user
+      // Verify space exists and user has access
       const space = await executeQuery<any[]>(`
-        SELECT id FROM notebooks WHERE id = ? AND user_id = ?
-      `, [body.notebook_id, userId]);
-      
+        SELECT id, user_id FROM notebooks WHERE id = ?
+      `, [body.notebook_id]);
+
       if (space.length === 0) {
         throw createError({
           statusCode: 400,
-          statusMessage: 'Space not found or does not belong to user'
+          statusMessage: 'Space not found'
         });
       }
+
+      // Check if user has access to this space
+      const hasAccess = await canAccessContent(space[0].user_id, userId);
+      if (!hasAccess) {
+        throw createError({
+          statusCode: 403,
+          statusMessage: 'Access denied'
+        });
+      }
+
       spaceId = body.notebook_id;
+      spaceOwnerId = space[0].user_id;
     } else {
       // Get user's first space as default
       const spaces = await executeQuery<any[]>(`
-        SELECT id FROM notebooks WHERE user_id = ? ORDER BY created_at ASC LIMIT 1
+        SELECT id, user_id FROM notebooks WHERE user_id = ? ORDER BY created_at ASC LIMIT 1
       `, [userId]);
-      
+
       if (spaces.length === 0) {
         throw createError({
           statusCode: 400,
@@ -44,12 +57,13 @@ export default defineEventHandler(async (event) => {
         });
       }
       spaceId = spaces[0].id;
+      spaceOwnerId = spaces[0].user_id;
     }
 
-    // Check if folder with same name already exists for this user in the same space
+    // Check if folder with same name already exists in the same space (by notebook owner)
     const existing = await executeQuery<any[]>(`
       SELECT id FROM sections WHERE user_id = ? AND name = ? AND notebook_id = ? AND parent_id IS NULL
-    `, [userId, body.name.trim(), spaceId]);
+    `, [spaceOwnerId, body.name.trim(), spaceId]);
 
     if (existing.length > 0) {
       throw createError({
@@ -59,10 +73,11 @@ export default defineEventHandler(async (event) => {
     }
 
     // Create the folder (always root-level, parent_id is NULL)
+    // Use notebook owner's ID to maintain consistency
     const result: any = await executeQuery(`
       INSERT INTO sections (user_id, notebook_id, name, icon, parent_id, created_at, updated_at)
       VALUES (?, ?, ?, ?, NULL, NOW(), NOW())
-    `, [userId, spaceId, body.name.trim(), body.icon || null]);
+    `, [spaceOwnerId, spaceId, body.name.trim(), body.icon || null]);
 
     // Fetch the created folder
     const folders = await executeQuery<Folder[]>(`
@@ -75,8 +90,8 @@ export default defineEventHandler(async (event) => {
 
     // Auto-publish folder if parent space is published
     const publishedSpaceResults = await executeQuery<Array<{ share_id: string }>>(
-      'SELECT share_id FROM published_spaces WHERE notebook_id = ? AND owner_id = ? AND is_active = TRUE',
-      [spaceId, userId]
+      'SELECT share_id FROM published_notebooks WHERE notebook_id = ? AND owner_id = ? AND is_active = TRUE',
+      [spaceId, spaceOwnerId]
     );
 
     if (publishedSpaceResults.length > 0) {
@@ -85,7 +100,7 @@ export default defineEventHandler(async (event) => {
       const folderShareId = randomUUID();
       await executeQuery(
         'INSERT INTO published_sections (section_id, share_id, owner_id, is_active) VALUES (?, ?, ?, TRUE)',
-        [folder.id, folderShareId, userId]
+        [folder.id, folderShareId, spaceOwnerId]
       );
     }
 

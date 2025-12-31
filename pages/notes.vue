@@ -16,6 +16,7 @@ import NoteListColumn from '~/components/notes/NoteListColumn.vue';
 import NoteEditorPanel from '~/components/notes/NoteEditorPanel.vue';
 import CreateFolderModal from '~/components/notes/CreateFolderModal.vue';
 import DeleteSpaceModal from '~/components/notes/DeleteSpaceModal.vue';
+import DeleteFolderModal from '~/components/notes/DeleteFolderModal.vue';
 
 // Composables
 const { formatDate, formatTime, formatHeaderDate, getNoteLocation, getOrderedNotesForFolder } = useNotesFormatting();
@@ -24,7 +25,10 @@ const folderActions = useFolderActions();
 const {
   showCreateFolderModal,
   showFolderEditModal,
+  showDeleteFolderModal,
   editingFolder,
+  deletingFolderId,
+  isDeletingFolder,
   openCreateFolderModal,
   openEditFolderModal,
   newFolderName,
@@ -179,8 +183,16 @@ async function handleFolderSelect(sectionId: number) {
 }
 
 // Wrapped folder delete
-async function handleFolderDelete(sectionId: number) {
-  await folderActions.handleDeleteFolder(sectionId, selectedFolderId);
+function handleFolderDelete(sectionId: number) {
+  folderActions.handleDeleteFolder(sectionId);
+}
+
+async function handleConfirmDeleteFolder() {
+  await folderActions.confirmDeleteFolder(selectedFolderId);
+}
+
+function handleCancelDeleteFolder() {
+  folderActions.cancelDeleteFolder();
 }
 
 // Wrapped space delete confirm
@@ -451,9 +463,17 @@ onUnmounted(() => {
       @created="() => {}"
     />
 
+    <DeleteFolderModal
+      v-model="showDeleteFolderModal"
+      :folder-id="deletingFolderId"
+      :is-deleting="isDeletingFolder"
+      @confirm="handleConfirmDeleteFolder"
+      @cancel="handleCancelDeleteFolder"
+    />
+
     <DeleteSpaceModal
       v-model="showDeleteSpaceModal"
-      :space-id="deletingSpaceId"
+      :notebook-id="deletingSpaceId"
       :is-deleting="isDeletingSpace"
       @confirm="handleConfirmDeleteSpace"
       @cancel="handleCancelDeleteSpace"
