@@ -2,6 +2,7 @@ import type { UpdatePageDto, Page } from '../../../models';
 import { executeQuery, parseJsonField } from '../../utils/db';
 import { requireAuth } from '../../utils/auth';
 import { canAccessContent } from '../../utils/sharing';
+import { logMultipleFieldChanges } from '../../utils/history-log';
 
 interface NoteRow {
   id: string;
@@ -32,9 +33,9 @@ export default defineEventHandler(async (event): Promise<Page> => {
   }
 
   try {
-    // Check if note exists
-    const existingRows = await executeQuery<Array<{ id: string; user_id: number }>>(
-      'SELECT id, user_id FROM pages WHERE id = ?',
+    // Fetch existing note (for ownership check and history logging)
+    const existingRows = await executeQuery<NoteRow[]>(
+      'SELECT * FROM pages WHERE id = ?',
       [noteId]
     );
 
@@ -45,7 +46,8 @@ export default defineEventHandler(async (event): Promise<Page> => {
       });
     }
 
-    const noteOwnerId = existingRows[0].user_id;
+    const oldNote = existingRows[0];
+    const noteOwnerId = oldNote.user_id;
 
     // Check if user has access to this note
     const hasAccess = await canAccessContent(noteOwnerId, userId);
@@ -158,6 +160,30 @@ export default defineEventHandler(async (event): Promise<Page> => {
       modified_by_id: row.modified_by_id || undefined,
       modified_by_name: row.modified_by_name || undefined
     };
+
+    // Log changes to history (fire and forget)
+    logMultipleFieldChanges(
+      'page',
+      noteId,
+      userId,
+      userName,
+      noteOwnerId,
+      {
+        title: oldNote.title,
+        content: oldNote.content,
+        tags: parseJsonField<string[]>(oldNote.tags),
+        is_favorite: Boolean(oldNote.is_favorite),
+        section_id: oldNote.section_id
+      },
+      {
+        title: note.title,
+        content: note.content,
+        tags: note.tags,
+        is_favorite: note.is_favorite,
+        section_id: note.section_id
+      },
+      ['title', 'content', 'tags', 'is_favorite', 'section_id']
+    ).catch(err => console.error('History log error:', err));
 
     return note;
   } catch (error: unknown) {

@@ -1,7 +1,16 @@
 import { requireAuth } from '~/server/utils/auth';
 import { executeQuery } from '~/server/utils/db';
 import { canAccessContent } from '~/server/utils/sharing';
+import { logMultipleFieldChanges } from '~/server/utils/history-log';
 import type { UpdateNotebookDto, Space } from '~/models';
+
+interface NotebookRow {
+  id: number;
+  user_id: number;
+  name: string;
+  color: string | null;
+  icon: string | null;
+}
 
 export default defineEventHandler(async (event) => {
   const userId = await requireAuth(event);
@@ -31,9 +40,9 @@ export default defineEventHandler(async (event) => {
   }
   
   try {
-    // Verify space exists
-    const existing = await executeQuery<Array<{ id: number; user_id: number }>>(`
-      SELECT id, user_id FROM notebooks
+    // Fetch existing notebook (for ownership check and history logging)
+    const existing = await executeQuery<NotebookRow[]>(`
+      SELECT id, user_id, name, color, icon FROM notebooks
       WHERE id = ?
     `, [spaceId]);
 
@@ -44,7 +53,8 @@ export default defineEventHandler(async (event) => {
       });
     }
 
-    const spaceOwnerId = existing[0].user_id;
+    const oldNotebook = existing[0];
+    const spaceOwnerId = oldNotebook.user_id;
 
     // Check if user has access to this space
     const hasAccess = await canAccessContent(spaceOwnerId, userId);
@@ -103,8 +113,29 @@ export default defineEventHandler(async (event) => {
       FROM notebooks
       WHERE id = ?
     `, [spaceId]);
-    
-    return spaces[0];
+
+    const updatedNotebook = spaces[0];
+
+    // Get user's name for history logging
+    const userRows = await executeQuery<Array<{ name: string }>>(
+      'SELECT name FROM users WHERE id = ?',
+      [userId]
+    );
+    const userName = userRows[0]?.name || 'Unknown User';
+
+    // Log changes to history (fire and forget)
+    logMultipleFieldChanges(
+      'notebook',
+      String(spaceId),
+      userId,
+      userName,
+      spaceOwnerId,
+      { name: oldNotebook.name, color: oldNotebook.color, icon: oldNotebook.icon },
+      { name: updatedNotebook.name, color: updatedNotebook.color, icon: updatedNotebook.icon },
+      ['name', 'color', 'icon']
+    ).catch(err => console.error('History log error:', err));
+
+    return updatedNotebook;
   } catch (error: any) {
     console.error('Error updating space:', error);
     

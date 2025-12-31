@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import ApiKeysSettings from '~/components/settings/ApiKeysSettings.vue';
+import AuditLogSettings from '~/components/settings/AuditLogSettings.vue';
 import type { UserInvitationWithUser } from '~/models/UserInvitation';
 
 const authStore = useAuthStore();
@@ -456,6 +457,11 @@ onMounted(() => {
         <div class="p-4">
           <AnalyticsDashboard />
         </div>
+      </div>
+
+      <!-- Activity History / Audit Log -->
+      <div class="mb-6">
+        <AuditLogSettings />
       </div>
 
       <!-- Appearance Settings -->

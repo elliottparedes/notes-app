@@ -1,7 +1,16 @@
 import { requireAuth } from '~/server/utils/auth';
 import { executeQuery } from '~/server/utils/db';
 import { canAccessContent } from '~/server/utils/sharing';
+import { logDelete } from '~/server/utils/history-log';
 import type { Space } from '~/models';
+
+interface NotebookRow {
+  id: number;
+  user_id: number;
+  name: string;
+  color: string | null;
+  icon: string | null;
+}
 
 export default defineEventHandler(async (event) => {
   const userId = await requireAuth(event);
@@ -15,20 +24,21 @@ export default defineEventHandler(async (event) => {
   }
 
   try {
-    // Verify space exists
-    const spaces = await executeQuery<Space[]>(`
-      SELECT id, user_id FROM notebooks
+    // Fetch full notebook data (for history logging)
+    const notebooks = await executeQuery<NotebookRow[]>(`
+      SELECT id, user_id, name, color, icon FROM notebooks
       WHERE id = ?
     `, [spaceId]);
 
-    if (spaces.length === 0) {
+    if (notebooks.length === 0) {
       throw createError({
         statusCode: 404,
         statusMessage: 'Space not found'
       });
     }
 
-    const spaceOwnerId = spaces[0].user_id;
+    const notebook = notebooks[0];
+    const spaceOwnerId = notebook.user_id;
 
     // Check if user has access to this space
     const hasAccess = await canAccessContent(spaceOwnerId, userId);
@@ -71,12 +81,26 @@ export default defineEventHandler(async (event) => {
       `, folderIds);
     }
 
+    // Get user's name for history logging
+    const userRows = await executeQuery<Array<{ name: string }>>(
+      'SELECT name FROM users WHERE id = ?',
+      [userId]
+    );
+    const userName = userRows[0]?.name || 'Unknown User';
+
     // Delete the space (cascade will delete all folders in this space)
     // Note: We already deleted notes, so cascade will just clean up folders
     await executeQuery(`
       DELETE FROM notebooks
       WHERE id = ?
     `, [spaceId]);
+
+    // Log deletion to history (fire and forget)
+    logDelete('notebook', String(spaceId), userId, userName, spaceOwnerId, {
+      name: notebook.name,
+      color: notebook.color,
+      icon: notebook.icon
+    }).catch(err => console.error('History log error:', err));
 
     return { success: true };
   } catch (error: any) {

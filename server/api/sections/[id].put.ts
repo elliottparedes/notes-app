@@ -1,6 +1,7 @@
 import { requireAuth } from '~/server/utils/auth';
 import { executeQuery } from '~/server/utils/db';
 import { canAccessContent } from '~/server/utils/sharing';
+import { logMultipleFieldChanges } from '~/server/utils/history-log';
 import type { UpdateSectionDto, Folder } from '~/models';
 
 export default defineEventHandler(async (event) => {
@@ -116,8 +117,27 @@ export default defineEventHandler(async (event) => {
       FROM sections
       WHERE id = ?
     `, [folderId]);
-    
+
     const updatedFolder = updatedFolders[0];
+
+    // Get user's name for history logging
+    const userRows = await executeQuery<Array<{ name: string }>>(
+      'SELECT name FROM users WHERE id = ?',
+      [userId]
+    );
+    const userName = userRows[0]?.name || 'Unknown User';
+
+    // Log changes to history (fire and forget)
+    logMultipleFieldChanges(
+      'section',
+      String(folderId),
+      userId,
+      userName,
+      folder.user_id,
+      { name: folder.name, icon: folder.icon, notebook_id: folder.notebook_id },
+      { name: updatedFolder.name, icon: updatedFolder.icon, notebook_id: updatedFolder.notebook_id },
+      ['name', 'icon', 'notebook_id']
+    ).catch(err => console.error('History log error:', err));
 
     return updatedFolder;
   } catch (error: any) {

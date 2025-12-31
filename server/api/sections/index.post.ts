@@ -1,6 +1,7 @@
 import { requireAuth } from '~/server/utils/auth';
 import { executeQuery } from '~/server/utils/db';
 import { canAccessContent } from '~/server/utils/sharing';
+import { logCreate } from '~/server/utils/history-log';
 import type { CreateSectionDto, Folder } from '~/models';
 
 export default defineEventHandler(async (event) => {
@@ -103,6 +104,20 @@ export default defineEventHandler(async (event) => {
         [folder.id, folderShareId, spaceOwnerId]
       );
     }
+
+    // Get user's name for history logging
+    const userRows = await executeQuery<Array<{ name: string }>>(
+      'SELECT name FROM users WHERE id = ?',
+      [userId]
+    );
+    const userName = userRows[0]?.name || 'Unknown User';
+
+    // Log creation to history (fire and forget)
+    logCreate('section', String(folder.id), userId, userName, spaceOwnerId, {
+      name: folder.name,
+      icon: folder.icon,
+      notebook_id: folder.notebook_id
+    }).catch(err => console.error('History log error:', err));
 
     return folder;
   } catch (error: any) {

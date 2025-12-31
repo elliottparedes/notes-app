@@ -15,4 +15,13 @@ export type {
   PublishedFolderWithDetails,
   PublishedSpaceWithDetails
 } from './Published';
+export type {
+  HistoryLog,
+  HistoryLogWithEntity,
+  HistoryLogFilters,
+  HistoryLogResponse,
+  EntityType,
+  ActionType,
+  ContributingUser
+} from './HistoryLog';
 

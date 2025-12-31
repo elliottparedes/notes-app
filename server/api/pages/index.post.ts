@@ -3,6 +3,7 @@ import type { ResultSetHeader } from 'mysql2';
 import { executeQuery, parseJsonField } from '../../utils/db';
 import { requireAuth } from '../../utils/auth';
 import { canAccessContent } from '../../utils/sharing';
+import { logCreate } from '../../utils/history-log';
 import { randomUUID } from 'crypto';
 
 interface NoteRow {
@@ -125,13 +126,13 @@ export default defineEventHandler(async (event): Promise<Page> => {
     // Track note creation in analytics (fire and forget)
     try {
       await executeQuery(
-        `INSERT INTO analytics_events (user_id, event_type, event_data, created_at) 
+        `INSERT INTO analytics_events (user_id, event_type, event_data, created_at)
          VALUES (?, ?, ?, NOW())`,
         [
           userId,
           'note_created',
-          JSON.stringify({ 
-            page_id: note.id, 
+          JSON.stringify({
+            page_id: note.id,
             title: note.title,
             section_id: note.section_id || null
           })
@@ -141,6 +142,14 @@ export default defineEventHandler(async (event): Promise<Page> => {
       // Ignore analytics errors - don't break note creation
       console.error('Analytics tracking error:', error);
     }
+
+    // Log creation to history (fire and forget)
+    logCreate('page', note.id, userId, userName, noteOwnerId, {
+      title: note.title,
+      content: note.content,
+      tags: note.tags,
+      section_id: note.section_id
+    }).catch(err => console.error('History log error:', err));
 
     return note;
   } catch (error: unknown) {

@@ -1,7 +1,16 @@
 import { requireAuth } from '~/server/utils/auth';
 import { executeQuery } from '~/server/utils/db';
 import { canAccessContent } from '~/server/utils/sharing';
+import { logDelete } from '~/server/utils/history-log';
 import type { Folder } from '~/models';
+
+interface SectionRow {
+  id: number;
+  user_id: number;
+  name: string;
+  icon: string | null;
+  notebook_id: number;
+}
 
 export default defineEventHandler(async (event) => {
   const userId = await requireAuth(event);
@@ -15,9 +24,9 @@ export default defineEventHandler(async (event) => {
   }
 
   try {
-    // Verify folder exists
-    const folders = await executeQuery<Folder[]>(`
-      SELECT id, user_id FROM sections
+    // Fetch full folder data (for history logging)
+    const folders = await executeQuery<SectionRow[]>(`
+      SELECT id, user_id, name, icon, notebook_id FROM sections
       WHERE id = ?
     `, [folderId]);
 
@@ -28,7 +37,8 @@ export default defineEventHandler(async (event) => {
       });
     }
 
-    const folderOwnerId = folders[0].user_id;
+    const section = folders[0];
+    const folderOwnerId = section.user_id;
 
     // Check if user has access to this folder
     const hasAccess = await canAccessContent(folderOwnerId, userId);
@@ -38,6 +48,13 @@ export default defineEventHandler(async (event) => {
         statusMessage: 'Access denied'
       });
     }
+
+    // Get user's name for history logging
+    const userRows = await executeQuery<Array<{ name: string }>>(
+      'SELECT name FROM users WHERE id = ?',
+      [userId]
+    );
+    const userName = userRows[0]?.name || 'Unknown User';
 
     // Delete notes in this folder
     await executeQuery(`
@@ -50,6 +67,13 @@ export default defineEventHandler(async (event) => {
       DELETE FROM sections
       WHERE id = ?
     `, [folderId]);
+
+    // Log deletion to history (fire and forget)
+    logDelete('section', String(folderId), userId, userName, folderOwnerId, {
+      name: section.name,
+      icon: section.icon,
+      notebook_id: section.notebook_id
+    }).catch(err => console.error('History log error:', err));
 
     return { success: true, deletedCount: 1 };
   } catch (error: any) {

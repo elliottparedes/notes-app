@@ -1,5 +1,6 @@
 import { requireAuth } from '~/server/utils/auth';
 import { executeQuery } from '~/server/utils/db';
+import { logCreate } from '~/server/utils/history-log';
 import type { CreateNotebookDto, Space } from '~/models';
 
 export default defineEventHandler(async (event) => {
@@ -42,6 +43,20 @@ export default defineEventHandler(async (event) => {
     `, [result.insertId]);
     
     const space = spaces[0];
+
+    // Get user's name for history logging
+    const userRows = await executeQuery<Array<{ name: string }>>(
+      'SELECT name FROM users WHERE id = ?',
+      [userId]
+    );
+    const userName = userRows[0]?.name || 'Unknown User';
+
+    // Log creation to history (fire and forget)
+    logCreate('notebook', String(space.id), userId, userName, userId, {
+      name: space.name,
+      color: space.color,
+      icon: space.icon
+    }).catch(err => console.error('History log error:', err));
 
     return space;
   } catch (error: any) {
