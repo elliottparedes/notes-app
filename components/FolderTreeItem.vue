@@ -232,8 +232,26 @@ function handleDragEnd(event: DragEvent) {
   emit('drag-end');
 }
 
-// Cleanup on unmount
+// Click outside handler to close menu
+function handleClickOutside(event: MouseEvent) {
+  if (!isMenuOpen.value) return;
+
+  const target = event.target as HTMLElement;
+  // Don't close if clicking on the menu itself or the button
+  if (target.closest('[data-context-menu]') || target.closest('[data-context-menu-button]')) {
+    return;
+  }
+
+  emit('update:openMenuId', null);
+}
+
+// Setup and cleanup click outside listener
+onMounted(() => {
+  document.addEventListener('click', handleClickOutside);
+});
+
 onUnmounted(() => {
+  document.removeEventListener('click', handleClickOutside);
   if (dragStartTimer.value) {
     clearTimeout(dragStartTimer.value);
   }
