@@ -1,7 +1,8 @@
 import type { UpdateNoteDto, Note } from '../../../models';
 import { executeQuery, parseJsonField } from '../../utils/db';
-import { requireAuth } from '../../utils/auth';
+import { getAuthContext } from '../../utils/auth';
 import { canAccessContent } from '../../utils/sharing';
+import { transformContentFromApiRequest, transformContentForApiResponse } from '../../utils/markdown';
 
 interface NoteRow {
   id: string;
@@ -19,8 +20,10 @@ interface NoteRow {
 }
 
 export default defineEventHandler(async (event): Promise<Note> => {
-  // Authenticate user
-  const userId = await requireAuth(event);
+  // Authenticate user and get auth context
+  const authContext = await getAuthContext(event);
+  const userId = authContext.userId;
+  const isApiKeyRequest = authContext.authType === 'api_key';
   const noteId = getRouterParam(event, 'id');
   const body = await readBody<UpdateNoteDto>(event);
 
@@ -80,7 +83,11 @@ export default defineEventHandler(async (event): Promise<Note> => {
 
     if (body.content !== undefined) {
       updates.push('content = ?');
-      values.push(body.content);
+      // Convert markdown to HTML for API key requests
+      const content = isApiKeyRequest
+        ? transformContentFromApiRequest(body.content)
+        : body.content;
+      values.push(content);
     }
 
     if (body.tags !== undefined) {
@@ -148,7 +155,10 @@ export default defineEventHandler(async (event): Promise<Note> => {
       id: row.id,
       user_id: row.user_id,
       title: row.title,
-      content: row.content,
+      // Convert HTML to Markdown for API key requests
+      content: isApiKeyRequest
+        ? transformContentForApiResponse(row.content)
+        : row.content,
       tags: parseJsonField<string[]>(row.tags),
       is_favorite: Boolean(row.is_favorite),
       folder: row.folder,

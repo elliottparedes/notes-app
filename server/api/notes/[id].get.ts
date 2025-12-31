@@ -1,7 +1,8 @@
 import type { Note } from '../../../models';
 import { executeQuery, parseJsonField } from '../../utils/db';
-import { requireAuth } from '../../utils/auth';
+import { getAuthContext } from '../../utils/auth';
 import { canAccessContent } from '../../utils/sharing';
+import { transformContentForApiResponse } from '../../utils/markdown';
 
 interface NoteRow {
   id: string;
@@ -19,9 +20,13 @@ interface NoteRow {
 }
 
 export default defineEventHandler(async (event): Promise<Note> => {
-  // Authenticate user
-  const userId = await requireAuth(event);
+  // Authenticate user and get auth context
+  const authContext = await getAuthContext(event);
+  const userId = authContext.userId;
+  const isApiKeyRequest = authContext.authType === 'api_key';
   const noteId = getRouterParam(event, 'id');
+
+  console.log('[Notes API - Single] Auth type:', authContext.authType, '| isApiKeyRequest:', isApiKeyRequest);
 
   if (!noteId) {
     throw createError({
@@ -64,7 +69,10 @@ export default defineEventHandler(async (event): Promise<Note> => {
       id: row.id,
       user_id: row.user_id,
       title: row.title,
-      content: row.content,
+      // Convert HTML to Markdown for API key requests
+      content: isApiKeyRequest
+        ? transformContentForApiResponse(row.content)
+        : row.content,
       tags: parseJsonField<string[]>(row.tags),
       is_favorite: Boolean(row.is_favorite),
       folder: row.folder,

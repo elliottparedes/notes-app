@@ -1,10 +1,11 @@
 import type { CreatePageDto, Page } from '../../../models';
 import type { ResultSetHeader } from 'mysql2';
 import { executeQuery, parseJsonField } from '../../utils/db';
-import { requireAuth } from '../../utils/auth';
+import { getAuthContext } from '../../utils/auth';
 import { canAccessContent } from '../../utils/sharing';
 import { logCreate } from '../../utils/history-log';
 import { randomUUID } from 'crypto';
+import { transformContentFromApiRequest, transformContentForApiResponse } from '../../utils/markdown';
 
 interface NoteRow {
   id: string;
@@ -19,17 +20,26 @@ interface NoteRow {
   updated_at: Date;
   modified_by_id: number | null;
   modified_by_name: string | null;
+  created_by_name: string | null;
 }
 
 export default defineEventHandler(async (event): Promise<Page> => {
-  // Authenticate user
-  const userId = await requireAuth(event);
+  // Authenticate user and get auth context
+  const authContext = await getAuthContext(event);
+  const userId = authContext.userId;
+  const isApiKeyRequest = authContext.authType === 'api_key';
   const body = await readBody<CreatePageDto>(event);
 
   // Validate input
   let title = body.title;
   if (!title || title.trim() === '') {
     title = 'Untitled';
+  }
+
+  // Convert markdown to HTML for API key requests
+  let content = body.content || null;
+  if (isApiKeyRequest && content) {
+    content = transformContentFromApiRequest(content);
   }
 
   try {
@@ -80,15 +90,16 @@ export default defineEventHandler(async (event): Promise<Page> => {
 
     // Insert note with UUID and modification tracking
     await executeQuery<ResultSetHeader>(
-      'INSERT INTO pages (id, user_id, title, content, tags, section_id, modified_by_id, modified_by_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO pages (id, user_id, title, content, tags, section_id, modified_by_id, modified_by_name, created_by_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
       [
         noteId,
         noteOwnerId,
         title,
-        body.content || null,
+        content,
         tagsJson,
         body.section_id || null,
         userId,
+        userName,
         userName
       ]
     );
@@ -112,7 +123,10 @@ export default defineEventHandler(async (event): Promise<Page> => {
       id: row.id,
       user_id: row.user_id,
       title: row.title,
-      content: row.content,
+      // Convert HTML to Markdown for API key requests
+      content: isApiKeyRequest
+        ? transformContentForApiResponse(row.content)
+        : row.content,
       tags: parseJsonField<string[]>(row.tags),
       is_favorite: Boolean(row.is_favorite),
       folder: row.folder,
@@ -120,7 +134,8 @@ export default defineEventHandler(async (event): Promise<Page> => {
       created_at: row.created_at,
       updated_at: row.updated_at,
       modified_by_id: row.modified_by_id || undefined,
-      modified_by_name: row.modified_by_name || undefined
+      modified_by_name: row.modified_by_name || undefined,
+      created_by_name: row.created_by_name || undefined
     };
 
     // Track note creation in analytics (fire and forget)

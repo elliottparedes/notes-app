@@ -1,8 +1,9 @@
 import type { CreateNoteDto, Note } from '../../../models';
 import type { ResultSetHeader } from 'mysql2';
 import { executeQuery, parseJsonField } from '../../utils/db';
-import { requireAuth } from '../../utils/auth';
+import { getAuthContext } from '../../utils/auth';
 import { randomUUID } from 'crypto';
+import { transformContentFromApiRequest, transformContentForApiResponse } from '../../utils/markdown';
 
 interface NoteRow {
   id: string;
@@ -20,14 +21,22 @@ interface NoteRow {
 }
 
 export default defineEventHandler(async (event): Promise<Note> => {
-  // Authenticate user
-  const userId = await requireAuth(event);
+  // Authenticate user and get auth context
+  const authContext = await getAuthContext(event);
+  const userId = authContext.userId;
+  const isApiKeyRequest = authContext.authType === 'api_key';
   const body = await readBody<CreateNoteDto>(event);
 
   // Validate input
   let title = body.title;
   if (!title || title.trim() === '') {
     title = 'Untitled';
+  }
+
+  // Convert markdown to HTML for API key requests
+  let content = body.content || null;
+  if (isApiKeyRequest && content) {
+    content = transformContentFromApiRequest(content);
   }
 
   try {
@@ -53,7 +62,7 @@ export default defineEventHandler(async (event): Promise<Note> => {
         noteId,
         userId,
         title,
-        body.content || null,
+        content,
         tagsJson,
         body.section_id || null,
         userId,
@@ -80,7 +89,10 @@ export default defineEventHandler(async (event): Promise<Note> => {
       id: row.id,
       user_id: row.user_id,
       title: row.title,
-      content: row.content,
+      // Convert HTML to Markdown for API key requests
+      content: isApiKeyRequest
+        ? transformContentForApiResponse(row.content)
+        : row.content,
       tags: parseJsonField<string[]>(row.tags),
       is_favorite: Boolean(row.is_favorite),
       folder: row.folder,

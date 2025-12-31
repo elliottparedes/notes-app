@@ -54,9 +54,9 @@
         placeholder="Page Title"
         @input="handleTitleChange"
       />
-      <div class="text-xs text-gray-500 dark:text-gray-400 mt-1 flex items-center gap-2">
+      <div class="text-xs text-gray-500 dark:text-gray-400 mt-1 flex items-center gap-2 flex-wrap">
         <ClientOnly>
-          <div class="flex items-center gap-2">
+          <div class="flex items-center gap-2 flex-wrap">
             <template v-if="activeNote">
               <!-- Saved indicator -->
               <div v-if="notesStore.loading" class="flex items-center gap-1.5 text-gray-400">
@@ -67,6 +67,16 @@
                 <UIcon name="i-heroicons-check-circle" class="w-3.5 h-3.5" />
                 <span>Saved</span>
               </div>
+              <span class="text-gray-300 dark:text-gray-600 mx-1">|</span>
+              <!-- Created by -->
+              <span v-if="activeNote.created_by_name">
+                Created by {{ activeNote.created_by_name }}
+              </span>
+              <!-- Updated by -->
+              <template v-if="activeNote.modified_by_name && activeNote.modified_by_name !== activeNote.created_by_name">
+                <span class="text-gray-300 dark:text-gray-600 mx-1">|</span>
+                <span>Updated by {{ activeNote.modified_by_name }}</span>
+              </template>
               <span class="text-gray-300 dark:text-gray-600 mx-1">|</span>
               <span>{{ formatHeaderDate(activeNote.updated_at) }}</span>
             </template>

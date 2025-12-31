@@ -9,16 +9,29 @@ const props = defineProps<{
   action: ActionType;
 }>();
 
+const { htmlToMarkdown } = useHtmlToMarkdown();
+
 // Determine if this is a content/text field that needs line-by-line diff
 const isContentField = computed(() =>
   props.fieldName === 'content' ||
   (!props.fieldName && typeof props.oldValue === 'string' && (props.oldValue as string).length > 100)
 );
 
-// Format value for display
+// Check if a string contains HTML
+function containsHtml(str: string): boolean {
+  return /<[a-z][\s\S]*>/i.test(str);
+}
+
+// Format value for display, converting HTML to Markdown for content fields
 function formatValue(value: unknown): string {
   if (value === null || value === undefined) return '';
-  if (typeof value === 'string') return value;
+  if (typeof value === 'string') {
+    // Convert HTML to Markdown for content fields
+    if (isContentField.value && containsHtml(value)) {
+      return htmlToMarkdown(value);
+    }
+    return value;
+  }
   if (typeof value === 'boolean') return value ? 'Yes' : 'No';
   if (Array.isArray(value)) return value.join(', ');
   return JSON.stringify(value, null, 2);

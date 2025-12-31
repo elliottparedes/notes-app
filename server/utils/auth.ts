@@ -46,25 +46,18 @@ function extractApiKeyFromEvent(event: H3Event): string | null {
  * Get full authentication context with type and scopes
  */
 export async function getAuthContext(event: H3Event): Promise<AuthContext> {
-  // Try JWT first
-  const token = extractTokenFromEvent(event);
-  if (token) {
-    try {
-      const payload = verifyToken(token);
-      return {
-        userId: payload.userId,
-        authType: 'jwt',
-        scopes: ['read', 'write'] // JWT has full access
-      };
-    } catch (error) {
-      // JWT verification failed, try API key
-    }
-  }
+  // Debug logging
+  const authHeader = getHeader(event, 'authorization');
+  const apiKeyHeader = getHeader(event, 'x-api-key');
+  console.log('[Auth] Headers - Authorization:', authHeader?.substring(0, 20) + '...', '| X-API-Key:', apiKeyHeader?.substring(0, 20) + '...');
 
-  // Try API key
+  // Check for API key FIRST - if explicitly provided, use it
+  // This ensures API integrations work even if a JWT cookie exists
   const apiKey = extractApiKeyFromEvent(event);
+  console.log('[Auth] Extracted API key:', apiKey ? 'yes (' + apiKey.substring(0, 10) + '...)' : 'no');
   if (apiKey) {
     const keyData = await verifyApiKey(apiKey);
+    console.log('[Auth] API key verified:', keyData ? 'yes, userId=' + keyData.userId : 'no');
 
     if (!keyData) {
       throw createError({
@@ -87,12 +80,32 @@ export async function getAuthContext(event: H3Event): Promise<AuthContext> {
       });
     }
 
+    console.log('[Auth] Returning authType: api_key');
     return {
       userId: keyData.userId,
       authType: 'api_key',
       scopes: keyData.scopes,
       keyId: keyData.keyId
     };
+  }
+
+  // Try JWT (from header or cookie)
+  const token = extractTokenFromEvent(event);
+  if (token) {
+    try {
+      const payload = verifyToken(token);
+      return {
+        userId: payload.userId,
+        authType: 'jwt',
+        scopes: ['read', 'write'] // JWT has full access
+      };
+    } catch (error) {
+      // JWT verification failed
+      throw createError({
+        statusCode: 401,
+        message: 'Invalid or expired token'
+      });
+    }
   }
 
   throw createError({

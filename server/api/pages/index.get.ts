@@ -1,7 +1,8 @@
 import type { Page } from '../../../models';
 import { executeQuery, parseJsonField } from '../../utils/db';
-import { requireAuth } from '../../utils/auth';
+import { getAuthContext } from '../../utils/auth';
 import { getAllAccessibleUserIds } from '../../utils/sharing';
+import { transformContentForApiResponse } from '../../utils/markdown';
 
 interface NoteRow {
   id: string;
@@ -16,11 +17,16 @@ interface NoteRow {
   updated_at: Date;
   modified_by_id: number | null;
   modified_by_name: string | null;
+  created_by_name: string | null;
 }
 
 export default defineEventHandler(async (event): Promise<Page[]> => {
-  // Authenticate user
-  const userId = await requireAuth(event);
+  // Authenticate user and get auth context
+  const authContext = await getAuthContext(event);
+  const userId = authContext.userId;
+  const isApiKeyRequest = authContext.authType === 'api_key';
+
+  console.log('[Pages API] Auth type:', authContext.authType, '| isApiKeyRequest:', isApiKeyRequest);
 
   try {
     // Get all user IDs that this user can access (self + shared users)
@@ -30,7 +36,7 @@ export default defineEventHandler(async (event): Promise<Page[]> => {
     const placeholders = accessibleUserIds.map(() => '?').join(',');
     const rows = await executeQuery<NoteRow[]>(
       `SELECT id, user_id, title, content, tags, is_favorite, folder, section_id,
-              created_at, updated_at, modified_by_id, modified_by_name
+              created_at, updated_at, modified_by_id, modified_by_name, created_by_name
        FROM pages
        WHERE user_id IN (${placeholders})
        ORDER BY updated_at DESC`,
@@ -42,7 +48,10 @@ export default defineEventHandler(async (event): Promise<Page[]> => {
       id: row.id,
       user_id: row.user_id,
       title: row.title,
-      content: row.content,
+      // Convert HTML to Markdown for API key requests
+      content: isApiKeyRequest
+        ? transformContentForApiResponse(row.content)
+        : row.content,
       tags: parseJsonField<string[]>(row.tags),
       is_favorite: Boolean(row.is_favorite),
       folder: row.folder,
@@ -50,7 +59,8 @@ export default defineEventHandler(async (event): Promise<Page[]> => {
       created_at: row.created_at,
       updated_at: row.updated_at,
       modified_by_id: row.modified_by_id || undefined,
-      modified_by_name: row.modified_by_name || undefined
+      modified_by_name: row.modified_by_name || undefined,
+      created_by_name: row.created_by_name || undefined
     }));
 
     return notes;

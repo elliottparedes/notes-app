@@ -11,6 +11,7 @@ export interface Page {
   updated_at: string | Date;
   modified_by_id?: number;
   modified_by_name?: string;
+  created_by_name?: string;
 }
 
 export interface CreatePageDto {
