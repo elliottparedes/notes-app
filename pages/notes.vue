@@ -288,6 +288,7 @@ onUnmounted(() => {
       <template v-if="!isMobileView">
         <NoteEditorPanel
           v-if="activeNote"
+          :key="activeNote.id"
           :is-fullscreen="isFullscreen"
           :search-query-for-highlight="searchQueryForHighlight"
           @close-note="handleCloseActiveNote"
@@ -305,6 +306,7 @@ onUnmounted(() => {
       <!-- Mobile: Active Note -->
       <template v-else-if="activeNote">
         <NoteEditorPanel
+          :key="activeNote.id"
           :is-fullscreen="false"
           :search-query-for-highlight="searchQueryForHighlight"
           @close-note="handleCloseActiveNote"
