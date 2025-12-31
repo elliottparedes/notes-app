@@ -18,6 +18,7 @@ interface NoteRow {
   updated_at: Date;
   modified_by_id: number | null;
   modified_by_name: string | null;
+  created_by_name: string | null;
 }
 
 export default defineEventHandler(async (event): Promise<Page> => {
@@ -137,7 +138,7 @@ export default defineEventHandler(async (event): Promise<Page> => {
     // Fetch updated note
     const rows = await executeQuery<NoteRow[]>(
       `SELECT id, user_id, title, content, tags, is_favorite, folder, section_id,
-              created_at, updated_at, modified_by_id, modified_by_name
+              created_at, updated_at, modified_by_id, modified_by_name, created_by_name
        FROM pages
        WHERE id = ?
        LIMIT 1`,
@@ -168,7 +169,8 @@ export default defineEventHandler(async (event): Promise<Page> => {
       created_at: row.created_at,
       updated_at: row.updated_at,
       modified_by_id: row.modified_by_id || undefined,
-      modified_by_name: row.modified_by_name || undefined
+      modified_by_name: row.modified_by_name || undefined,
+      created_by_name: row.created_by_name || undefined
     };
 
     // Log changes to history (fire and forget)
