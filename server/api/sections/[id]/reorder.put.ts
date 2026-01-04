@@ -1,5 +1,6 @@
 import { requireAuth } from '~/server/utils/auth';
 import { executeQuery, parseJsonField } from '~/server/utils/db';
+import { canAccessContent, getAllAccessibleUserIds } from '~/server/utils/sharing';
 import type { Folder } from '~/models';
 
 interface ReorderDto {
@@ -9,7 +10,7 @@ interface ReorderDto {
 export default defineEventHandler(async (event) => {
   const userId = await requireAuth(event);
   const folderId = parseInt(event.context.params?.id || '0');
-  
+
   if (!folderId) {
     throw createError({
       statusCode: 400,
@@ -19,7 +20,7 @@ export default defineEventHandler(async (event) => {
 
   try {
     const body = await readBody<ReorderDto>(event);
-    
+
     if (typeof body.newIndex !== 'number' || body.newIndex < 0) {
       throw createError({
         statusCode: 400,
@@ -29,8 +30,8 @@ export default defineEventHandler(async (event) => {
 
     // Get the folder to reorder (including notebook_id)
     const folderResults = await executeQuery<Folder[]>(
-      'SELECT id, user_id, name, parent_id, notebook_id FROM sections WHERE id = ? AND user_id = ?',
-      [folderId, userId]
+      'SELECT id, user_id, name, parent_id, notebook_id FROM sections WHERE id = ?',
+      [folderId]
     );
 
     if (folderResults.length === 0) {
@@ -42,10 +43,21 @@ export default defineEventHandler(async (event) => {
 
     const folder = folderResults[0];
 
-    // Get all folders in the same space (all folders are root-level now)
+    // Check if user has access to this folder
+    const hasAccess = await canAccessContent(folder.user_id, userId);
+    if (!hasAccess) {
+      throw createError({
+        statusCode: 403,
+        statusMessage: 'Access denied'
+      });
+    }
+
+    // Get all folders in the same space from all accessible users
+    const accessibleUserIds = await getAllAccessibleUserIds(userId);
+    const placeholders = accessibleUserIds.map(() => '?').join(',');
     const siblings = await executeQuery<Folder[]>(
-      'SELECT id, user_id, name, parent_id, notebook_id FROM sections WHERE user_id = ? AND notebook_id = ? AND parent_id IS NULL ORDER BY created_at ASC',
-      [userId, folder.notebook_id]
+      `SELECT id, user_id, name, parent_id, notebook_id FROM sections WHERE user_id IN (${placeholders}) AND notebook_id = ? AND parent_id IS NULL ORDER BY created_at ASC`,
+      [...accessibleUserIds, folder.notebook_id]
     );
 
     // Get user's current folder order

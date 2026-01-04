@@ -290,6 +290,7 @@ interface Emits {
   (e: 'edit-folder', folder: any): void
   (e: 'delete-folder', sectionId: number): void
   (e: 'edit-space', space: Notebook): void
+  (e: 'delete-space', notebookId: number): void
 }
 
 const props = defineProps<Props>();
@@ -301,7 +302,7 @@ const authStore = useAuthStore();
 const toast = useToast();
 const { cachedImageUrl: cachedProfilePicture } = useCachedProfilePicture(authStore.user?.id, authStore.user?.profile_picture_url);
 const { handleSidebarResizeStart } = useSidebarResize((width) => emit('update:sidebarWidth', width));
-const { handleSelectSpace, handleDeleteSpace } = useSpaceActions();
+const { handleSelectSpace } = useSpaceActions();
 
 function copyId(id: number) {
   if (process.client) {
@@ -372,7 +373,7 @@ function editSpace(space: Notebook) {
 
 function deleteSpace(notebookId: number) {
   showSpaceMenuId.value = null;
-  handleDeleteSpace(notebookId);
+  emit('delete-space', notebookId);
 }
 
 // Drag and drop handlers for auto-expanding spaces

@@ -313,7 +313,8 @@ async function handleDrop(event: DragEvent) {
 </script>
 
 <template>
-  <!-- Folder Item - Premium Apple Design -->
+  <!-- Folder Item - Premium Apple Design (wrapped in single root for TransitionGroup) -->
+  <div class="folder-tree-item-wrapper">
     <div
     draggable="true"
     class="folder-item group/folder relative flex items-center gap-2 transition-all duration-150 active:bg-gray-100 dark:active:bg-gray-700 cursor-grab active:cursor-grabbing border-l-2 border-t-2"
@@ -433,6 +434,7 @@ async function handleDrop(event: DragEvent) {
         @click="emit('update:openMenuId', null)"
       />
     </Teleport>
+  </div>
 </template>
 
 <style scoped>

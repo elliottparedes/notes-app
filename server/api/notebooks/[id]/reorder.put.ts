@@ -1,5 +1,6 @@
 import { requireAuth } from '~/server/utils/auth';
 import { executeQuery, parseJsonField } from '~/server/utils/db';
+import { canAccessContent, getAllAccessibleUserIds } from '~/server/utils/sharing';
 import type { Space } from '~/models';
 
 interface ReorderDto {
@@ -9,7 +10,7 @@ interface ReorderDto {
 export default defineEventHandler(async (event) => {
   const userId = await requireAuth(event);
   const spaceId = parseInt(event.context.params?.id || '0');
-  
+
   if (!spaceId) {
     throw createError({
       statusCode: 400,
@@ -19,7 +20,7 @@ export default defineEventHandler(async (event) => {
 
   try {
     const body = await readBody<ReorderDto>(event);
-    
+
     if (typeof body.newIndex !== 'number' || body.newIndex < 0) {
       throw createError({
         statusCode: 400,
@@ -27,10 +28,10 @@ export default defineEventHandler(async (event) => {
       });
     }
 
-    // Get the space to verify ownership
-    const spaceResults = await executeQuery<Space[]>(
-      'SELECT id FROM notebooks WHERE id = ? AND user_id = ?',
-      [spaceId, userId]
+    // Get the space to verify it exists
+    const spaceResults = await executeQuery<Array<{ id: number; user_id: number }>>(
+      'SELECT id, user_id FROM notebooks WHERE id = ?',
+      [spaceId]
     );
 
     if (spaceResults.length === 0) {
@@ -40,10 +41,22 @@ export default defineEventHandler(async (event) => {
       });
     }
 
-    // Get all spaces for the user
+    // Check if user has access to this space
+    const spaceOwnerId = spaceResults[0].user_id;
+    const hasAccess = await canAccessContent(spaceOwnerId, userId);
+    if (!hasAccess) {
+      throw createError({
+        statusCode: 403,
+        statusMessage: 'Access denied'
+      });
+    }
+
+    // Get all spaces the user can access
+    const accessibleUserIds = await getAllAccessibleUserIds(userId);
+    const placeholders = accessibleUserIds.map(() => '?').join(',');
     const spaces = await executeQuery<Space[]>(
-      'SELECT id FROM notebooks WHERE user_id = ? ORDER BY created_at ASC',
-      [userId]
+      `SELECT id FROM notebooks WHERE user_id IN (${placeholders}) ORDER BY created_at ASC`,
+      accessibleUserIds
     );
 
     // Get user's current space order

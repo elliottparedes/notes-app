@@ -263,6 +263,7 @@ onUnmounted(() => {
       @select-folder="handleFolderSelect"
       @create-note-in-folder="handleCreateNoteInFolder"
       @delete-folder="handleFolderDelete"
+      @delete-space="handleDeleteSpace"
       @open-search="showSearchModal = true"
       @open-create-space="openCreateSpaceModal"
       @open-create-folder="openCreateFolderModal"
