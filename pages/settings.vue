@@ -35,6 +35,7 @@ const loading = ref(false);
 const showTempPasswordAlert = computed(() => authStore.needsPasswordReset);
 
 const isLoggingOut = ref(false);
+const isExporting = ref(false);
 
 async function handleUpdateProfile() {
   if (!profileName.value.trim()) {
@@ -301,6 +302,51 @@ async function handleRevokeAccess(userId: number, userName: string) {
   }
 }
 
+// Export notes as markdown
+async function handleExportNotes() {
+  isExporting.value = true;
+  try {
+    const response = await $fetch('/api/user/export-notes', {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${authStore.token}`
+      },
+      responseType: 'blob'
+    });
+
+    // Create blob URL and trigger download
+    const blob = new Blob([response], { type: 'application/zip' });
+    const blobUrl = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = blobUrl;
+    const timestamp = new Date().toISOString().split('T')[0];
+    link.download = `unfold-notes-export-${timestamp}.zip`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    // Clean up blob URL
+    setTimeout(() => {
+      window.URL.revokeObjectURL(blobUrl);
+    }, 100);
+
+    toast.add({
+      title: 'Success',
+      description: 'Notes exported successfully!',
+      color: 'success'
+    });
+  } catch (error: any) {
+    console.error('Export error:', error);
+    toast.add({
+      title: 'Error',
+      description: error.data?.message || 'Failed to export notes',
+      color: 'error'
+    });
+  } finally {
+    isExporting.value = false;
+  }
+}
+
 // Load sharing data on mount
 onMounted(() => {
   loadSharingData();
@@ -534,13 +580,52 @@ onMounted(() => {
                 :class="authStore.showDeveloperUI ? 'translate-x-5' : 'translate-x-0'"
               >
                 <span class="absolute inset-0 flex items-center justify-center">
-                  <UIcon 
+                  <UIcon
                     name="i-heroicons-code-bracket"
                     class="h-3.5 w-3.5"
                     :class="authStore.showDeveloperUI ? 'text-blue-600' : 'text-gray-400'"
                   />
                 </span>
               </span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Export Data -->
+      <div class="mb-6 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800">
+        <div class="px-4 py-3 border-b border-gray-300 dark:border-gray-700">
+          <h2 class="text-base font-semibold text-gray-900 dark:text-white">Export Data</h2>
+          <p class="text-xs text-gray-600 dark:text-gray-400 mt-0.5">
+            Download your notes in portable formats
+          </p>
+        </div>
+        <div class="p-4 space-y-4">
+          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div class="flex-1">
+              <label class="block text-sm font-normal text-gray-700 dark:text-gray-300 mb-1">
+                Export as Markdown
+              </label>
+              <p class="text-xs text-gray-600 dark:text-gray-400">
+                Download all your notes as markdown files in a ZIP archive. Compatible with Obsidian, Notion, Bear, and other apps.
+              </p>
+            </div>
+            <button
+              @click="handleExportNotes"
+              :disabled="isExporting"
+              class="px-4 py-2 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-sm font-normal border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 active:bg-gray-100 dark:active:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2 whitespace-nowrap"
+            >
+              <UIcon
+                v-if="isExporting"
+                name="i-heroicons-arrow-path"
+                class="w-4 h-4 animate-spin"
+              />
+              <UIcon
+                v-else
+                name="i-heroicons-arrow-down-tray"
+                class="w-4 h-4"
+              />
+              <span>{{ isExporting ? 'Exporting...' : 'Download ZIP' }}</span>
             </button>
           </div>
         </div>

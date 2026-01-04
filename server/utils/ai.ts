@@ -1,4 +1,11 @@
-export async function streamOpenRouter(apiKey: string, messages: any[], model: string) {
+export async function streamOpenRouter(
+  apiKey: string,
+  messages: any[],
+  model: string,
+  options: { maxTokens?: number; temperature?: number } = {}
+) {
+  const { maxTokens = 16384, temperature = 0.7 } = options;
+
   try {
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
@@ -12,8 +19,8 @@ export async function streamOpenRouter(apiKey: string, messages: any[], model: s
         model,
         messages,
         stream: true,
-        temperature: 0.7,
-        max_tokens: 8192
+        temperature,
+        max_tokens: maxTokens
       })
     });
 
