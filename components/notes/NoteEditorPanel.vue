@@ -52,7 +52,7 @@
         class="w-full text-2xl font-semibold bg-transparent border-none outline-none placeholder-gray-400 dark:placeholder-gray-500 py-2 leading-tight text-gray-900 dark:text-gray-100"
         :class="isMobileView ? 'pr-12' : 'pr-32'"
         placeholder="Page Title"
-        @input="handleTitleChange"
+        @blur="handleTitleChange"
       />
       <div class="text-xs text-gray-500 dark:text-gray-400 mt-1 flex items-center gap-2 flex-wrap">
         <ClientOnly>

@@ -9,25 +9,19 @@ export function useNoteEditor() {
   const isPolishing = ref(false);
   const isAskingAI = ref(false);
 
-  let titleSaveTimeout: NodeJS.Timeout | null = null;
   let contentSaveTimeout: NodeJS.Timeout | null = null;
 
-  function handleTitleChange() {
+  async function handleTitleChange() {
     const activeNote = notesStore.activeNote;
     if (!activeNote) return;
 
-    if (titleSaveTimeout) clearTimeout(titleSaveTimeout);
-
-    titleSaveTimeout = setTimeout(async () => {
-      if (!activeNote) return;
-      try {
-        await notesStore.updateNote(activeNote.id, {
-          title: activeNote.title
-        });
-      } catch (error) {
-        console.error('Failed to save title:', error);
-      }
-    }, 1000);
+    try {
+      await notesStore.updateNote(activeNote.id, {
+        title: activeNote.title
+      });
+    } catch (error) {
+      console.error('Failed to save title:', error);
+    }
   }
 
   async function addTag() {
@@ -113,7 +107,7 @@ export function useNoteEditor() {
 
     isPolishing.value = true;
     await nextTick(); // Ensure loading state is rendered
-    
+
     let accumulatedContent = '';
 
     try {
@@ -124,7 +118,7 @@ export function useNoteEditor() {
 
       let lastUpdate = 0;
       let isFirstChunk = true;
-      
+
       await streamAIResponse(
         '/api/pages/polish',
         {
@@ -133,7 +127,7 @@ export function useNoteEditor() {
         },
         (chunk) => {
           accumulatedContent += chunk;
-          
+
           // Clear content on first chunk to avoid empty editor state during connection
           if (isFirstChunk) {
             if (activeNote.id === originalNoteId) {
@@ -141,7 +135,7 @@ export function useNoteEditor() {
             }
             isFirstChunk = false;
           }
-          
+
           const now = Date.now();
           if (activeNote.id === originalNoteId && now - lastUpdate > 50) {
              activeNote.content = accumulatedContent;
@@ -149,7 +143,7 @@ export function useNoteEditor() {
           }
         }
       );
-      
+
       // Ensure content is up to date after streaming finishes
       if (activeNote.id === originalNoteId) {
         activeNote.content = accumulatedContent;
@@ -187,7 +181,7 @@ export function useNoteEditor() {
 
     isAskingAI.value = true;
     await nextTick(); // Ensure loading state is rendered
-    
+
     let accumulatedContent = '';
 
     try {
@@ -208,7 +202,7 @@ export function useNoteEditor() {
         },
         (chunk) => {
           accumulatedContent += chunk;
-          
+
           // Clear content on first chunk
           if (isFirstChunk) {
             if (activeNote.id === originalNoteId) {
@@ -216,7 +210,7 @@ export function useNoteEditor() {
             }
             isFirstChunk = false;
           }
-          
+
           const now = Date.now();
           if (activeNote.id === originalNoteId && now - lastUpdate > 50) {
             activeNote.content = accumulatedContent;

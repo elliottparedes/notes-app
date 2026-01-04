@@ -325,7 +325,7 @@ async function handleFileUpload(event: Event) {
 
 
 // Auto-save on content change (only when not locked)
-watch([() => editForm.title, () => editForm.content, () => editForm.section_id], () => {
+watch([() => editForm.content, () => editForm.section_id], () => {
   if (isLocked.value) return; // Don't auto-save when locked
   
   if (autoSaveTimeout.value) {
@@ -803,6 +803,7 @@ onUnmounted(() => {
             type="text"
             class="w-full bg-transparent border-none outline-none text-3xl md:text-4xl font-bold text-gray-900 dark:text-white placeholder-gray-400 mb-4 py-3 leading-normal"
             placeholder="Untitled Note"
+            @blur="saveNote(true)"
           />
           <div class="flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400 flex-wrap">
             <span v-if="isLocked" class="flex items-center gap-1 text-amber-600 dark:text-amber-400 font-medium">
