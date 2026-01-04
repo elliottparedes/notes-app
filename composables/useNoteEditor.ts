@@ -1,4 +1,52 @@
 import { nextTick } from 'vue';
+import { marked } from 'marked';
+
+// Configure marked for TipTap-compatible HTML output
+marked.setOptions({
+  gfm: true,
+  breaks: true,
+});
+
+/**
+ * Convert markdown to TipTap-compatible HTML
+ */
+function markdownToHtml(markdown: string): string {
+  if (!markdown || typeof markdown !== 'string') {
+    return '';
+  }
+
+  // Parse markdown to HTML
+  let html = marked.parse(markdown, { async: false }) as string;
+
+  // Post-process for TipTap compatibility
+  html = html
+    // Ensure paragraphs are properly formatted
+    .replace(/<p>\s*<\/p>/g, '<p></p>')
+    // Convert task list items to TipTap format
+    .replace(
+      /<li>\s*\[([ xX])\]\s*/g,
+      (_, checked) => `<li data-type="taskItem" data-checked="${checked.toLowerCase() === 'x'}"><label><input type="checkbox" ${checked.toLowerCase() === 'x' ? 'checked' : ''}></label><div>`
+    )
+    .replace(/<\/li>/g, (match, offset, string) => {
+      // Check if this is a task item by looking backwards
+      const before = string.substring(Math.max(0, offset - 200), offset);
+      if (before.includes('data-type="taskItem"')) {
+        return '</div></li>';
+      }
+      return match;
+    })
+    // Convert task lists to TipTap format
+    .replace(/<ul>\s*(<li data-type="taskItem")/g, '<ul data-type="taskList">$1')
+    // Handle wiki-style note links [[Note Title]]
+    .replace(
+      /\[\[([^\]]+)\]\]/g,
+      '<a data-note-link="true" href="#note:$1">$1</a>'
+    )
+    // Clean up excessive whitespace
+    .trim();
+
+  return html;
+}
 
 export function useNoteEditor() {
   const notesStore = useNotesStore();
@@ -136,22 +184,26 @@ export function useNoteEditor() {
             isFirstChunk = false;
           }
 
+          // Convert markdown to HTML in real-time as it streams
           const now = Date.now();
           if (activeNote.id === originalNoteId && now - lastUpdate > 50) {
-             activeNote.content = accumulatedContent;
+             activeNote.content = markdownToHtml(accumulatedContent);
              lastUpdate = now;
           }
         }
       );
 
-      // Ensure content is up to date after streaming finishes
+      // Final conversion to ensure complete content is rendered
+      const htmlContent = markdownToHtml(accumulatedContent);
+
+      // Update editor with final HTML content
       if (activeNote.id === originalNoteId) {
-        activeNote.content = accumulatedContent;
+        activeNote.content = htmlContent;
       }
 
-      // Final save
+      // Final save with HTML content
       await notesStore.updateNote(originalNoteId, {
-        content: accumulatedContent
+        content: htmlContent
       });
 
       toast.success('Note polished! ✨');
@@ -211,22 +263,26 @@ export function useNoteEditor() {
             isFirstChunk = false;
           }
 
+          // Convert markdown to HTML in real-time as it streams
           const now = Date.now();
           if (activeNote.id === originalNoteId && now - lastUpdate > 50) {
-            activeNote.content = accumulatedContent;
+            activeNote.content = markdownToHtml(accumulatedContent);
             lastUpdate = now;
           }
         }
       );
 
-      // Ensure content is up to date after streaming finishes
+      // Final conversion to ensure complete content is rendered
+      const htmlContent = markdownToHtml(accumulatedContent);
+
+      // Update editor with final HTML content
       if (activeNote.id === originalNoteId) {
-        activeNote.content = accumulatedContent;
+        activeNote.content = htmlContent;
       }
 
-      // Final save
+      // Final save with HTML content
       await notesStore.updateNote(originalNoteId, {
-        content: accumulatedContent
+        content: htmlContent
       });
 
       toast.success('Note updated! ✨');
